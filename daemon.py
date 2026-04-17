@@ -14,9 +14,9 @@ SOCK = "/tmp/harnesless.sock"
 LOG = "/tmp/harnesless.log"
 BUF = 500
 PROFILES = [
-    Path.home() / "Library/Application Support/Google/Chrome",  # macOS
-    Path.home() / ".config/google-chrome",                       # Linux
-    Path.home() / "AppData/Local/Google/Chrome/User Data",       # Windows
+    Path.home() / "Library/Application Support/Google/Chrome",
+    Path.home() / ".config/google-chrome",
+    Path.home() / "AppData/Local/Google/Chrome/User Data",
 ]
 INTERNAL = ("chrome://", "chrome-untrusted://", "devtools://", "chrome-extension://", "about:")
 
@@ -45,25 +45,30 @@ class Daemon:
         self.session = None
         self.events = deque(maxlen=BUF)
 
+    async def attach_first_page(self):
+        """Attach to a real page (or any page). Sets self.session. Returns attached target or None."""
+        targets = (await self.cdp.send_raw("Target.getTargets"))["targetInfos"]
+        pages = [t for t in targets if is_real_page(t)] or [t for t in targets if t["type"] == "page"]
+        if not pages:
+            self.session = None
+            return None
+        self.session = (await self.cdp.send_raw(
+            "Target.attachToTarget", {"targetId": pages[0]["targetId"], "flatten": True}
+        ))["sessionId"]
+        log(f"attached {pages[0]['targetId']} ({pages[0].get('url','')[:80]}) session={self.session}")
+        for d in ("Page", "DOM", "Runtime", "Network"):
+            try:
+                await self.cdp.send_raw(f"{d}.enable", session_id=self.session)
+            except Exception as e:
+                log(f"enable {d}: {e}")
+        return pages[0]
+
     async def start(self):
         url = get_ws_url()
         log(f"connecting to {url}")
         self.cdp = CDPClient(url)
         await self.cdp.start()
-
-        targets = (await self.cdp.send_raw("Target.getTargets"))["targetInfos"]
-        pages = [t for t in targets if is_real_page(t)] or [t for t in targets if t["type"] == "page"]
-        if pages:
-            self.session = (await self.cdp.send_raw(
-                "Target.attachToTarget", {"targetId": pages[0]["targetId"], "flatten": True}
-            ))["sessionId"]
-            log(f"attached {pages[0]['targetId']} ({pages[0].get('url','')[:80]}) session={self.session}")
-            for d in ("Page", "DOM", "Runtime", "Network"):
-                try:
-                    await self.cdp.send_raw(f"{d}.enable", session_id=self.session)
-                except Exception as e:
-                    log(f"enable {d}: {e}")
-
+        await self.attach_first_page()
         orig = self.cdp._event_registry.handle_event
         async def tap(method, params, session_id=None):
             self.events.append({"method": method, "params": params, "session_id": session_id})
@@ -75,14 +80,24 @@ class Daemon:
         if meta == "drain_events":
             out = list(self.events); self.events.clear()
             return {"events": out}
-        if meta == "session":        return {"session_id": self.session}
-        if meta == "set_session":    self.session = req.get("session_id"); return {"session_id": self.session}
-        if meta == "shutdown":       return {"ok": True, "_shutdown": True}
+        if meta == "session":     return {"session_id": self.session}
+        if meta == "set_session": self.session = req.get("session_id"); return {"session_id": self.session}
+        if meta == "shutdown":    return {"ok": True, "_shutdown": True}
+
+        method = req["method"]
+        params = req.get("params") or {}
+        # Browser-level Target.* calls must not use a session (stale or otherwise).
+        # For everything else, explicit session in req wins; else default.
+        sid = None if method.startswith("Target.") else (req.get("session_id") or self.session)
         try:
-            r = await self.cdp.send_raw(req["method"], req.get("params") or {}, session_id=req.get("session_id") or self.session)
-            return {"result": r}
+            return {"result": await self.cdp.send_raw(method, params, session_id=sid)}
         except Exception as e:
-            return {"error": str(e)}
+            msg = str(e)
+            if "Session with given id not found" in msg and sid == self.session and sid:
+                log(f"stale session {sid}, re-attaching")
+                if await self.attach_first_page():
+                    return {"result": await self.cdp.send_raw(method, params, session_id=self.session)}
+            return {"error": msg}
 
 
 async def serve(d):
@@ -97,7 +112,6 @@ async def serve(d):
             writer.write((json.dumps(resp, default=str) + "\n").encode())
             await writer.drain()
             if resp.get("_shutdown"):
-                log("shutdown requested")
                 asyncio.get_event_loop().stop()
         except Exception as e:
             log(f"conn: {e}")

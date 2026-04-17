@@ -85,15 +85,30 @@ def switch_tab(target_id):
     set_session(sid)
     return sid
 
+def new_tab(url="about:blank"):
+    tid = cdp("Target.createTarget", url=url)["targetId"]
+    switch_tab(tid)
+    return tid
+
 def ensure_real_tab():
-    """Re-attach to a real user tab if current is chrome:// or internal."""
-    cur = current_tab()
-    if cur["url"] and not cur["url"].startswith(INTERNAL):
-        return cur
+    """Switch to a real user tab if current is chrome:// / internal / stale."""
     tabs = list_tabs()
-    if tabs:
-        switch_tab(tabs[0]["targetId"])
-        return tabs[0]
+    if not tabs:
+        return None
+    try:
+        cur = current_tab()
+        if cur["url"] and not cur["url"].startswith(INTERNAL):
+            return cur
+    except Exception:
+        pass
+    switch_tab(tabs[0]["targetId"])
+    return tabs[0]
+
+def iframe_target(url_substr):
+    """First iframe target whose URL contains `url_substr`. Use with js(..., target_id=...)."""
+    for t in cdp("Target.getTargets")["targetInfos"]:
+        if t["type"] == "iframe" and url_substr in t.get("url", ""):
+            return t["targetId"]
     return None
 
 
@@ -109,9 +124,10 @@ def wait_for_load(timeout=15.0):
         time.sleep(0.3)
     return False
 
-def js(expression):
-    """Run JS, return JSON-serialized value."""
-    r = cdp("Runtime.evaluate", expression=expression, returnByValue=True, awaitPromise=True)
+def js(expression, target_id=None):
+    """Run JS in the attached tab (default) or inside an iframe target (via iframe_target())."""
+    sid = cdp("Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"] if target_id else None
+    r = cdp("Runtime.evaluate", session_id=sid, expression=expression, returnByValue=True, awaitPromise=True)
     return r.get("result", {}).get("value")
 
 def http_get(url, headers=None, timeout=20.0):

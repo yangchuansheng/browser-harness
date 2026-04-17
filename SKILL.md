@@ -30,6 +30,7 @@ PY
 - **Clicking**: `screenshot()` → look → `click(x, y)`. Passes through iframes/shadow/cross-origin.
 - **Bulk HTTP**: `http_get(url)` + `ThreadPoolExecutor`. No browser needed for static pages (249 Netflix pages in 2.8s).
 - **After goto**: `wait_for_load()` not `wait(5)`.
-- **Wrong tab**: `ensure_real_tab()`.
+- **Wrong tab**: `ensure_real_tab()`. Daemon also auto-recovers from stale sessions on the next call.
+- **Iframe sites** (Azure blades, Salesforce): `click(x, y)` passes through; for DOM use `js(expr, target_id=iframe_target("sandbox"))`. Iframe rects are iframe-local — add the host iframe's offset for page coords.
 - **Auth wall**: if redirected to login, stop and ask user — don't try to type credentials.
 - **Raw CDP** for anything helpers don't cover: `cdp("Domain.method", **params)`.
