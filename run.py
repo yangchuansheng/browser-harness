@@ -1,3 +1,4 @@
 import sys
-from helpers import *  # noqa: F401,F403
+from helpers import *
+ensure_daemon()
 exec(sys.stdin.read())

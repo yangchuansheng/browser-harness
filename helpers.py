@@ -2,6 +2,7 @@
 import base64, json, socket, time
 
 SOCK = "/tmp/harnesless.sock"
+PID = "/tmp/harnesless.pid"
 INTERNAL = ("chrome://", "chrome-untrusted://", "devtools://", "chrome-extension://", "about:")
 
 
@@ -29,6 +30,41 @@ def drain_events():  return _send({"meta": "drain_events"})["events"]
 def get_session():   return _send({"meta": "session"})["session_id"]
 def set_session(s):  return _send({"meta": "set_session", "session_id": s})
 def shutdown():      return _send({"meta": "shutdown"})
+
+
+# --- daemon lifecycle (socket IS the lock) ---
+def daemon_alive():
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.settimeout(1)
+        s.connect(SOCK); s.close(); return True
+    except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
+        return False
+
+def ensure_daemon(wait=8.0):
+    """Start daemon if not running. Idempotent — safe to call always."""
+    if daemon_alive(): return
+    import os, subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    subprocess.Popen(["uv", "run", "daemon.py"], cwd=here,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if daemon_alive(): return
+        time.sleep(0.2)
+    raise RuntimeError("daemon didn't come up — check /tmp/harnesless.log")
+
+def kill_daemon():
+    """Graceful shutdown, then SIGTERM via PID file, then clear socket."""
+    import os, signal
+    try: shutdown()
+    except Exception: pass
+    try:
+        os.kill(int(open(PID).read()), signal.SIGTERM)
+    except (FileNotFoundError, ProcessLookupError, ValueError):
+        pass
+    for f in (SOCK, PID):
+        try: os.unlink(f)
+        except FileNotFoundError: pass
 
 
 # --- navigation / page ---

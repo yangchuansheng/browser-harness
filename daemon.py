@@ -4,7 +4,7 @@ Chrome 144+: reads ws URL from <profile>/DevToolsActivePort (written when user
 enables chrome://inspect/#remote-debugging). Avoids the per-connect "Allow?"
 dialog that the classic /json/version endpoint would trigger.
 """
-import asyncio, json, os, sys
+import asyncio, json, os, socket, sys
 from collections import deque
 from pathlib import Path
 
@@ -12,6 +12,7 @@ from cdp_use.client import CDPClient
 
 SOCK = "/tmp/harnesless.sock"
 LOG = "/tmp/harnesless.log"
+PID = "/tmp/harnesless.pid"
 BUF = 500
 PROFILES = [
     Path.home() / "Library/Application Support/Google/Chrome",
@@ -136,8 +137,20 @@ async def main():
     await serve(d)
 
 
+def already_running():
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.settimeout(1)
+        s.connect(SOCK); s.close(); return True
+    except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
+        return False
+
+
 if __name__ == "__main__":
+    if already_running():
+        print(f"daemon already running on {SOCK}", file=sys.stderr)
+        sys.exit(0)
     open(LOG, "w").close()
+    open(PID, "w").write(str(os.getpid()))
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
@@ -145,3 +158,6 @@ if __name__ == "__main__":
     except Exception as e:
         log(f"fatal: {e}")
         sys.exit(1)
+    finally:
+        try: os.unlink(PID)
+        except FileNotFoundError: pass
