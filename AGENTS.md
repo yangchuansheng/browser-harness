@@ -38,6 +38,7 @@ Daemon attaches to the first real page at startup, buffers events in `deque(maxl
 - **Chrome 144+ `chrome://inspect/#remote-debugging` does NOT serve `/json/version`.** Daemon reads `<ChromeProfile>/DevToolsActivePort` instead. Don't suggest the user launch with `--remote-debugging-port` — they don't want that.
 - **Omnibox popups are `type: "page"` CDP targets** with ~50px viewports. Filter by URL prefix (`is_real_page` in daemon.py, `INTERNAL` tuple shared with helpers.py).
 - **CDP target order is NOT the same as Chrome's visible tab-strip order.** `list_tabs()` / `Target.getTargets` are fine for control, but use UI automation (AppleScript on macOS, window-manager tooling on Linux) when the user means "the first/second tab I can see". `switch_tab()` re-attaches only; `Target.activateTarget` makes Chrome show it.
+- **`list_tabs()` now includes `chrome://...` pages by default.** Use `list_tabs(include_chrome=False)` when you need only real web/file pages, and keep `ensure_real_tab()` filtering internals explicitly.
 - `type_in`/clear uses Cmd+A (macOS). Linux/Windows: `2` instead of `4` for modifiers.
 - `send_raw` has no timeout — stuck call hangs forever. Add a wrapper if it bites.
 - Daemon's default session goes stale if user closes the attached tab manually. `ensure_real_tab()` re-attaches.
