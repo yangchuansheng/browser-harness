@@ -40,7 +40,7 @@ def daemon_alive():
     except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
         return False
 
-def ensure_daemon(wait=8.0):
+def ensure_daemon(wait=60.0):
     """Start daemon if not running. Idempotent — safe to call always."""
     if daemon_alive(): return
     import os, subprocess
@@ -86,10 +86,24 @@ def click(x, y, button="left", clicks=1):
 def type_text(text):
     cdp("Input.insertText", text=text)
 
+_KEYS = {  # key → (windowsVirtualKeyCode, code, text)
+    "Enter": (13, "Enter", "\r"), "Tab": (9, "Tab", "\t"), "Backspace": (8, "Backspace", ""),
+    "Escape": (27, "Escape", ""), "Delete": (46, "Delete", ""), " ": (32, "Space", " "),
+    "ArrowLeft": (37, "ArrowLeft", ""), "ArrowUp": (38, "ArrowUp", ""),
+    "ArrowRight": (39, "ArrowRight", ""), "ArrowDown": (40, "ArrowDown", ""),
+    "Home": (36, "Home", ""), "End": (35, "End", ""),
+    "PageUp": (33, "PageUp", ""), "PageDown": (34, "PageDown", ""),
+}
 def press_key(key, modifiers=0):
-    """Modifiers bitfield: 1=Alt, 2=Ctrl, 4=Meta(Cmd), 8=Shift."""
-    cdp("Input.dispatchKeyEvent", type="keyDown", key=key, modifiers=modifiers)
-    cdp("Input.dispatchKeyEvent", type="keyUp", key=key, modifiers=modifiers)
+    """Modifiers bitfield: 1=Alt, 2=Ctrl, 4=Meta(Cmd), 8=Shift.
+    Special keys (Enter, Tab, Arrow*, Backspace, etc.) carry their virtual key codes
+    so listeners checking e.keyCode / e.key all fire."""
+    vk, code, text = _KEYS.get(key, (ord(key[0]) if len(key) == 1 else 0, key, key if len(key) == 1 else ""))
+    base = {"key": key, "code": code, "modifiers": modifiers, "windowsVirtualKeyCode": vk, "nativeVirtualKeyCode": vk}
+    cdp("Input.dispatchKeyEvent", type="keyDown", **base, **({"text": text} if text else {}))
+    if text and len(text) == 1:
+        cdp("Input.dispatchKeyEvent", type="char", text=text, **{k: v for k, v in base.items() if k != "text"})
+    cdp("Input.dispatchKeyEvent", type="keyUp", **base)
 
 def scroll(x, y, dy=-300, dx=0):
     cdp("Input.dispatchMouseEvent", type="mouseWheel", x=x, y=y, deltaX=dx, deltaY=dy)
@@ -165,6 +179,30 @@ def js(expression, target_id=None):
     sid = cdp("Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"] if target_id else None
     r = cdp("Runtime.evaluate", session_id=sid, expression=expression, returnByValue=True, awaitPromise=True)
     return r.get("result", {}).get("value")
+
+_KC = {"Enter":13,"Tab":9,"Escape":27,"Backspace":8," ":32,"ArrowLeft":37,"ArrowUp":38,"ArrowRight":39,"ArrowDown":40}
+def dispatch_key(selector, key="Enter", event="keypress"):
+    """Dispatch a DOM KeyboardEvent on the matched element. Use when CDP's press_key doesn't trigger DOM listeners — e.g. `keypress` for Enter on <input type=search> (CDP's `char` event quirk for special keys)."""
+    kc = _KC.get(key, ord(key) if len(key) == 1 else 0)
+    js(f"(()=>{{const e=document.querySelector({json.dumps(selector)});if(e){{e.focus();e.dispatchEvent(new KeyboardEvent({json.dumps(event)},{{key:{json.dumps(key)},code:{json.dumps(key)},keyCode:{kc},which:{kc},bubbles:true}}));}}}})()")
+
+
+def upload_file(selector, path):
+    """Set files on a file input via CDP DOM.setFileInputFiles. `path` is an absolute filepath (use tempfile.mkstemp if needed)."""
+    doc = cdp("DOM.getDocument", depth=-1)
+    nid = cdp("DOM.querySelector", nodeId=doc["root"]["nodeId"], selector=selector)["nodeId"]
+    if not nid: raise RuntimeError(f"no element for {selector}")
+    cdp("DOM.setFileInputFiles", files=[path] if isinstance(path, str) else list(path), nodeId=nid)
+
+
+def capture_dialogs():
+    """Stub window.alert/confirm/prompt so messages stash in window.__dialogs__. Call BEFORE the action that triggers the dialog; read with dialogs()."""
+    js("window.__dialogs__=[];window.alert=m=>window.__dialogs__.push(String(m));window.confirm=m=>{window.__dialogs__.push(String(m));return true;};window.prompt=(m,d)=>{window.__dialogs__.push(String(m));return d||'';}")
+
+def dialogs():
+    """Return list of captured dialog messages since last capture_dialogs()."""
+    return json.loads(js("JSON.stringify(window.__dialogs__||[])") or "[]")
+
 
 def http_get(url, headers=None, timeout=20.0):
     """Pure HTTP — no browser. Use for static pages / APIs. Wrap in ThreadPoolExecutor for bulk."""

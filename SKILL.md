@@ -24,6 +24,8 @@ PY
 
 `uv sync`. User enables `chrome://inspect/#remote-debugging` in their Chrome.
 
+**First daemon start of a session may hang** on the CDP WebSocket handshake — Chrome shows a native "Allow debugging connections" dialog the user has to click. Be patient (give ~15s), then retry. Don't surface an error on the first timeout.
+
 ## Daemon management
 
 - Socket at `/tmp/harnesless.sock` IS the lock.
@@ -51,3 +53,16 @@ Commit with the task. The skill gets sharper every use. Skip only if nothing was
 - **Iframe sites** (Azure blades, Salesforce): `click(x, y)` passes through; for DOM use `js(expr, target_id=iframe_target("sandbox"))`. Iframe rects are iframe-local — add the host iframe's offset for page coords.
 - **Auth wall**: redirected to login → stop and ask the user. Don't type credentials from screenshots.
 - **Raw CDP** for anything helpers don't cover: `cdp("Domain.method", **params)`.
+
+## Gotchas (field-tested)
+
+- **React / controlled inputs ignore `el.value=...`.** Use the native setter to make React see the change:
+  `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v); el.dispatchEvent(new Event('input',{bubbles:true}))`.
+- **Radio/checkbox via React**: prefer `el.click()` over `el.checked=true` — React listens to the click event to drive state.
+- **UI-library buttons (MUI Select, dropdown overlays)**: JS `.click()` on `[role=button]` often does NOT fire the library's handler. Screenshot → `click(x,y)` via CDP instead.
+- **Keyboard listeners checking `e.key==='Enter'` on `keypress`**: CDP's `char` event doesn't always fire DOM `keypress` for special keys. Use `dispatch_key(selector, 'Enter')`.
+- **`alert()`/`confirm()` block the page thread.** Call `capture_dialogs()` BEFORE the action, read via `dialogs()` after.
+- **Same-origin nested iframes** don't show up as CDP targets — walk `document.querySelector('iframe').contentDocument` (or `contentWindow`) recursively. Cross-origin iframes DO appear as targets; use `iframe_target("...")`.
+- **Shadow DOM**: `document.querySelector` doesn't pierce shadow roots. Walk via `element.shadowRoot.querySelectorAll` (and recurse).
+- **Submitting forms**: the "Submit" button isn't always the first `button[type=submit]` — on React Native Web etc. contact-method buttons share that type. Prefer the button whose text matches `/submit/i`, fall back to `form.requestSubmit()`.
+- **Form success signals vary**: visible `#success-message`, captured `alert()` text, console log, or body text change. Check all sources — don't assume one convention.
