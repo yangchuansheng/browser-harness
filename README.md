@@ -18,7 +18,7 @@ The agent writes what's missing, mid-task. No framework, no recipes, no rails. O
 
 **You will never use the browser again.**
 
-## Setup
+## Setup prompt
 
 Paste into Claude Code or Codex:
 
@@ -41,14 +41,13 @@ Useful for sub-agents or deployment.
 - Get a Browser Use API key: [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
 - The agent can also sign up by itself by fetching [docs.browser-use.com/llms.txt](https://docs.browser-use.com/llms.txt), which contains the setup flow and challenge context for getting a Browser Use API key.
 
-## Code structure
+## How simple is it? (~592 lines of Python)
 
 - `install.md` — first-time install and browser bootstrap
 - `SKILL.md` — day-to-day usage
-- `run.py` (~13 lines) — runs plain Python with helpers preloaded
-- `helpers.py` (~192 lines) — starting tool calls; the agent edits these
-- `admin.py` (~139 lines) — daemon bootstrap and remote-browser helpers
-- `daemon.py` (~220 lines) — keeps the CDP websocket and socket bridge alive
+- `run.py` (~36 lines) — runs plain Python with helpers preloaded
+- `helpers.py` (~195 lines) — starting tool calls; the agent edits these
+- `admin.py` + `daemon.py` (~361 lines) — daemon bootstrap plus the CDP websocket and socket bridge
 
 ---
 
