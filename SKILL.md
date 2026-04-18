@@ -5,7 +5,21 @@ description: Direct browser control via CDP. Use when the user wants to automate
 
 # browser-harness
 
-For first-time install or reconnect/bootstrap, read `install.md` first. For normal use, stay in this file. **Read `helpers.py` first.** The code is the doc.
+Easiest and most powerful way to interact with the browser.
+
+## Fast start
+
+Read `helpers.py` first. For first-time install or reconnect/bootstrap, read `install.md` first. For normal use, stay in this file.
+
+```bash
+uv run bh <<'PY'
+goto("https://browser-use.com")
+wait_for_load()
+print(page_info())
+PY
+```
+
+The code is the doc.
 
 Available interaction skills:
 - `cookies.md`
