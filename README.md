@@ -1,4 +1,4 @@
-# bu
+# Browser Harness
 
 The simplest, thinnest, and most powerful browser agent harness.
 
@@ -32,10 +32,10 @@ See [domain-skills/](domain-skills/) for examples on other websites.
 
 ## How It Works
 
-- `SKILL.md` explains how the harness should be used.
-- `run.py` executes plain Python with helpers preloaded.
-- `helpers.py` holds the primitives the agent actually calls.
-- `daemon.py` keeps the CDP websocket and socket bridge alive.
+- `SKILL.md` is about 100 lines and explains how the harness should be used.
+- `run.py` is about 4 lines and just executes plain Python with helpers preloaded.
+- `helpers.py` is about 260 lines and holds the primitives the agent calls and constantly modifies to sharpen its own harness for the task.
+- `daemon.py` is about 200 lines and keeps the CDP websocket and socket bridge alive.
 
 ## Optional: Remote browsers
 
