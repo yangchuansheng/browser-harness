@@ -97,13 +97,13 @@ If you solve a specific website and learn a lot, create a PR to this repo with r
 
 ## What actually works
 
-- **Scraping**: `js("...custom query...")`. Bespoke selectors beat generic DOM helpers.
 - **Clicking**: `screenshot()` → look → `click(x, y)`. Passes through iframes/shadow/cross-origin at the compositor level.
 - **Bulk HTTP**: `http_get(url)` + `ThreadPoolExecutor`. No browser for static pages (249 Netflix pages in 2.8s).
 - **After goto**: `wait_for_load()`.
 - **Wrong/stale tab**: `ensure_real_tab()`. Use it when the current tab is stale or internal; the daemon also auto-recovers from stale sessions on the next call.
 - **Verification**: `print(page_info())` is the simplest "is this alive?" check.
-- **Iframe sites** (Azure blades, Salesforce): `click(x, y)` passes through; for DOM use `js(expr, target_id=iframe_target("sandbox"))`. Iframe rects are iframe-local — add the host iframe's offset for page coords.
+- **DOM reads**: use `js(...)` for inspection and extraction when coordinates are the wrong tool.
+- **Iframe sites** (Azure blades, Salesforce): `click(x, y)` passes through; only drop to iframe DOM work when coordinate clicks are the wrong tool.
 - **Auth wall**: redirected to login → stop and ask the user. Don't type credentials from screenshots.
 - **Raw CDP** for anything helpers don't cover: `cdp("Domain.method", **params)`.
 
@@ -149,16 +149,8 @@ Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.
 - **Browser Use API is camelCase on the wire.** `cdpUrl`, `proxyCountryCode`, etc.
 - **Remote `cdpUrl` is HTTPS, not ws.** Resolve the websocket URL via `/json/version`.
 - **Stop cloud browsers with `PATCH /browsers/{id}` + `{\"action\":\"stop\"}`.**
-- **React / controlled inputs ignore `el.value=...`.** Use the native setter to make React see the change:
-  `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v); el.dispatchEvent(new Event('input',{bubbles:true}))`.
-- **Radio/checkbox via React**: prefer `el.click()` over `el.checked=true` — React listens to the click event to drive state.
-- **UI-library buttons (MUI Select, dropdown overlays)**: JS `.click()` on `[role=button]` often does NOT fire the library's handler. Screenshot → `click(x,y)` via CDP instead.
-- **Keyboard listeners checking `e.key==='Enter'` on `keypress` or app-style form handlers**: use `dispatch_key(selector, 'Enter')`. Keep `press_key()` for raw browser-level key input like Tab, Escape, arrows, or when you want the real CDP path.
-- **`alert()`/`confirm()` block the page thread.** Prefer `Page.handleJavaScriptDialog` plus `drain_events()`; see `interaction-skills/dialogs.md`.
-- **Same-origin nested iframes** don't show up as CDP targets — walk `document.querySelector('iframe').contentDocument` (or `contentWindow`) recursively. Cross-origin iframes DO appear as targets; use `iframe_target("...")`.
-- **Shadow DOM**: `document.querySelector` doesn't pierce shadow roots. Walk via `element.shadowRoot.querySelectorAll` (and recurse).
-- **Submitting forms**: the "Submit" button isn't always the first `button[type=submit]` — on React Native Web etc. contact-method buttons share that type. Prefer the button whose text matches `/submit/i`, fall back to `form.requestSubmit()`.
-- **Form success signals vary**: visible `#success-message`, captured `alert()` text, console log, or body text change. Check all sources — don't assume one convention.
+- **Prefer compositor-level actions over framework hacks.** Try screenshots, coordinate clicks, and raw key input before adding DOM-specific workarounds.
+- **If you need framework-specific DOM tricks, check `interaction-skills/` first.** That is where dropdown, dialog, iframe, shadow DOM, and form-specific guidance belongs.
 
 ## Interaction notes
 
