@@ -72,12 +72,30 @@ To confirm the memory/instructions are loaded:
 ### Simplest local setup
 
 1. Run `uv sync`.
-2. Open Chrome to `chrome://inspect/#remote-debugging`.
-   On macOS: `open -a "Google Chrome" "chrome://inspect/#remote-debugging"`
-   On Linux: open Chrome manually, then open that URL.
-3. Tell the user to tick the remote-debugging checkbox and click Chrome's "Allow" button if it appears.
-4. If setup hangs on the first connect, stop and wait for the user to click `Allow`, then retry once.
-5. Verify with:
+2. First try the harness directly. If this works, skip setup entirely:
+
+```bash
+uv run bh <<'PY'
+ensure_real_tab()
+print(page_info())
+PY
+```
+
+3. If that fails and Chrome is already running, open `chrome://inspect/#remote-debugging` in the existing Chrome profile instead of launching a fresh Chrome process.
+   On macOS:
+
+```bash
+osascript -e 'tell application "Google Chrome" to activate' \
+          -e 'tell application "Google Chrome" to open location "chrome://inspect/#remote-debugging"'
+```
+
+   On Linux: use the already-running Chrome window and open that URL manually.
+4. If Chrome is not running, start Chrome first and let the user choose their normal profile if Chrome opens the profile picker. Only after that, open `chrome://inspect/#remote-debugging`.
+   On macOS: `open -a "Google Chrome"`
+5. Tell the user to tick the remote-debugging checkbox. If Chrome shows `Allow`, tell the user to click it once.
+6. Do not ask the user to say "continue". Poll every few seconds and retry the same connect attempt once the permission flow finishes.
+7. If setup still lands on the profile picker, have the user choose their normal profile, then open `chrome://inspect/#remote-debugging` in that profile and keep polling instead of restarting the explanation.
+8. Verify with:
 
 ```bash
 uv run bh <<'PY'
@@ -180,7 +198,10 @@ Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.
 ## Gotchas (field-tested)
 
 - **Chrome 144+ `chrome://inspect/#remote-debugging` does NOT serve `/json/version`.** Read `DevToolsActivePort` instead.
+- **Try attaching before asking for setup.** If `uv run bh` already works, skip the remote-debugging instructions entirely.
 - **The first connect may block on Chrome's Allow dialog.** If setup hangs, ask the user to click Allow, then retry once.
+- **Chrome may open the profile picker before any real tab exists.** Pick the user's normal profile first; remote debugging can be enabled while the browser is still not in a usable signed-in context.
+- **On macOS, if Chrome is already running, prefer AppleScript `open location` over `open -a ... URL`.** It reuses the current profile and avoids creating an extra startup path through the profile picker.
 - **Omnibox popups are fake `page` targets.** Filter `chrome://omnibox-popup...` and other internals when you need a real tab.
 - **CDP target order != Chrome's visible tab-strip order.** Use UI automation when the user means "the first/second tab I can see"; `Target.activateTarget` only shows a known target.
 - **Default daemon sessions can go stale.** `ensure_real_tab()` re-attaches to a real page.
