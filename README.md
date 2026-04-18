@@ -31,15 +31,14 @@ PY
 
 Parallel agents / remote browsers: `BU_NAME=<n> uv run run.py`. See `SKILL.md`.
 
-Read `SKILL.md` for the full LLM workflow. Read `AGENTS.md` if you're an agent working ON this codebase (extending helpers, debugging the daemon). Read `helpers.py` for every function — they're all ~5 lines each and you can edit any of them.
+Read `SKILL.md` for both usage and maintenance guidance. Read `helpers.py` for every function — they're all ~5 lines each and you can edit any of them.
 
 ## Files
 
 - `daemon.py` — holds the WebSocket, listens on `/tmp/bu-<name>.sock`
 - `helpers.py` — ~250 lines of transparent helpers
 - `run.py` — 3 lines: `from helpers import *; exec(stdin)`
-- `SKILL.md` — how an agent *uses* bu to drive a browser
-- `AGENTS.md` — how an agent *modifies* bu (code structure, extension points)
+- `SKILL.md` — usage guidance, design constraints, and extension gotchas
 
 ## Stop
 
