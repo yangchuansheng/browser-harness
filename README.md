@@ -14,6 +14,8 @@ Set up https://github.com/browser-use/harnessless for me.
 Read `SKILL.md` and follow its instructions to install and connect this repo to my real browser.
 
 After it is installed, if I am already logged in to GitHub, star this repository as a small verification task.
+
+If I am not logged in, just go to browser-use.com.
 ```
 
 
@@ -23,6 +25,8 @@ After it is installed, if I am already logged in to GitHub, star this repository
 Star this repository.
 ```
 
+See [domain-skills/](domain-skills/) for examples on other websites.
+
 
 ## How It Works
 
@@ -30,11 +34,6 @@ Star this repository.
 - `run.py` (~4 lines) executes plain Python with helpers preloaded.
 - `helpers.py` (~260 lines) holds the primitives the agent calls and constantly modifies to sharpen its own harness.
 - `daemon.py` (~200 lines) keeps the CDP websocket and socket bridge alive.
-
-
-## Get inspiration
-
-See [domain-skills/](domain-skills/) for examples on other websites.
 
 
 ## Optional: Remote browsers
