@@ -36,10 +36,10 @@ Example task: `Star this repository` · see [domain-skills/](domain-skills/) for
 
 ## Remote browsers
 
-Useful for sub-agents or deployment.
+Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card required.**
 
-- Get a Browser Use API key: [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
-- The agent can also sign up by itself by fetching [docs.browser-use.com/llms.txt](https://docs.browser-use.com/llms.txt), which contains the setup flow and challenge context for getting a Browser Use API key.
+- Grab a key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+- Or let the agent sign up itself via [docs.browser-use.com/llms.txt](https://docs.browser-use.com/llms.txt) (setup flow + challenge context included).
 
 ## How simple is it? (~592 lines of Python)
 
