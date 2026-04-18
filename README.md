@@ -49,6 +49,17 @@ Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card
 - `helpers.py` (~195 lines) — starting tool calls; the agent edits these
 - `admin.py` + `daemon.py` (~361 lines) — daemon bootstrap plus the CDP websocket and socket bridge
 
+## Contributing
+
+PRs and improvements welcome. The best way to help: **contribute a new domain skill** under [domain-skills/](domain-skills/) for a site or task you use often (LinkedIn outreach, ordering on Amazon, filing expenses, etc.). Each skill teaches the agent the selectors, flows, and edge cases it would otherwise have to rediscover.
+
+- **Skills are written by the harness, not by you.** Just run your task with the agent — when it figures something non-obvious out, it files the skill itself (see [SKILL.md](SKILL.md)). Please don't hand-author skill files; agent-generated ones reflect what actually works in the browser.
+- Open a PR with the generated `domain-skills/<site>/` folder — small and focused is great.
+- Bug fixes, docs tweaks, and helper improvements are equally welcome.
+- Browse existing skills (`github/`, `linkedin/`, `amazon/`, ...) to see the shape.
+
+If you're not sure where to start, open an issue and we'll point you somewhere useful.
+
 ---
 
 [Bitter lesson](https://browser-use.com/posts/bitter-lesson-agent-frameworks) · [Skills](https://browser-use.com/posts/web-agents-that-actually-learn)
