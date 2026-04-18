@@ -98,3 +98,4 @@ PY
 - If attach is blocked on macOS, open `chrome://inspect/#remote-debugging` in the current Chrome profile and explicitly tell the user to click `Allow` if Chrome shows it.
 - Chrome may open the profile picker before any real tab exists.
 - On macOS, prefer AppleScript `open location` over `open -a ... URL` when Chrome is already running.
+- Microsoft Edge (including Beta/Dev/Canary) works too — substitute the app name; steps are identical.
