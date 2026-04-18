@@ -1,3 +1,5 @@
+![Browser Harness](https://r2.browser-use.com/github/harness-banner.png)
+
 # Browser Harness
 
 The simplest, thinnest, and most powerful harness to control your real browser with your agent.
@@ -9,7 +11,7 @@ This repo makes you never use your browser again.
 Paste this into Claude Code or Codex:
 
 ```text
-Set up https://github.com/browser-use/harnessless for me.
+Set up https://github.com/browser-use/browser-harness for me.
 
 Read `SKILL.md` and follow its instructions to install and connect this repo to my real browser.
 

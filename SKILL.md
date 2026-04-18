@@ -45,8 +45,8 @@ PY
 Clone the repo once, then install it as an editable tool so `bh` works from any directory:
 
 ```bash
-git clone https://github.com/browser-use/harnessless
-cd harnessless
+git clone https://github.com/browser-use/browser-harness
+cd browser-harness
 uv tool install -e .
 command -v bh
 ```
@@ -60,7 +60,7 @@ Default to this global setup. Use the local-only flow below only for quick testi
 After the repo is installed, register this repo's `SKILL.md` with the agent you are using:
 
 - **Codex**: add this file as a global skill at `$CODEX_HOME/skills/browser-harness/SKILL.md` (often `~/.codex/skills/browser-harness/SKILL.md`). A symlink to this repo's `SKILL.md` is fine.
-- **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/src/harnessless/SKILL.md`.
+- **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/src/browser-harness/SKILL.md`.
 
 That makes new Codex or Claude Code sessions in other folders load the browser harness instructions automatically.
 
