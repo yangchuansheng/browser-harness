@@ -22,7 +22,12 @@ def main():
         print(HELP)
         return
     if sys.stdin.isatty():
-        sys.exit("bh reads Python from stdin. Use:\n  bh <<'PY'\n  print(page_info())\n  PY")
+        sys.exit(
+            "browser-harness reads Python from stdin. Use:\n"
+            "  browser-harness <<'PY'\n"
+            "  print(page_info())\n"
+            "  PY"
+        )
     ensure_daemon()
     exec(sys.stdin.read())
 
