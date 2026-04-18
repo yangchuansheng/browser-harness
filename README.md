@@ -10,19 +10,22 @@ Paste this into Claude Code or Codex:
 Set up https://github.com/browser-use/harnessless for me.
 
 1. Clone the repo and read `SKILL.md` before doing anything else.
-2. Install the repo.
+2. Move into the repo folder and run `uv sync`.
 3. Enable Chrome remote debugging if needed.
    On macOS, open Chrome directly to `chrome://inspect/#remote-debugging`.
 4. Tell me to tick the remote-debugging checkbox and click the Chrome "Allow" button if it appears.
 5. Connect to my real browser and verify the harness works.
 6. Open https://github.com/browser-use/harnessless in the browser.
-7. Then ask me: "Should I star this repository to demonstrate a task?"
+7. If I am already signed in to GitHub, star the repository to verify the harness works.
+8. If I am not signed in, ask me what task I want to run instead.
 ```
 
-## Example task
+## Example tasks
 
 ```text
 Use this browser harness to open my real Chrome and submit the form on example.com.
+Use this browser harness to export the current page as a PDF.
+Use this browser harness to upload a file on the current site.
 ```
 
 ## Get inspiration
