@@ -31,11 +31,18 @@ After the repo is installed, register this repo's `SKILL.md` with the agent you 
 - **Codex**: add this file as a global skill at `$CODEX_HOME/skills/browser-harness/SKILL.md` (often `~/.codex/skills/browser-harness/SKILL.md`). A symlink to this repo's `SKILL.md` is fine.
 - **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/src/browser-harness/SKILL.md`.
 
+Codex command:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/browser-harness" && ln -sf "$PWD/SKILL.md" "${CODEX_HOME:-$HOME/.codex}/skills/browser-harness/SKILL.md"
+```
+
 That makes new Codex or Claude Code sessions in other folders load the runtime browser harness instructions automatically.
 
 ## Browser bootstrap
 
 1. Run `uv sync`.
+   If `bh` is still missing after that, run `command -v bh >/dev/null || uv tool install -e .`.
 2. First try the harness directly. If this works, skip manual browser setup:
 
 ```bash
@@ -54,12 +61,12 @@ osascript -e 'tell application "Google Chrome" to activate' \
 ```
 
    On Linux: use the already-running Chrome window and open that URL manually.
-   If the attach looks blocked or Chrome is not accepting DevTools yet, tell the user: "I opened Chrome's remote-debugging page. Please click `Allow` in Chrome if it appears." Then keep polling instead of waiting for the user to type a follow-up.
+   If the attach looks blocked or Chrome's remote-debugging page is open but DevTools is not live yet, tell the user: "Chrome is waiting on you. In the Chrome windows I opened, choose your normal profile first if Chrome is showing the profile picker, then tick the remote-debugging checkbox and click `Allow` if Chrome shows it." Then keep polling instead of waiting for the user to type a follow-up.
 4. If Chrome is not running, start Chrome first and let the user choose their normal profile if Chrome opens the profile picker. Only after that, open `chrome://inspect/#remote-debugging`.
    On macOS: `open -a "Google Chrome"`
-5. Tell the user to tick the remote-debugging checkbox. If Chrome shows `Allow`, tell the user to click it once.
-6. Try to do everything yourself. Only ask the user to do something if it is truly necessary, like selecting the Chrome profile or clicking `Allow`. While the user is doing that, sleep and check every 3 seconds whether it is completed. Once it is completed, continue checking and retrying for at least 30 seconds.
-7. If setup still lands on the profile picker, have the user choose their normal profile, then open `chrome://inspect/#remote-debugging` in that profile and keep polling instead of restarting the explanation.
+5. Be explicit with the user about the two possible Chrome actions: choose their normal profile if the profile picker is open, and in the remote-debugging tab tick the checkbox and click `Allow` once if Chrome shows it.
+6. Try to do everything yourself. Only ask the user to do something if it is truly necessary, like selecting the Chrome profile or clicking `Allow`. While the user is doing that, sleep and check every 3 seconds whether it is completed. After asking, keep retrying for at least 30 seconds even if you see connection-refused, stale websocket, or other weird transient attach errors.
+7. If setup still lands on the profile picker, have the user choose their normal profile, then open `chrome://inspect/#remote-debugging` in that profile and keep polling instead of restarting the explanation. As soon as attach succeeds, continue immediately with the verification task without asking again.
 8. Verify with:
 
 ```bash
@@ -85,7 +92,8 @@ PY
 ## Cold-start reminders
 
 - Try attaching before asking the user to change anything.
-- The first connect may block on Chrome's `Allow` dialog.
+- The first connect may block on Chrome's `Allow` dialog, and Chrome may also stop first on the profile picker.
+- `DevToolsActivePort` can exist before the port is actually listening. Treat connection refused as "still enabling" and keep polling briefly.
 - If attach is blocked on macOS, open `chrome://inspect/#remote-debugging` in the current Chrome profile and explicitly tell the user to click `Allow` if Chrome shows it.
 - Chrome may open the profile picker before any real tab exists.
 - On macOS, prefer AppleScript `open location` over `open -a ... URL` when Chrome is already running.
