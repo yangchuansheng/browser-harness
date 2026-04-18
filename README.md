@@ -1,50 +1,45 @@
 # bu
 
-LLM-first browser control via CDP. No CLI, no wrappers, just Python and CDP.
+The simplest, thinnest, and most powerful browser agent harness.
 
-## Setup
+## Setup prompt
 
-1. Install deps (uses `uv`):
-   ```
-   uv sync
-   ```
+Paste this into Claude Code or Codex:
 
-2. Enable Chrome remote debugging: open `chrome://inspect/#remote-debugging`, check the box. Chrome now listens at `127.0.0.1:9222`.
+```text
+Set up https://github.com/browser-use/harnessless for me.
 
-3. (Optional) For remote browsers: `cp .env.example .env` and fill in `BROWSER_USE_API_KEY`.
-
-4. Start the daemon:
-   ```
-   uv run daemon.py &
-   ```
-
-## Usage
-
-```
-uv run run.py <<'PY'
-goto("https://example.com")
-wait(1)
-screenshot("/tmp/shot.png")
-print(page_info())
-PY
+1. Clone the repo and read `SKILL.md` before doing anything else.
+2. Move into the repo folder and run `uv sync`.
+3. Enable Chrome remote debugging if needed.
+   On macOS, open Chrome directly to `chrome://inspect/#remote-debugging`.
+4. Tell me to tick the remote-debugging checkbox and click the Chrome "Allow" button if it appears.
+5. Connect to my real browser and verify the harness works.
+6. Open https://github.com/browser-use/harnessless in the browser.
+7. If I am already signed in to GitHub, star the repository to verify the harness works.
+8. If I am not signed in, ask me what task I want to run instead.
 ```
 
-Parallel agents / remote browsers: `BU_NAME=<n> uv run run.py`. See `SKILL.md`.
+## Example task
 
-Read `SKILL.md` for both usage and maintenance guidance. Read `helpers.py` for every function — they're all ~5 lines each and you can edit any of them.
-
-## Files
-
-- `daemon.py` — holds the WebSocket, listens on `/tmp/bu-<name>.sock`
-- `helpers.py` — ~250 lines of transparent helpers
-- `run.py` — 3 lines: `from helpers import *; exec(stdin)`
-- `SKILL.md` — usage guidance, design constraints, and extension gotchas
-
-## Stop
-
+```text
+Star this repository.
 ```
-uv run python -c "from helpers import kill_daemon; kill_daemon()"        # default daemon
-uv run python -c "from helpers import kill_daemon; kill_daemon('work')"  # named daemon (also stops remote browser)
-# or
-pkill -f bu/daemon.py
-```
+
+## Get inspiration
+
+See [domain-skills/](domain-skills/) for examples on other websites.
+
+## How It Works
+
+- `SKILL.md` explains how the harness should be used.
+- `run.py` executes plain Python with helpers preloaded.
+- `helpers.py` holds the primitives the agent actually calls.
+- `daemon.py` keeps the CDP websocket and socket bridge alive.
+
+## Optional: Remote browsers
+
+Useful for sub-agents or deployment.
+
+- Get a Browser Use API key: [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
+- The agent can also sign up by itself by fetching [docs.browser-use.com/llms.txt](https://docs.browser-use.com/llms.txt), which contains the setup flow and challenge context for getting a Browser Use API key.
