@@ -34,7 +34,7 @@ When this page appears, tick the checkbox so the agent can connect to your brows
 
 Example task: `Star this repository` · see [domain-skills/](domain-skills/) for more
 
-## Remote browsers
+## Free remote browsers
 
 Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card required.**
 
