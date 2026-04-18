@@ -42,7 +42,7 @@ Leaving a remote daemon running bills until the session timeout.
 
 After every browser task, extract ONE generalizable friction point from the interaction (a failed selector strategy, a slow pattern, a missing helper, a confusing result) and make the **simplest possible** improvement:
 - a 2-line helper in `helpers.py`, OR
-- a one-line gotcha in `AGENTS.md`, OR
+- a one-line gotcha in this file, OR
 - a correction to a wrong recipe here.
 
 Commit with the task. The skill gets sharper every use. Skip only if nothing was surprising.
@@ -58,8 +58,38 @@ Commit with the task. The skill gets sharper every use. Skip only if nothing was
 - **Auth wall**: redirected to login → stop and ask the user. Don't type credentials from screenshots.
 - **Raw CDP** for anything helpers don't cover: `cdp("Domain.method", **params)`.
 
+## Design constraints
+
+- **Coordinate clicks default.** `Input.dispatchMouseEvent` goes through iframes/shadow/cross-origin at the compositor level.
+- **Connect to the user's running Chrome.** Don't launch your own browser.
+- **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
+- **`run.py` stays tiny.** No argparse, subcommands, or extra control layer.
+- **Helpers stay short.** No classes, no extra deps beyond stdlib + `cdp-use` + `websockets`.
+- **Don't add a manager layer.** No retries framework, session manager, daemon supervisor, config system, or logging framework.
+
+## Architecture
+
+```text
+Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.py
+```
+
+- Protocol is one JSON line each way.
+- Requests are `{method, params, session_id}` for CDP or `{meta: ...}` for daemon control.
+- Responses are `{result}` / `{error}` / `{events}` / `{session_id}`.
+- `BU_NAME` namespaces socket, pid, and log files.
+- `BU_CDP_WS` overrides local Chrome discovery for remote browsers.
+- `BU_BROWSER_ID` + `BROWSER_USE_API_KEY` lets the daemon stop a Browser Use cloud browser on shutdown.
+
 ## Gotchas (field-tested)
 
+- **Chrome 144+ `chrome://inspect/#remote-debugging` does NOT serve `/json/version`.** Read `DevToolsActivePort` instead.
+- **Omnibox popups are fake `page` targets.** Filter `chrome://omnibox-popup...` and other internals when you need a real tab.
+- **CDP target order != Chrome's visible tab-strip order.** Use UI automation when the user means "the first/second tab I can see"; `Target.activateTarget` only shows a known target.
+- **Default daemon sessions can go stale.** `ensure_real_tab()` re-attaches to a real page.
+- **Keep the two `INTERNAL` tuples in sync.** `daemon.py` and `helpers.py` each define one.
+- **Browser Use API is camelCase on the wire.** `cdpUrl`, `proxyCountryCode`, etc.
+- **Remote `cdpUrl` is HTTPS, not ws.** Resolve the websocket URL via `/json/version`.
+- **Stop cloud browsers with `PATCH /browsers/{id}` + `{\"action\":\"stop\"}`.**
 - **React / controlled inputs ignore `el.value=...`.** Use the native setter to make React see the change:
   `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v); el.dispatchEvent(new Event('input',{bubbles:true}))`.
 - **Radio/checkbox via React**: prefer `el.click()` over `el.checked=true` — React listens to the click event to drive state.
@@ -70,3 +100,8 @@ Commit with the task. The skill gets sharper every use. Skip only if nothing was
 - **Shadow DOM**: `document.querySelector` doesn't pierce shadow roots. Walk via `element.shadowRoot.querySelectorAll` (and recurse).
 - **Submitting forms**: the "Submit" button isn't always the first `button[type=submit]` — on React Native Web etc. contact-method buttons share that type. Prefer the button whose text matches `/submit/i`, fall back to `form.requestSubmit()`.
 - **Form success signals vary**: visible `#success-message`, captured `alert()` text, console log, or body text change. Check all sources — don't assume one convention.
+
+## Interaction notes
+
+- `interaction-skills/` holds reusable UI mechanics such as dialogs, tabs, dropdowns, iframes, and uploads.
+- `domain-skills/` holds site-specific workflows.
