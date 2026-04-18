@@ -1,6 +1,7 @@
 """Browser control via CDP. Read, edit, extend -- this file is yours."""
 import base64, json, os, socket, time, urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def _load_env():
@@ -46,7 +47,10 @@ def drain_events():  return _send({"meta": "drain_events"})["events"]
 
 
 # --- navigation / page ---
-def goto(url):  return cdp("Page.navigate", url=url)
+def goto(url):
+    r = cdp("Page.navigate", url=url)
+    d = (Path(__file__).parent / "domain-skills" / (urlparse(url).hostname or "").removeprefix("www.").split(".")[0])
+    return {**r, "domain_skills": sorted(p.name for p in d.rglob("*.md"))[:10]} if d.is_dir() else r
 
 def page_info():
     """{url, title, w, h, sx, sy, pw, ph} — viewport + scroll + page size."""
@@ -54,7 +58,6 @@ def page_info():
             expression="JSON.stringify({url:location.href,title:document.title,w:innerWidth,h:innerHeight,sx:scrollX,sy:scrollY,pw:document.documentElement.scrollWidth,ph:document.documentElement.scrollHeight})",
             returnByValue=True)
     return json.loads(r["result"]["value"])
-
 
 # --- input ---
 def click(x, y, button="left", clicks=1):
