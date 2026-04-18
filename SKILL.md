@@ -93,7 +93,7 @@ After every browser task, extract ONE generalizable friction point from the inte
 
 Commit with the task. The skill gets sharper every use. Skip only if nothing was surprising.
 
-If you solve a specific website and learn a lot, create a PR to this repo with reusable learnings in `domain-skills/` or `interaction-skills/` — no secrets, no user data, no overfit recipes, just how the site works, what to wait for, and what patterns matter.
+If you spend a couple of corrective steps learning things you would want to know on the next similar task for the same domain, add or update a Markdown skill under `domain-skills/<domain>/` (create the directory if needed) with all reusable learnings that would speed up the next run, such as where to wait for network requests, which interaction patterns worked, and what traps matter. `domain-skills/` is shared across users, so include only sanitized, reusable guidance and never include sensitive data, secrets, or user-specific details. Then open a PR to this public repo.
 
 ## What actually works
 
