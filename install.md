@@ -13,7 +13,7 @@ When you open a setup or verification tab, activate it so the user can actually 
 
 ## Best everyday setup
 
-Clone the repo once, then install it as an editable tool so `bh` works from any directory:
+Clone the repo once into a durable location, then install it as an editable tool so `bh` works from any directory:
 
 ```bash
 git clone https://github.com/browser-use/browser-harness
@@ -22,7 +22,7 @@ uv tool install -e .
 command -v bh
 ```
 
-That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `bh` run uses the new code immediately. `browser-harness` is the readable alias for the same command.
+That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `bh` run uses the new code immediately. `browser-harness` is the readable alias for the same command. Prefer a stable path like `~/Developer/browser-harness`, not `/tmp`.
 
 ## Make it global for the current agent
 
@@ -84,8 +84,8 @@ If that fails with a stale websocket or stale socket, restart the daemon once an
 
 ```bash
 uv run python - <<'PY'
-from helpers import kill_daemon
-kill_daemon()
+from admin import restart_daemon
+restart_daemon()
 PY
 ```
 
