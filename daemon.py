@@ -8,12 +8,16 @@ from cdp_use.client import CDPClient
 
 def _load_env():
     p = Path(__file__).parent / ".env"
-    if not p.exists(): return
+    if not p.exists():
+        return
     for line in p.read_text().splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or "=" not in line: continue
+        if not line or line.startswith("#") or "=" not in line:
+            continue
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
 _load_env()
 
 NAME = os.environ.get("BU_NAME", "default")
@@ -112,16 +116,17 @@ class Daemon:
         url = get_ws_url()
         log(f"connecting to {url}")
         self.cdp = CDPClient(url)
-        # Chrome shows a native "Allow debugging" dialog on first connect — user may take a while to click.
+        # Chrome shows a native "Allow debugging" dialog on first connect -- user may take a while to click.
         for attempt in range(12):
             try:
-                await self.cdp.start(); break
+                await self.cdp.start()
+                break
             except Exception as e:
-                log(f"ws handshake attempt {attempt+1} failed: {e} — retrying")
+                log(f"ws handshake attempt {attempt+1} failed: {e} -- retrying")
                 self.cdp = CDPClient(url)
                 await asyncio.sleep(5)
         else:
-            raise RuntimeError("CDP WS handshake never succeeded — did you accept Chrome's Allow dialog?")
+            raise RuntimeError("CDP WS handshake never succeeded -- did you accept Chrome's Allow dialog?")
         await self.attach_first_page()
         orig = self.cdp._event_registry.handle_event
         async def tap(method, params, session_id=None):
