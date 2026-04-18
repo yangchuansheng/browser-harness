@@ -44,7 +44,7 @@ Available domain skills:
 ## Tool call shape
 
 ```bash
-bh <<'PY'
+browser-harness <<'PY'
 # any python. helpers pre-imported. daemon auto-starts.
 PY
 ```
@@ -64,7 +64,7 @@ uv run python - <<'PY'
 from admin import start_remote_daemon
 print(start_remote_daemon("work"))
 PY
-BU_NAME=work uv run bh <<'PY'
+BU_NAME=work uv run browser-harness <<'PY'
 print(page_info())
 PY
 ```
@@ -132,7 +132,7 @@ Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.
 ## Gotchas (field-tested)
 
 - **Chrome 144+ `chrome://inspect/#remote-debugging` does NOT serve `/json/version`.** Read `DevToolsActivePort` instead.
-- **Try attaching before asking for setup.** If `uv run bh` already works, skip the remote-debugging instructions entirely.
+- **Try attaching before asking for setup.** If `uv run browser-harness` already works, skip the remote-debugging instructions entirely.
 - **The first connect may block on Chrome's Allow dialog.** If setup hangs, explicitly tell the user to click `Allow` in Chrome if it appears, then keep polling for up to 30 seconds instead of treating follow-on errors as a new failure.
 - **`DevToolsActivePort` can exist before the port is actually listening.** Treat connection refused as "still enabling" and keep polling for up to 30 seconds.
 - **Chrome may open the profile picker before any real tab exists.** If Chrome opens both a profile picker and the remote-debugging page, tell the user to choose their normal profile first, then tick the checkbox and click `Allow` if shown.
@@ -140,7 +140,12 @@ Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.
 - **Omnibox popups are fake `page` targets.** Filter `chrome://omnibox-popup...` and other internals when you need a real tab.
 - **CDP target order != Chrome's visible tab-strip order.** Use UI automation when the user means "the first/second tab I can see"; `Target.activateTarget` only shows a known target.
 - **Default daemon sessions can go stale.** `ensure_real_tab()` re-attaches to a real page.
-- **`no close frame received or sent` usually means a stale daemon / websocket.** Restart the daemon once via `admin.restart_daemon()` before assuming setup is wrong.
+- **`no close frame received or sent` usually means a stale daemon / websocket.** Restart the daemon once with:
+  `uv run python - <<'PY'`
+  `from admin import restart_daemon`
+  `restart_daemon()`
+  `PY`
+  before assuming setup is wrong.
 - **Browser Use API is camelCase on the wire.** `cdpUrl`, `proxyCountryCode`, etc.
 - **Remote `cdpUrl` is HTTPS, not ws.** Resolve the websocket URL via `/json/version`.
 - **Stop cloud browsers with `PATCH /browsers/{id}` + `{\"action\":\"stop\"}`.**
