@@ -47,7 +47,6 @@ That makes new Codex or Claude Code sessions in other folders load the runtime b
 
 ```bash
 uv run browser-harness <<'PY'
-ensure_real_tab()
 print(page_info())
 PY
 ```
@@ -73,7 +72,6 @@ osascript -e 'tell application "Google Chrome" to activate' \
 
 ```bash
 uv run browser-harness <<'PY'
-ensure_real_tab()
 goto("https://github.com/browser-use/browser-harness")
 wait_for_load()
 print(page_info())
