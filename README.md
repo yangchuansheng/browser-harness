@@ -1,50 +1,33 @@
 # bu
 
-LLM-first browser control via CDP. No CLI, no wrappers, just Python and CDP.
+The simplest, most powerful browser agent harness: connect to a real browser, keep setup tiny, and let the agent do the rest.
 
 ## Setup
 
-1. Install deps (uses `uv`):
-   ```
-   uv sync
-   ```
+Humans should not learn a CLI here; the normal setup is to paste one prompt into Claude Code or Codex and let the agent install and use the repo.
 
-2. Enable Chrome remote debugging: open `chrome://inspect/#remote-debugging`, check the box. Chrome now listens at `127.0.0.1:9222`.
+Example prompt:
 
-3. (Optional) For remote browsers: `cp .env.example .env` and fill in `BROWSER_USE_API_KEY`.
-
-4. Start the daemon:
-   ```
-   uv run daemon.py &
-   ```
-
-## Usage
-
-```
-uv run run.py <<'PY'
-goto("https://example.com")
-wait(1)
-screenshot("/tmp/shot.png")
-print(page_info())
-PY
+```text
+Clone https://github.com/browser-use/harnessless, install it, enable Chrome remote debugging if needed, and use this browser harness to do the task in my real browser.
 ```
 
-Parallel agents / remote browsers: `BU_NAME=<n> uv run run.py`. See `SKILL.md`.
+If you are installing it manually, the only real setup is:
 
-Read `SKILL.md` for both usage and maintenance guidance. Read `helpers.py` for every function — they're all ~5 lines each and you can edit any of them.
-
-## Files
-
-- `daemon.py` — holds the WebSocket, listens on `/tmp/bu-<name>.sock`
-- `helpers.py` — ~250 lines of transparent helpers
-- `run.py` — 3 lines: `from helpers import *; exec(stdin)`
-- `SKILL.md` — usage guidance, design constraints, and extension gotchas
-
-## Stop
-
+```bash
+uv sync
 ```
-uv run python -c "from helpers import kill_daemon; kill_daemon()"        # default daemon
-uv run python -c "from helpers import kill_daemon; kill_daemon('work')"  # named daemon (also stops remote browser)
-# or
-pkill -f bu/daemon.py
+
+Then enable Chrome remote debugging at `chrome://inspect/#remote-debugging`.
+
+## Example task
+
+```text
+Use this browser harness to open my real Chrome and submit the form on example.com.
 ```
+
+## How It Works
+
+`run.py` executes plain Python with `helpers.py` preloaded, and `daemon.py` keeps the CDP websocket and socket bridge alive.
+
+Everything else lives in `SKILL.md`, `interaction-skills/`, and `domain-skills/`.
