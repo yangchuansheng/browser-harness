@@ -1,10 +1,10 @@
 ---
-name: bu
+name: browser-harness
 description: Direct browser control via CDP. Use when the user wants to automate, scrape, test, or interact with web pages. Connects to the user's already-running Chrome.
 allowed-tools: Bash, Read, Edit, Write
 ---
 
-# bu
+# browser-harness
 
 Available interaction skills:
 - `cookies.md`
@@ -31,7 +31,7 @@ Available domain skills:
 ## Tool call shape
 
 ```bash
-bu <<'PY'
+bh <<'PY'
 # any python. helpers pre-imported. daemon auto-starts.
 PY
 ```
@@ -42,33 +42,55 @@ PY
 
 ### Best everyday setup
 
-Clone the repo once, then install it as an editable tool so `bu` works from any directory:
+Clone the repo once, then install it as an editable tool so `bh` works from any directory:
 
 ```bash
 git clone https://github.com/browser-use/harnessless
 cd harnessless
 uv tool install -e .
+command -v bh
 ```
 
-That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `bu` run uses the new code immediately.
+That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `bh` run uses the new code immediately. `browser-harness` is the readable alias for the same command.
+
+Default to this global setup. Use the local-only flow below only for quick testing inside the repo.
+
+### Make it global for the current agent
+
+After the repo is installed, register this repo's `SKILL.md` with the agent you are using:
+
+- **Codex**: add this file as a global skill at `$CODEX_HOME/skills/browser-harness/SKILL.md` (often `~/.codex/skills/browser-harness/SKILL.md`). A symlink to this repo's `SKILL.md` is fine.
+- **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/src/harnessless/SKILL.md`.
+
+That makes new Codex or Claude Code sessions in other folders load the browser harness instructions automatically.
+
+To confirm the memory/instructions are loaded:
+
+- **Codex**: start a new session and check that `browser-harness` appears in the available skills.
+- **Claude Code**: run `/memory` and confirm that `~/.claude/CLAUDE.md` and its import are listed.
 
 ### Simplest local setup
 
 1. Run `uv sync`.
-2. If Chrome is closed, open it first.
-3. Open `chrome://inspect/#remote-debugging`.
+2. Open Chrome to `chrome://inspect/#remote-debugging`.
    On macOS: `open -a "Google Chrome" "chrome://inspect/#remote-debugging"`
-4. Tell the user to tick the remote-debugging checkbox and click Chrome's "Allow" button if it appears.
+   On Linux: open Chrome manually, then open that URL.
+3. Tell the user to tick the remote-debugging checkbox and click Chrome's "Allow" button if it appears.
+4. If setup hangs on the first connect, stop and wait for the user to click `Allow`, then retry once.
 5. Verify with:
 
 ```bash
-bu <<'PY'
+uv run bh <<'PY'
 ensure_real_tab()
+if not current_tab()["url"] or current_tab()["url"].startswith(INTERNAL):
+    new_tab("about:blank")
 print(page_info())
 PY
 ```
 
 If that fails with a stale websocket or stale socket, restart the daemon once and retry:
+
+Run this from the repo root:
 
 ```bash
 uv run python - <<'PY'
@@ -81,11 +103,16 @@ PY
 
 Remote is optional. Use it for parallel agents, sub-agents, or deployment.
 
-Create `.env` from `.env.example` and set `BROWSER_USE_API_KEY`, then:
+If `BROWSER_USE_API_KEY` is already present in `.env` or the environment, start a remote daemon with:
+
+Run this from the repo root:
 
 ```bash
-uv run python -c "from helpers import start_remote_daemon; print(start_remote_daemon('work'))"
-BU_NAME=work bu <<'PY'
+uv run python - <<'PY'
+from helpers import start_remote_daemon
+print(start_remote_daemon("work"))
+PY
+BU_NAME=work uv run bh <<'PY'
 print(page_info())
 PY
 ```
