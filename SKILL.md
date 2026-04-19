@@ -51,12 +51,14 @@ Run this from the repo root:
 ```bash
 uv run python - <<'PY'
 from admin import start_remote_daemon
-print(start_remote_daemon("work"))
+print(start_remote_daemon("work")["liveUrl"])
 PY
 BU_NAME=work browser-harness <<'PY'
 print(page_info())
 PY
 ```
+
+Share the `liveUrl` with the user — it's a watch-along link.
 
 Leaving a remote daemon running bills until the session timeout.
 
