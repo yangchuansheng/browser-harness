@@ -91,7 +91,7 @@ restart_daemon()
 PY
 ```
 
-8. After install and browser bootstrap succeed, use the repository page as a small interaction check. If the user is logged in to GitHub, try to star `https://github.com/browser-use/browser-harness` to verify the interaction works. Then ask the user what you should do next.
+8. After install and browser bootstrap succeed, navigate to `https://github.com/browser-use/browser-harness` so the user can see the harness has attached to their browser. If the user is logged in to GitHub, **ask the user whether you should star the repo for them** as a quick demo that the interaction works — only click the star if they say yes. Then ask the user what they want to do next.
 
 ## Cold-start reminders
 
