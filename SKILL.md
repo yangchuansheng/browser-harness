@@ -5,19 +5,22 @@ description: Direct browser control via CDP. Use when the user wants to automate
 
 # browser-harness
 
-Easiest and most powerful way to interact with the browser.
+Easiest and most powerful way to interact with the browser. **Read this file in full before using or editing the harness** — it has to be in context.
 
 ## Fast start
 
-Read `helpers.py` first. For first-time install or reconnect/bootstrap, read `install.md` first. For normal use, stay in this file.
+Read `helpers.py` first. For first-time install or reconnect/bootstrap, read `install.md` first.
 
 ```bash
-uv run browser-harness <<'PY'
-goto("https://browser-use.com")
+browser-harness <<'PY'
+new_tab("https://browser-use.com")
 wait_for_load()
 print(page_info())
 PY
 ```
+
+- Invoke as `browser-harness` — it's on `$PATH`. No `cd`, no `uv run`.
+- First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
 
 The code is the doc.
 
@@ -50,7 +53,7 @@ uv run python - <<'PY'
 from admin import start_remote_daemon
 print(start_remote_daemon("work"))
 PY
-BU_NAME=work uv run browser-harness <<'PY'
+BU_NAME=work browser-harness <<'PY'
 print(page_info())
 PY
 ```
