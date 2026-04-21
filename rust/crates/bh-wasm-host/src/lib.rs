@@ -89,6 +89,55 @@ pub struct GuestRunResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "command", rename_all = "snake_case")]
+pub enum GuestServeRequest {
+    Start {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        guest_module: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        config: Option<RunnerConfig>,
+    },
+    Run,
+    Status,
+    Stop,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GuestServeResponse {
+    Ready {
+        guest_module: String,
+        persistent_guest_state: bool,
+        granted_operations: Vec<String>,
+        invocation_count: u64,
+    },
+    RunResult {
+        invocation_count: u64,
+        result: GuestRunResult,
+    },
+    Status {
+        guest_module: String,
+        persistent_guest_state: bool,
+        granted_operations: Vec<String>,
+        invocation_count: u64,
+    },
+    Stopped {
+        invocation_count: u64,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitRequest {
+    #[serde(default = "default_wait_duration_ms")]
+    pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitResult {
+    pub elapsed_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CurrentSessionRequest {
     #[serde(default = "default_daemon_name")]
     pub daemon_name: String,
@@ -334,6 +383,14 @@ impl Default for CurrentSessionRequest {
     }
 }
 
+impl Default for WaitRequest {
+    fn default() -> Self {
+        Self {
+            duration_ms: default_wait_duration_ms(),
+        }
+    }
+}
+
 impl Default for CurrentTabRequest {
     fn default() -> Self {
         Self {
@@ -470,6 +527,14 @@ impl JsRequest {
             },
             expression: self.expression.clone(),
             target_id: self.target_id.clone(),
+        }
+    }
+}
+
+impl WaitRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            duration_ms: self.duration_ms,
         }
     }
 }
@@ -1019,6 +1084,10 @@ fn compatibility_helper(name: &'static str, description: &'static str) -> HostOp
         stability: Stability::Stable,
         description,
     }
+}
+
+fn default_wait_duration_ms() -> u64 {
+    0
 }
 
 fn default_daemon_name() -> String {

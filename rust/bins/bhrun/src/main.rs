@@ -1,4 +1,4 @@
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::thread;
@@ -11,18 +11,19 @@ use bh_protocol::{
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
     operation_names, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, GotoRequest,
-    GuestCallRecord, GuestRunResult, JsRequest, ListTabsRequest, NewTabRequest, NewTabResult,
-    PageInfoRequest, RunnerConfig, SwitchTabRequest, SwitchTabResult, TabSummary,
-    WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
-    WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
+    GuestCallRecord, GuestRunResult, GuestServeRequest, GuestServeResponse, JsRequest,
+    ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest, RunnerConfig, SwitchTabRequest,
+    SwitchTabResult, TabSummary, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
+    WaitForEventResult, WaitForLoadEventRequest, WaitForResponseRequest, WaitRequest, WaitResult,
+    WatchEventsLine, WatchEventsRequest,
 };
 use serde_json::{json, Value};
-use wasmtime::{Caller, Engine, Linker, Module, Store};
+use wasmtime::{Caller, Engine, Linker, Module, Store, TypedFunc};
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|current-tab|list-tabs|new-tab|switch-tab|page-info|goto|js|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
-         runner scaffold: event waiting and minimal guest execution are live"
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|page-info|goto|js|wait|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+         runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
 
@@ -56,7 +57,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live page_info=live goto=live js=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live page_info=live goto=live js=live wait=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -76,6 +77,7 @@ where
             let result = run_guest(&guest_path, request)?;
             write_json(&mut stdout, &result)
         }
+        Some("serve-guest") => serve_guest(args.next(), stdin, &mut stdout),
         Some("current-tab") => {
             let request =
                 read_optional_json::<CurrentTabRequest, _>(&mut stdin)?.unwrap_or_default();
@@ -110,6 +112,11 @@ where
         Some("js") => {
             let request = read_json::<JsRequest, _>(&mut stdin)?;
             let result = js(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("wait") => {
+            let request = read_optional_json::<WaitRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = wait(request);
             write_json(&mut stdout, &result)
         }
         Some("current-session") => {
@@ -186,6 +193,15 @@ fn js(request: JsRequest) -> Result<Value, String> {
     js_with_sender(request, send_daemon_request)
 }
 
+fn wait(request: WaitRequest) -> WaitResult {
+    let request = request.normalized();
+    let start = Instant::now();
+    thread::sleep(Duration::from_millis(request.duration_ms));
+    WaitResult {
+        elapsed_ms: start.elapsed().as_millis() as u64,
+    }
+}
+
 #[derive(Debug)]
 struct GuestHostState {
     config: RunnerConfig,
@@ -193,77 +209,213 @@ struct GuestHostState {
     error: Option<String>,
 }
 
-fn run_guest(path: &str, config: RunnerConfig) -> Result<GuestRunResult, String> {
-    let engine = Engine::default();
-    let module = Module::from_file(&engine, Path::new(path))
-        .map_err(|err| format!("load guest module: {err}"))?;
-    let mut linker = Linker::new(&engine);
-    linker
-        .func_wrap(
-            "bh",
-            "call_json",
-            |mut caller: Caller<'_, GuestHostState>,
-             operation_ptr: i32,
-             operation_len: i32,
-             request_ptr: i32,
-             request_len: i32,
-             out_ptr: i32,
-             out_cap: i32|
-             -> i32 {
-                let operation = match read_guest_utf8(&mut caller, operation_ptr, operation_len) {
-                    Ok(operation) => operation,
-                    Err(err) => return set_guest_error(caller.data_mut(), err),
-                };
-                let request_text = match read_guest_utf8(&mut caller, request_ptr, request_len) {
-                    Ok(request_text) => request_text,
-                    Err(err) => return set_guest_error(caller.data_mut(), err),
-                };
-                let response =
-                    match dispatch_guest_operation(caller.data_mut(), &operation, &request_text) {
+struct GuestRuntime {
+    guest_module: String,
+    store: Store<GuestHostState>,
+    run: TypedFunc<(), i32>,
+    invocation_count: u64,
+}
+
+impl GuestRuntime {
+    fn new(path: &str, config: RunnerConfig) -> Result<Self, String> {
+        let engine = Engine::default();
+        let module = Module::from_file(&engine, Path::new(path))
+            .map_err(|err| format!("load guest module: {err}"))?;
+        let mut linker = Linker::new(&engine);
+        linker
+            .func_wrap(
+                "bh",
+                "call_json",
+                |mut caller: Caller<'_, GuestHostState>,
+                 operation_ptr: i32,
+                 operation_len: i32,
+                 request_ptr: i32,
+                 request_len: i32,
+                 out_ptr: i32,
+                 out_cap: i32|
+                 -> i32 {
+                    let operation = match read_guest_utf8(&mut caller, operation_ptr, operation_len)
+                    {
+                        Ok(operation) => operation,
+                        Err(err) => return set_guest_error(caller.data_mut(), err),
+                    };
+                    let request_text = match read_guest_utf8(&mut caller, request_ptr, request_len)
+                    {
+                        Ok(request_text) => request_text,
+                        Err(err) => return set_guest_error(caller.data_mut(), err),
+                    };
+                    let response = match dispatch_guest_operation(
+                        caller.data_mut(),
+                        &operation,
+                        &request_text,
+                    ) {
                         Ok(response) => response,
                         Err(err) => return set_guest_error(caller.data_mut(), err),
                     };
-                match write_guest_bytes(&mut caller, out_ptr, out_cap, &response) {
-                    Ok(written) => written,
-                    Err(err) => set_guest_error(caller.data_mut(), err),
-                }
+                    match write_guest_bytes(&mut caller, out_ptr, out_cap, &response) {
+                        Ok(written) => written,
+                        Err(err) => set_guest_error(caller.data_mut(), err),
+                    }
+                },
+            )
+            .map_err(|err| format!("define guest host function: {err}"))?;
+
+        let mut store = Store::new(
+            &engine,
+            GuestHostState {
+                config,
+                calls: Vec::new(),
+                error: None,
             },
-        )
-        .map_err(|err| format!("define guest host function: {err}"))?;
+        );
+        let instance = linker
+            .instantiate(&mut store, &module)
+            .map_err(|err| format!("instantiate guest module: {err}"))?;
+        let run = instance
+            .get_typed_func::<(), i32>(&mut store, "run")
+            .map_err(|err| format!("locate guest export run: {err}"))?;
 
-    let mut store = Store::new(
-        &engine,
-        GuestHostState {
-            config,
-            calls: Vec::new(),
-            error: None,
-        },
-    );
-    let instance = linker
-        .instantiate(&mut store, &module)
-        .map_err(|err| format!("instantiate guest module: {err}"))?;
-    let run = instance
-        .get_typed_func::<(), i32>(&mut store, "run")
-        .map_err(|err| format!("locate guest export run: {err}"))?;
-    let outcome = run.call(&mut store, ());
-    let state = store.data();
-    let calls = state.calls.clone();
-    let host_error = state.error.clone();
+        Ok(Self {
+            guest_module: path.to_string(),
+            store,
+            run,
+            invocation_count: 0,
+        })
+    }
 
-    Ok(match outcome {
-        Ok(exit_code) => GuestRunResult {
-            exit_code,
-            success: exit_code == 0 && host_error.is_none(),
-            calls,
-            trap: host_error,
-        },
-        Err(err) => GuestRunResult {
-            exit_code: -1,
-            success: false,
-            calls,
-            trap: Some(host_error.unwrap_or_else(|| err.to_string())),
-        },
-    })
+    fn invoke_run(&mut self) -> GuestRunResult {
+        let call_start = self.store.data().calls.len();
+        self.store.data_mut().error = None;
+
+        let outcome = self.run.call(&mut self.store, ());
+        self.invocation_count += 1;
+
+        let state = self.store.data();
+        let calls = state.calls[call_start..].to_vec();
+        let host_error = state.error.clone();
+
+        match outcome {
+            Ok(exit_code) => GuestRunResult {
+                exit_code,
+                success: exit_code == 0 && host_error.is_none(),
+                calls,
+                trap: host_error,
+            },
+            Err(err) => GuestRunResult {
+                exit_code: -1,
+                success: false,
+                calls,
+                trap: Some(host_error.unwrap_or_else(|| err.to_string())),
+            },
+        }
+    }
+
+    fn ready_response(&self) -> GuestServeResponse {
+        let state = self.store.data();
+        GuestServeResponse::Ready {
+            guest_module: self.guest_module.clone(),
+            persistent_guest_state: state.config.persistent_guest_state,
+            granted_operations: state.config.granted_operations.clone(),
+            invocation_count: self.invocation_count,
+        }
+    }
+
+    fn status_response(&self) -> GuestServeResponse {
+        let state = self.store.data();
+        GuestServeResponse::Status {
+            guest_module: self.guest_module.clone(),
+            persistent_guest_state: state.config.persistent_guest_state,
+            granted_operations: state.config.granted_operations.clone(),
+            invocation_count: self.invocation_count,
+        }
+    }
+}
+
+fn run_guest(path: &str, config: RunnerConfig) -> Result<GuestRunResult, String> {
+    Ok(GuestRuntime::new(path, config)?.invoke_run())
+}
+
+fn serve_guest<R, W>(path_arg: Option<String>, stdin: R, stdout: &mut W) -> Result<(), String>
+where
+    R: Read,
+    W: Write,
+{
+    let mut reader = io::BufReader::new(stdin);
+    let mut runtime: Option<GuestRuntime> = None;
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let read = reader
+            .read_line(&mut line)
+            .map_err(|err| format!("read serve-guest stdin: {err}"))?;
+        if read == 0 {
+            return Ok(());
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let request: GuestServeRequest = serde_json::from_str(line.trim())
+            .map_err(|err| format!("invalid serve-guest request JSON: {err}"))?;
+        match request {
+            GuestServeRequest::Start {
+                guest_module,
+                config,
+            } => {
+                if runtime.is_some() {
+                    return Err("serve-guest already started a guest runtime".to_string());
+                }
+                let config = config.unwrap_or_else(default_runner_config);
+                if !config.persistent_guest_state {
+                    return Err(
+                        "serve-guest requires config.persistent_guest_state=true".to_string()
+                    );
+                }
+                let guest_path = path_arg
+                    .clone()
+                    .or(guest_module)
+                    .or_else(|| config.guest_module.clone())
+                    .ok_or_else(|| {
+                        "serve-guest start requires a guest path or config.guest_module".to_string()
+                    })?;
+                let guest_runtime = GuestRuntime::new(&guest_path, config)?;
+                write_json_line(stdout, &guest_runtime.ready_response())?;
+                runtime = Some(guest_runtime);
+            }
+            GuestServeRequest::Run => {
+                let guest_runtime = runtime
+                    .as_mut()
+                    .ok_or_else(|| "serve-guest requires a start command first".to_string())?;
+                let result = guest_runtime.invoke_run();
+                write_json_line(
+                    stdout,
+                    &GuestServeResponse::RunResult {
+                        invocation_count: guest_runtime.invocation_count,
+                        result,
+                    },
+                )?;
+            }
+            GuestServeRequest::Status => {
+                let response = if let Some(guest_runtime) = runtime.as_ref() {
+                    guest_runtime.status_response()
+                } else {
+                    GuestServeResponse::Stopped {
+                        invocation_count: 0,
+                    }
+                };
+                write_json_line(stdout, &response)?;
+            }
+            GuestServeRequest::Stop => {
+                let invocation_count = runtime
+                    .as_ref()
+                    .map(|guest_runtime| guest_runtime.invocation_count)
+                    .unwrap_or(0);
+                write_json_line(stdout, &GuestServeResponse::Stopped { invocation_count })?;
+                return Ok(());
+            }
+        }
+    }
 }
 
 fn current_session_with_sender<F>(
@@ -667,6 +819,8 @@ fn dispatch_guest_operation(
         "page_info" => page_info(parse_request_value(&request)?)?,
         "goto" => goto(parse_request_value(&request)?)?,
         "js" => js(parse_request_value(&request)?)?,
+        "wait" => serde_json::to_value(wait(parse_request_value(&request)?))
+            .map_err(|err| format!("serialize wait result: {err}"))?,
         "wait_for_event" => serde_json::to_value(wait_for_event(parse_request_value(&request)?)?)
             .map_err(|err| format!("serialize wait_for_event result: {err}"))?,
         "wait_for_load_event" => {
@@ -833,21 +987,29 @@ mod tests {
     use super::{
         current_session_with_sender, current_tab_with_sender, dispatch_guest_operation,
         goto_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
-        new_tab_with_sender, page_info_with_sender, run_cli, switch_tab_with_sender,
+        new_tab_with_sender, page_info_with_sender, run_cli, switch_tab_with_sender, wait,
         wait_for_console_with_drain, wait_for_event_with_drain, watch_events_with_drain,
-        DaemonResponse, GuestHostState, META_CURRENT_TAB, META_GOTO, META_JS, META_LIST_TABS,
-        META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
+        DaemonResponse, GuestHostState, GuestRuntime, META_CURRENT_TAB, META_GOTO, META_JS,
+        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
     };
     use std::collections::VecDeque;
     use std::io;
 
     use bh_wasm_host::{
-        CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, EventFilter, GotoRequest,
-        JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest, RunnerConfig, SwitchTabRequest,
-        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
-        WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsRequest,
+        default_runner_config, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
+        EventFilter, GotoRequest, GuestServeResponse, JsRequest, ListTabsRequest, NewTabRequest,
+        PageInfoRequest, RunnerConfig, SwitchTabRequest, WaitForConsoleRequest,
+        WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
+        WaitForResponseRequest, WaitRequest, WatchEventsRequest,
     };
     use serde_json::{json, Value};
+
+    fn persistent_counter_guest_path() -> String {
+        format!(
+            "{}/../../guests/persistent_counter.wat",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
 
     #[test]
     fn wait_for_event_matches_after_multiple_polls() {
@@ -966,6 +1128,45 @@ mod tests {
             .expect_err("ungranted operation should fail");
         assert_eq!(err, "operation denied by runner config: goto");
         assert!(state.calls.is_empty());
+    }
+
+    #[test]
+    fn wait_returns_elapsed_time() {
+        let result = wait(WaitRequest { duration_ms: 1 });
+        assert!(result.elapsed_ms >= 1);
+    }
+
+    #[test]
+    fn guest_runtime_preserves_state_across_runs() {
+        let guest_path = persistent_counter_guest_path();
+        let config = RunnerConfig {
+            granted_operations: vec!["wait".to_string()],
+            ..default_runner_config()
+        };
+        let mut runtime = GuestRuntime::new(&guest_path, config).expect("create guest runtime");
+
+        let first = runtime.invoke_run();
+        let second = runtime.invoke_run();
+
+        assert!(first.success);
+        assert!(second.success);
+        assert_eq!(runtime.invocation_count, 2);
+        assert_eq!(first.calls.len(), 1);
+        assert_eq!(second.calls.len(), 1);
+        assert_eq!(
+            first.calls[0]
+                .request
+                .get("duration_ms")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            second.calls[0]
+                .request
+                .get("duration_ms")
+                .and_then(Value::as_u64),
+            Some(2)
+        );
     }
 
     #[test]
@@ -1188,12 +1389,115 @@ mod tests {
         assert!(text.contains("page_info=live"));
         assert!(text.contains("goto=live"));
         assert!(text.contains("js=live"));
+        assert!(text.contains("wait=live"));
         assert!(text.contains("current_session=live"));
         assert!(text.contains("wait_for_event=live"));
         assert!(text.contains("watch_events=live"));
         assert!(text.contains("wait_for_response=live"));
         assert!(text.contains("wait_for_console=live"));
         assert!(text.contains("wait_for_dialog=live"));
+        assert!(text.contains("persistent_guest_runner=preview"));
+    }
+
+    #[test]
+    fn cli_serve_guest_reuses_same_runtime_across_run_commands() {
+        let guest_path = persistent_counter_guest_path();
+        let config = RunnerConfig {
+            guest_module: Some(guest_path.clone()),
+            granted_operations: vec!["wait".to_string()],
+            ..default_runner_config()
+        };
+        let input = [
+            serde_json::to_string(&json!({
+                "command":"start",
+                "config": config,
+            }))
+            .expect("serialize start"),
+            serde_json::to_string(&json!({"command":"status"})).expect("serialize status"),
+            serde_json::to_string(&json!({"command":"run"})).expect("serialize run"),
+            serde_json::to_string(&json!({"command":"run"})).expect("serialize run"),
+            serde_json::to_string(&json!({"command":"stop"})).expect("serialize stop"),
+        ]
+        .join("\n")
+            + "\n";
+        let mut stdout = Vec::new();
+
+        run_cli(
+            vec!["serve-guest".to_string(), guest_path.clone()].into_iter(),
+            io::Cursor::new(input.into_bytes()),
+            &mut stdout,
+        )
+        .expect("serve-guest");
+
+        let lines = String::from_utf8(stdout).expect("utf-8");
+        let responses = lines
+            .lines()
+            .map(|line| serde_json::from_str::<GuestServeResponse>(line).expect("parse json line"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(responses.len(), 5);
+        match &responses[0] {
+            GuestServeResponse::Ready {
+                guest_module,
+                invocation_count,
+                ..
+            } => {
+                assert_eq!(guest_module, &guest_path);
+                assert_eq!(*invocation_count, 0);
+            }
+            other => panic!("unexpected ready response: {other:?}"),
+        }
+        match &responses[1] {
+            GuestServeResponse::Status {
+                guest_module,
+                invocation_count,
+                ..
+            } => {
+                assert_eq!(guest_module, &guest_path);
+                assert_eq!(*invocation_count, 0);
+            }
+            other => panic!("unexpected status response: {other:?}"),
+        }
+        match &responses[2] {
+            GuestServeResponse::RunResult {
+                invocation_count,
+                result,
+            } => {
+                assert_eq!(*invocation_count, 1);
+                assert!(result.success);
+                assert_eq!(
+                    result.calls[0]
+                        .request
+                        .get("duration_ms")
+                        .and_then(Value::as_u64),
+                    Some(1)
+                );
+            }
+            other => panic!("unexpected first run response: {other:?}"),
+        }
+        match &responses[3] {
+            GuestServeResponse::RunResult {
+                invocation_count,
+                result,
+            } => {
+                assert_eq!(*invocation_count, 2);
+                assert!(result.success);
+                assert_eq!(
+                    result.calls[0]
+                        .request
+                        .get("duration_ms")
+                        .and_then(Value::as_u64),
+                    Some(2)
+                );
+            }
+            other => panic!("unexpected second run response: {other:?}"),
+        }
+        match &responses[4] {
+            GuestServeResponse::Stopped { invocation_count } => {
+                assert_eq!(*invocation_count, 2);
+            }
+            other => panic!("unexpected stop response: {other:?}"),
+        }
     }
 
     #[test]

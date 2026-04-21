@@ -130,6 +130,15 @@ cargo run --quiet --bin bhrun -- capabilities
 cargo run --quiet --bin bhrun -- run-guest guests/navigate_and_read.wat <<'JSON'
 {"daemon_name":"default","guest_module":"guests/navigate_and_read.wat","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
+cargo run --quiet --bin bhrun -- wait <<'JSON'
+{"duration_ms":1}
+JSON
+cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/persistent_counter.wat
+{"command":"start","config":{"daemon_name":"default","guest_module":"guests/persistent_counter.wat","granted_operations":["wait"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}}
+{"command":"run"}
+{"command":"run"}
+{"command":"stop"}
+NDJSON
 cargo run --quiet --bin bhrun -- current-tab <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -179,12 +188,17 @@ execution slice is live.
 `run-guest` currently loads a core Wasm module, exposes a single generic
 `bh.call_json` import, enforces `RunnerConfig.granted_operations`, and returns a
 call trace for the guest's host interactions.
+`serve-guest` is the first persistent runner preview. It keeps one Wasm
+instance alive, accepts line-delimited control messages, and reuses the same
+guest state across repeated `run` invocations.
 `current-tab`, `list-tabs`, `new-tab`, and `switch-tab` are the first live
 runner-owned target control helpers, giving guests direct tab/session selection
 without reaching around the runner boundary.
 `page-info`, `goto`, and `js` are the first live runner-owned action helpers,
 bridging into the daemon's typed compatibility surface without going through the
 Python shell.
+`wait` is the first runner-local utility that does not require browser I/O,
+which makes browser-free guest/runtime persistence checks possible.
 `wait-for-event` is the first live Phase 2 runner primitive.
 `watch-events` is the first generic streaming primitive layered on the same daemon event buffer.
 `wait-for-load-event` is the first helper layered directly on top of it.
