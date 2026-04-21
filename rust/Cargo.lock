@@ -60,6 +60,11 @@ dependencies = [
 [[package]]
 name = "bh-wasm-host"
 version = "0.1.0"
+dependencies = [
+ "bh-protocol",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "bhctl"
@@ -84,6 +89,7 @@ name = "bhrun"
 version = "0.1.0"
 dependencies = [
  "bh-wasm-host",
+ "serde_json",
 ]
 
 [[package]]

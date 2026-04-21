@@ -18,9 +18,11 @@ pub const META_IFRAME_TARGET: &str = "iframe_target";
 pub const META_WAIT_FOR_LOAD: &str = "wait_for_load";
 pub const META_JS: &str = "js";
 pub const META_GOTO: &str = "goto";
+pub const META_SCREENSHOT: &str = "screenshot";
 pub const META_CLICK: &str = "click";
 pub const META_TYPE_TEXT: &str = "type_text";
 pub const META_PRESS_KEY: &str = "press_key";
+pub const META_DISPATCH_KEY: &str = "dispatch_key";
 pub const META_SCROLL: &str = "scroll";
 pub const META_UPLOAD_FILE: &str = "upload_file";
 
