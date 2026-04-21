@@ -96,6 +96,8 @@ Current runner-owned preview surface:
 - the first Rust guest authoring path via `bh-guest-sdk` and a compiled Rust Wasm sample guest
 - the first stateful Rust Wasm guest now covers the persistent browser-state serve-guest path
 - the guest SDK now also covers typed tab/session control plus `wait_for_response`, with a compiled workflow guest and live remote smoke
+- the runner/guest boundary now also carries more of the old compatibility helper surface: `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, and `scroll`
+- the first real domain-skill browser slice is now ported as `rust/guests/rust-github-trending`, while pure network helpers such as `http_get` still remain in the dynamic layer
 
 More specifically, the target shape is:
 
@@ -301,7 +303,7 @@ Do not let the guest own the daemon connection directly. Keep the guest separate
 
 Current design scaffold:
 
-- [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
+- [docs/wasm-runner-design.md](./wasm-runner-design.md)
 - `bhrun manifest`
 - `bhrun sample-config`
 

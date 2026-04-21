@@ -120,6 +120,7 @@ Current scaffold goals:
 - define a sample runner configuration
 - define the first guest authoring SDK layer above the raw `bh.call_json` import
 - keep the implementation small until the runtime boundary is more proven
+- keep pure network helpers such as `http_get` outside the guest boundary until the runner-side transport story is intentionally designed
 
 Current commands:
 
@@ -139,6 +140,10 @@ JSON
 cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-tab-response-workflow/Cargo.toml
 cargo run --quiet --bin bhrun -- run-guest guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm <<'JSON'
 {"daemon_name":"default","guest_module":"guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm","granted_operations":["current_tab","list_tabs","new_tab","switch_tab","current_session","goto","wait_for_response","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-github-trending/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
@@ -161,14 +166,35 @@ JSON
 cargo run --quiet --bin bhrun -- switch-tab <<'JSON'
 {"daemon_name":"default","target_id":"<target-id>"}
 JSON
+cargo run --quiet --bin bhrun -- ensure-real-tab <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- iframe-target <<'JSON'
+{"daemon_name":"default","url_substr":"github.com"}
+JSON
 cargo run --quiet --bin bhrun -- page-info <<'JSON'
 {"daemon_name":"default"}
 JSON
 cargo run --quiet --bin bhrun -- goto <<'JSON'
 {"daemon_name":"default","url":"https://example.com"}
 JSON
+cargo run --quiet --bin bhrun -- wait-for-load <<'JSON'
+{"daemon_name":"default","timeout":15.0}
+JSON
 cargo run --quiet --bin bhrun -- js <<'JSON'
 {"daemon_name":"default","expression":"location.href"}
+JSON
+cargo run --quiet --bin bhrun -- click <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"button":"left","clicks":1}
+JSON
+cargo run --quiet --bin bhrun -- type-text <<'JSON'
+{"daemon_name":"default","text":"hello"}
+JSON
+cargo run --quiet --bin bhrun -- press-key <<'JSON'
+{"daemon_name":"default","key":"Enter","modifiers":0}
+JSON
+cargo run --quiet --bin bhrun -- scroll <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"dy":-300,"dx":0}
 JSON
 cargo run --quiet --bin bhrun -- current-session <<'JSON'
 {"daemon_name":"default"}
@@ -203,6 +229,9 @@ call trace for the guest's host interactions.
 `guests/rust-tab-response-workflow` is the first compiled Rust guest that uses
 runner-owned tab/session selection together with a network wait helper in one
 typed workflow.
+`guests/rust-github-trending` is the first guest shaped like a real domain
+skill, porting the browser-trending slice of `domain-skills/github/scraping.md`
+onto the guest boundary.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.
@@ -213,9 +242,12 @@ browser-backed persistence smoke.
 `current-tab`, `list-tabs`, `new-tab`, and `switch-tab` are the first live
 runner-owned target control helpers, giving guests direct tab/session selection
 without reaching around the runner boundary.
+`ensure-real-tab` and `iframe-target` now extend that target-selection slice.
 `page-info`, `goto`, and `js` are the first live runner-owned action helpers,
 bridging into the daemon's typed compatibility surface without going through the
 Python shell.
+`wait-for-load`, `click`, `type-text`, `press-key`, and `scroll` now carry more
+of the Python compatibility helper surface onto the guest boundary as well.
 `wait` is the first runner-local utility that does not require browser I/O,
 which makes browser-free guest/runtime persistence checks possible.
 `wait-for-event` is the first live Phase 2 runner primitive.
@@ -227,6 +259,9 @@ That helper is now exercised through `bh-guest-sdk` in a compiled Rust/Wasm
 workflow guest, not only through direct CLI smokes.
 `wait-for-console` is the first console/debugging helper layered on the same event contract.
 `wait-for-dialog` is the first dialog helper layered on the same event contract.
+Pure HTTP utilities such as `http_get` still remain intentionally outside the
+guest boundary today, which is why the GitHub guest currently ports only the
+browser-trending half of that skill.
 
 ## Current Event Contract
 

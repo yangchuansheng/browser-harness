@@ -13,15 +13,18 @@ Current status:
 - remote-browser shutdown parity is implemented in the Rust daemon
 - local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
 - live acceptance coverage includes the GitHub domain skill workflow from `domain-skills/github/scraping.md`
-- the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
+- the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](../docs/wasm-runner-design.md)
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
 - `bh-guest-sdk` now also covers typed tab/session control and response waits, with a compiled workflow sample in `guests/rust-tab-response-workflow`
+- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, and `scroll`
+- the first skill-shaped Rust/Wasm guest now exists via `guests/rust-github-trending`, which ports the browser-trending slice of `domain-skills/github/scraping.md`
+- the GitHub REST/API half of that skill still remains dynamic today because `http_get()` has not moved into the runner boundary yet
 
 Compatibility contract:
 
-- [docs/rust-compat-contract.md](/home/allosaurus/Workspace/browser-harness/docs/rust-compat-contract.md)
+- [docs/rust-compat-contract.md](../docs/rust-compat-contract.md)
 
 Quick verification:
 
@@ -64,6 +67,10 @@ cargo +stable build --release --target wasm32-unknown-unknown --manifest-path gu
 cargo run --quiet --bin bhrun -- run-guest guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm <<'JSON'
 {"daemon_name":"default","guest_module":"guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm","granted_operations":["current_tab","list_tabs","new_tab","switch_tab","current_session","goto","wait_for_response","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-github-trending/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
 cargo run --quiet --bin bhrun -- current-tab <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -76,14 +83,35 @@ JSON
 cargo run --quiet --bin bhrun -- switch-tab <<'JSON'
 {"daemon_name":"default","target_id":"<target-id>"}
 JSON
+cargo run --quiet --bin bhrun -- ensure-real-tab <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- iframe-target <<'JSON'
+{"daemon_name":"default","url_substr":"github.com"}
+JSON
 cargo run --quiet --bin bhrun -- page-info <<'JSON'
 {"daemon_name":"default"}
 JSON
 cargo run --quiet --bin bhrun -- goto <<'JSON'
 {"daemon_name":"default","url":"https://example.com"}
 JSON
+cargo run --quiet --bin bhrun -- wait-for-load <<'JSON'
+{"daemon_name":"default","timeout":15.0}
+JSON
 cargo run --quiet --bin bhrun -- js <<'JSON'
 {"daemon_name":"default","expression":"location.href"}
+JSON
+cargo run --quiet --bin bhrun -- click <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"button":"left","clicks":1}
+JSON
+cargo run --quiet --bin bhrun -- type-text <<'JSON'
+{"daemon_name":"default","text":"hello"}
+JSON
+cargo run --quiet --bin bhrun -- press-key <<'JSON'
+{"daemon_name":"default","key":"Enter","modifiers":0}
+JSON
+cargo run --quiet --bin bhrun -- scroll <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"dy":-300,"dx":0}
 JSON
 cargo run --quiet --bin bhrun -- current-session <<'JSON'
 {"daemon_name":"default"}
@@ -169,6 +197,7 @@ BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... BU_GUEST_MODE=serve-guest BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_tab_response_guest_smoke.py
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_github_trending_guest_smoke.py
 ```
 
 Live `bhrun serve-guest` smoke:
