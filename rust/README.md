@@ -31,6 +31,18 @@ WASM design scaffold:
 cd rust
 cargo run --quiet --bin bhrun -- manifest
 cargo run --quiet --bin bhrun -- sample-config
+cargo run --quiet --bin bhrun -- current-session <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-event <<'JSON'
+{"daemon_name":"default","filter":{"method":"Page.loadEventFired"}}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-load-event <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","status":200}
+JSON
 ```
 
 Python compatibility tests:
@@ -43,4 +55,16 @@ Live remote smoke test:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/remote_smoke.py
+```
+
+Live `bhrun wait-for-event` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_event_smoke.py
+```
+
+Live `bhrun wait-for-response` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_response_smoke.py
 ```
