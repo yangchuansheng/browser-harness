@@ -1,6 +1,8 @@
 use std::fmt;
 
-use bh_wasm_host::WaitForEventResult;
+pub use bh_wasm_host::{
+    CurrentSessionResult, NewTabResult, SwitchTabResult, TabSummary, WaitForEventResult,
+};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -43,6 +45,36 @@ pub fn goto(url: &str) -> Result<Value, GuestError> {
     call_json("goto", &json!({ "url": url }))
 }
 
+pub fn current_session() -> Result<CurrentSessionResult, GuestError> {
+    call_json("current_session", &json!({}))
+}
+
+pub fn current_tab() -> Result<TabSummary, GuestError> {
+    call_json("current_tab", &json!({}))
+}
+
+pub fn list_tabs(include_internal: bool) -> Result<Vec<TabSummary>, GuestError> {
+    call_json(
+        "list_tabs",
+        &json!({
+            "include_internal": include_internal,
+        }),
+    )
+}
+
+pub fn new_tab(url: &str) -> Result<NewTabResult, GuestError> {
+    call_json("new_tab", &json!({ "url": url }))
+}
+
+pub fn switch_tab(target_id: &str) -> Result<SwitchTabResult, GuestError> {
+    call_json(
+        "switch_tab",
+        &json!({
+            "target_id": target_id,
+        }),
+    )
+}
+
 pub fn page_info() -> Result<Value, GuestError> {
     call_json("page_info", &json!({}))
 }
@@ -61,6 +93,25 @@ pub fn wait_for_load_event(
     call_json(
         "wait_for_load_event",
         &json!({
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+        }),
+    )
+}
+
+pub fn wait_for_response(
+    url: &str,
+    status: Option<u16>,
+    session_id: Option<&str>,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+) -> Result<WaitForEventResult, GuestError> {
+    call_json(
+        "wait_for_response",
+        &json!({
+            "url": url,
+            "status": status,
+            "session_id": session_id,
             "timeout_ms": timeout_ms,
             "poll_interval_ms": poll_interval_ms,
         }),
@@ -127,7 +178,11 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 
 #[cfg(test)]
 mod tests {
-    use super::{call_json_with, goto, js, page_info, wait_for_load_event, GuestError};
+    use super::{
+        call_json_with, current_session, current_tab, goto, js, list_tabs, new_tab, page_info,
+        switch_tab, wait_for_load_event, wait_for_response, CurrentSessionResult, GuestError,
+        NewTabResult, SwitchTabResult, TabSummary,
+    };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
 
@@ -155,6 +210,112 @@ mod tests {
             result.get("frameId").and_then(Value::as_str),
             Some("frame-1")
         );
+    }
+
+    #[test]
+    fn session_and_tab_helpers_deserialize_typed_results() {
+        let current_tab_result: TabSummary = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"current_tab");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request, json!({}));
+                let response = serde_json::to_vec(&json!({
+                    "targetId":"target-1",
+                    "title":"Example",
+                    "url":"https://example.com"
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "current_tab",
+            &json!({}),
+        )
+        .expect("current tab result");
+        assert_eq!(current_tab_result.target_id, "target-1");
+
+        let current_session_result: CurrentSessionResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"current_session");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request, json!({}));
+                let response =
+                    serde_json::to_vec(&json!({"session_id":"session-1"})).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "current_session",
+            &json!({}),
+        )
+        .expect("current session result");
+        assert_eq!(
+            current_session_result.session_id.as_deref(),
+            Some("session-1")
+        );
+
+        let tabs: Vec<TabSummary> = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"list_tabs");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("include_internal").and_then(Value::as_bool),
+                    Some(false)
+                );
+                let response = serde_json::to_vec(&json!([
+                    {"targetId":"target-1","title":"One","url":"about:blank"},
+                    {"targetId":"target-2","title":"Two","url":"https://example.com"}
+                ]))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "list_tabs",
+            &json!({"include_internal":false}),
+        )
+        .expect("list tabs result");
+        assert_eq!(tabs.len(), 2);
+        assert_eq!(tabs[1].target_id, "target-2");
+    }
+
+    #[test]
+    fn tab_mutation_helpers_serialize_expected_requests() {
+        let new_tab_result: NewTabResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"new_tab");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("url").and_then(Value::as_str),
+                    Some("https://example.com/new")
+                );
+                let response =
+                    serde_json::to_vec(&json!({"target_id":"target-new"})).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "new_tab",
+            &json!({"url":"https://example.com/new"}),
+        )
+        .expect("new tab result");
+        assert_eq!(new_tab_result.target_id, "target-new");
+
+        let switch_tab_result: SwitchTabResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"switch_tab");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("target_id").and_then(Value::as_str),
+                    Some("target-new")
+                );
+                let response =
+                    serde_json::to_vec(&json!({"session_id":"session-new"})).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "switch_tab",
+            &json!({"target_id":"target-new"}),
+        )
+        .expect("switch tab result");
+        assert_eq!(switch_tab_result.session_id, "session-new");
     }
 
     #[test]
@@ -213,10 +374,68 @@ mod tests {
     }
 
     #[test]
+    fn wait_for_response_serializes_scope_and_status() {
+        let result: WaitForEventResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_response");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("url").and_then(Value::as_str),
+                    Some("https://example.com/data")
+                );
+                assert_eq!(request.get("status").and_then(Value::as_u64), Some(200));
+                assert_eq!(
+                    request.get("session_id").and_then(Value::as_str),
+                    Some("session-1")
+                );
+                assert_eq!(
+                    request.get("timeout_ms").and_then(Value::as_u64),
+                    Some(5000)
+                );
+                let response = serde_json::to_vec(&json!({
+                    "matched": true,
+                    "event": {"method":"Network.responseReceived","session_id":"session-1"},
+                    "polls": 2,
+                    "elapsed_ms": 111
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_response",
+            &json!({
+                "url":"https://example.com/data",
+                "status":200,
+                "session_id":"session-1",
+                "timeout_ms":5000,
+                "poll_interval_ms":100
+            }),
+        )
+        .expect("wait for response result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 2);
+        assert_eq!(
+            result
+                .event
+                .as_ref()
+                .and_then(|event| event.get("session_id"))
+                .and_then(Value::as_str),
+            Some("session-1")
+        );
+    }
+
+    #[test]
     fn helper_functions_use_expected_operations() {
+        let _ = current_session;
+        let _ = current_tab;
+        let _ = list_tabs;
+        let _ = new_tab;
+        let _ = switch_tab;
         let _ = goto;
         let _ = page_info;
         let _ = wait_for_load_event;
+        let _ = wait_for_response;
         let _ = js::<String>;
     }
 

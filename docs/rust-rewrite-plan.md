@@ -95,6 +95,7 @@ Current runner-owned preview surface:
 - local and live remote smoke coverage for persistent guest state in the runner boundary
 - the first Rust guest authoring path via `bh-guest-sdk` and a compiled Rust Wasm sample guest
 - the first stateful Rust Wasm guest now covers the persistent browser-state serve-guest path
+- the guest SDK now also covers typed tab/session control plus `wait_for_response`, with a compiled workflow guest and live remote smoke
 
 More specifically, the target shape is:
 

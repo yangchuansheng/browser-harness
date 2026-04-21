@@ -806,37 +806,44 @@ fn dispatch_guest_operation(
 
     let request = inject_daemon_name(request_text, &state.config.daemon_name)?;
     let response = match operation {
-        "current_session" => serde_json::to_value(current_session(parse_request_value(&request)?))
-            .map_err(|err| format!("serialize current_session result: {err}"))?,
-        "current_tab" => serde_json::to_value(current_tab(parse_request_value(&request)?))
-            .map_err(|err| format!("serialize current_tab result: {err}"))?,
-        "list_tabs" => serde_json::to_value(list_tabs(parse_request_value(&request)?))
-            .map_err(|err| format!("serialize list_tabs result: {err}"))?,
-        "new_tab" => serde_json::to_value(new_tab(parse_request_value(&request)?))
-            .map_err(|err| format!("serialize new_tab result: {err}"))?,
-        "switch_tab" => serde_json::to_value(switch_tab(parse_request_value(&request)?))
-            .map_err(|err| format!("serialize switch_tab result: {err}"))?,
+        "current_session" => serialize_guest_result(
+            current_session(parse_request_value(&request)?),
+            "current_session",
+        )?,
+        "current_tab" => {
+            serialize_guest_result(current_tab(parse_request_value(&request)?), "current_tab")?
+        }
+        "list_tabs" => {
+            serialize_guest_result(list_tabs(parse_request_value(&request)?), "list_tabs")?
+        }
+        "new_tab" => serialize_guest_result(new_tab(parse_request_value(&request)?), "new_tab")?,
+        "switch_tab" => {
+            serialize_guest_result(switch_tab(parse_request_value(&request)?), "switch_tab")?
+        }
         "page_info" => page_info(parse_request_value(&request)?)?,
         "goto" => goto(parse_request_value(&request)?)?,
         "js" => js(parse_request_value(&request)?)?,
-        "wait" => serde_json::to_value(wait(parse_request_value(&request)?))
-            .map_err(|err| format!("serialize wait result: {err}"))?,
-        "wait_for_event" => serde_json::to_value(wait_for_event(parse_request_value(&request)?)?)
-            .map_err(|err| format!("serialize wait_for_event result: {err}"))?,
-        "wait_for_load_event" => {
-            serde_json::to_value(wait_for_load_event(parse_request_value(&request)?)?)
-                .map_err(|err| format!("serialize wait_for_load_event result: {err}"))?
-        }
-        "wait_for_response" => {
-            serde_json::to_value(wait_for_response(parse_request_value(&request)?)?)
-                .map_err(|err| format!("serialize wait_for_response result: {err}"))?
-        }
-        "wait_for_console" => {
-            serde_json::to_value(wait_for_console(parse_request_value(&request)?)?)
-                .map_err(|err| format!("serialize wait_for_console result: {err}"))?
-        }
-        "wait_for_dialog" => serde_json::to_value(wait_for_dialog(parse_request_value(&request)?)?)
-            .map_err(|err| format!("serialize wait_for_dialog result: {err}"))?,
+        "wait" => serialize_guest_result(Ok(wait(parse_request_value(&request)?)), "wait")?,
+        "wait_for_event" => serialize_guest_result(
+            wait_for_event(parse_request_value(&request)?),
+            "wait_for_event",
+        )?,
+        "wait_for_load_event" => serialize_guest_result(
+            wait_for_load_event(parse_request_value(&request)?),
+            "wait_for_load_event",
+        )?,
+        "wait_for_response" => serialize_guest_result(
+            wait_for_response(parse_request_value(&request)?),
+            "wait_for_response",
+        )?,
+        "wait_for_console" => serialize_guest_result(
+            wait_for_console(parse_request_value(&request)?),
+            "wait_for_console",
+        )?,
+        "wait_for_dialog" => serialize_guest_result(
+            wait_for_dialog(parse_request_value(&request)?),
+            "wait_for_dialog",
+        )?,
         unsupported => return Err(format!("unsupported guest operation: {unsupported}")),
     };
     state.calls.push(GuestCallRecord {
@@ -846,6 +853,13 @@ fn dispatch_guest_operation(
         response: response.clone(),
     });
     serde_json::to_vec(&response).map_err(|err| format!("serialize guest response JSON: {err}"))
+}
+
+fn serialize_guest_result<T>(result: Result<T, String>, context: &str) -> Result<Value, String>
+where
+    T: serde::Serialize,
+{
+    serde_json::to_value(result?).map_err(|err| format!("serialize {context} result: {err}"))
 }
 
 fn inject_daemon_name(request_text: &str, daemon_name: &str) -> Result<String, String> {
@@ -987,10 +1001,11 @@ mod tests {
     use super::{
         current_session_with_sender, current_tab_with_sender, dispatch_guest_operation,
         goto_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
-        new_tab_with_sender, page_info_with_sender, run_cli, switch_tab_with_sender, wait,
-        wait_for_console_with_drain, wait_for_event_with_drain, watch_events_with_drain,
-        DaemonResponse, GuestHostState, GuestRuntime, META_CURRENT_TAB, META_GOTO, META_JS,
-        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
+        new_tab_with_sender, page_info_with_sender, run_cli, serialize_guest_result,
+        switch_tab_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
+        watch_events_with_drain, DaemonResponse, GuestHostState, GuestRuntime, META_CURRENT_TAB,
+        META_GOTO, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION,
+        META_SWITCH_TAB,
     };
     use std::collections::VecDeque;
     use std::io;
@@ -1128,6 +1143,29 @@ mod tests {
             .expect_err("ungranted operation should fail");
         assert_eq!(err, "operation denied by runner config: goto");
         assert!(state.calls.is_empty());
+    }
+
+    #[test]
+    fn serialize_guest_result_uses_inner_success_value() {
+        let value = serialize_guest_result(
+            Ok(json!({"targetId":"target-1","url":"about:blank"})),
+            "current_tab",
+        )
+        .expect("serialize success");
+
+        assert_eq!(
+            value.get("targetId").and_then(Value::as_str),
+            Some("target-1")
+        );
+        assert!(value.get("Ok").is_none());
+    }
+
+    #[test]
+    fn serialize_guest_result_propagates_operation_error() {
+        let err = serialize_guest_result::<Value>(Err("boom".to_string()), "current_tab")
+            .expect_err("serialization should propagate inner error");
+
+        assert_eq!(err, "boom");
     }
 
     #[test]
