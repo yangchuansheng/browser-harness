@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "crates/bh-protocol",
+    "crates/bh-discovery",
+    "crates/bh-cdp",
+    "crates/bh-daemon",
+    "crates/bh-remote",
+    "crates/bh-wasm-host",
+    "bins/bhd",
+    "bins/bhctl",
+    "bins/bhrun",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+futures-util = "0.3"
+libc = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }

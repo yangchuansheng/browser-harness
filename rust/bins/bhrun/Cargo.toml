@@ -1,0 +1,8 @@
+[package]
+name = "bhrun"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bh-wasm-host = { path = "../../crates/bh-wasm-host" }

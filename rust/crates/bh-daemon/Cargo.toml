@@ -1,0 +1,14 @@
+[package]
+name = "bh-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bh-cdp = { path = "../bh-cdp" }
+bh-discovery = { path = "../bh-discovery" }
+bh-protocol = { path = "../bh-protocol" }
+bh-remote = { path = "../bh-remote" }
+libc.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
