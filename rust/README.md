@@ -15,6 +15,7 @@ Current status:
 - live acceptance coverage includes the GitHub domain skill workflow from `domain-skills/github/scraping.md`
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
+- the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 
 Compatibility contract:
 
@@ -35,6 +36,11 @@ cargo run --quiet --bin bhrun -- manifest
 cargo run --quiet --bin bhrun -- sample-config
 cargo run --quiet --bin bhrun -- run-guest guests/navigate_and_read.wat <<'JSON'
 {"daemon_name":"default","guest_module":"guests/navigate_and_read.wat","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-navigate-and-read/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
@@ -147,6 +153,8 @@ Live `bhrun run-guest` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
+BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
+BROWSER_USE_API_KEY=... BU_GUEST_MODE=serve-guest BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
 ```
 
 Live `bhrun serve-guest` smoke:
