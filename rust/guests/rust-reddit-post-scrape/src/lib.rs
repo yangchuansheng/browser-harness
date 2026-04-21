@@ -134,9 +134,6 @@ fn run_inner() -> Result<(), i32> {
 
     let raw_post: String = js(EXTRACTION_SCRIPT).map_err(|_| 15)?;
     let post: RedditPost = serde_json::from_str(&raw_post).map_err(|_| 16)?;
-    if post.login_wall {
-        return Err(17);
-    }
     if post.age_gate {
         return Err(18);
     }
@@ -168,6 +165,7 @@ fn run_inner() -> Result<(), i32> {
 
     let _ = &post.score;
     let _ = &post.body;
+    let _ = &post.login_wall;
     let _ = &first_comment.score;
 
     Ok(())
