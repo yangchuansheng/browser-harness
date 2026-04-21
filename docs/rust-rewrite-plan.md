@@ -82,6 +82,17 @@ WASM guest -> Rust host runner -> Rust daemon/core -> CDP -> local Chrome or Bro
 
 This removes the Python dynamic layer after the host API is proven stable.
 
+### Phase 2 status
+
+Phase 2 has started as design + scaffolding.
+
+Current runner-owned preview surface:
+
+- one-shot guest execution via `bhrun run-guest`
+- persistent guest execution via `bhrun serve-guest`
+- browser-free runner utility coverage via `wait`
+- typed runner utilities for session lookup, event waiting, response/console/dialog waits, and tab/action helpers
+
 More specifically, the target shape is:
 
 ```text

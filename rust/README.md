@@ -14,6 +14,7 @@ Current status:
 - local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
 - live acceptance coverage includes the GitHub domain skill workflow from `domain-skills/github/scraping.md`
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
+- `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 
 Compatibility contract:
 
@@ -35,6 +36,15 @@ cargo run --quiet --bin bhrun -- sample-config
 cargo run --quiet --bin bhrun -- run-guest guests/navigate_and_read.wat <<'JSON'
 {"daemon_name":"default","guest_module":"guests/navigate_and_read.wat","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
+cargo run --quiet --bin bhrun -- wait <<'JSON'
+{"duration_ms":1}
+JSON
+cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/persistent_counter.wat
+{"command":"start","config":{"daemon_name":"default","guest_module":"guests/persistent_counter.wat","granted_operations":["wait"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}}
+{"command":"run"}
+{"command":"run"}
+{"command":"stop"}
+NDJSON
 cargo run --quiet --bin bhrun -- current-tab <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -137,6 +147,12 @@ Live `bhrun run-guest` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
+```
+
+Local `bhrun serve-guest` smoke:
+
+```bash
+python3 scripts/bhrun_persistent_guest_smoke.py
 ```
 
 Live GitHub domain-skill acceptance smoke:
