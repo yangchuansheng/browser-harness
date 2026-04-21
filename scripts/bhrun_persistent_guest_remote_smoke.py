@@ -8,6 +8,8 @@ Optional:
   BU_NAME                   defaults to "bhrun-persistent-guest-remote-smoke"
   BU_DAEMON_IMPL            defaults to "rust"
   BU_REMOTE_TIMEOUT_MINUTES defaults to "1"
+  BU_GUEST_PATH             override the guest module path
+  BU_SKIP_GUEST_BUILD       set to "1" to skip the default Rust guest build
   BU_RUST_RUNNER_BIN        override the bhrun binary path
 """
 
@@ -40,6 +42,33 @@ def runner_process_spec():
     if custom := os.environ.get("BU_RUST_RUNNER_BIN"):
         return [custom], str(REPO)
     return ["cargo", "run", "--quiet", "--bin", "bhrun", "--"], str(REPO / "rust")
+
+
+def build_guest_module(guest_manifest):
+    proc = subprocess.run(
+        [
+            "cargo",
+            "+stable",
+            "build",
+            "--offline",
+            "--release",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--manifest-path",
+            str(guest_manifest),
+        ],
+        cwd=REPO,
+        env=os.environ.copy(),
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "guest build failed").strip()
+        raise RuntimeError(
+            "failed to build the Rust persistent guest; ensure the stable wasm target is installed "
+            "via `rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown`"
+            f"\n{detail}"
+        )
 
 
 def run_runner_command(subcommand, payload=None, timeout_seconds=10):
@@ -130,7 +159,18 @@ def main():
     os.environ.setdefault("BU_DAEMON_IMPL", "rust")
     name = os.environ["BU_NAME"]
     timeout = int(os.environ.get("BU_REMOTE_TIMEOUT_MINUTES", "1"))
-    guest_path = REPO / "rust" / "guests" / "persistent_browser_state.wat"
+    guest_manifest = REPO / "rust" / "guests" / "rust-persistent-browser-state" / "Cargo.toml"
+    default_guest_path = (
+        REPO
+        / "rust"
+        / "guests"
+        / "rust-persistent-browser-state"
+        / "target"
+        / "wasm32-unknown-unknown"
+        / "release"
+        / "rust_persistent_browser_state_guest.wasm"
+    )
+    guest_path = Path(os.environ.get("BU_GUEST_PATH", str(default_guest_path)))
     target_url = "https://example.com/?via=bhrun-serve-guest-remote-smoke"
 
     browser = None
@@ -142,6 +182,11 @@ def main():
         "target_url": target_url,
     }
     try:
+        if os.environ.get("BU_SKIP_GUEST_BUILD") != "1" and guest_path == default_guest_path:
+            build_guest_module(guest_manifest)
+            result["guest_manifest"] = str(guest_manifest)
+            result["guest_build_mode"] = "cargo+stable"
+
         browser = start_remote_daemon(name=name, timeout=timeout)
         result["browser_id"] = browser["id"]
 
