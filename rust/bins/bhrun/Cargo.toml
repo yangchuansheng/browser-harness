@@ -9,3 +9,4 @@ bh-protocol = { path = "../../crates/bh-protocol" }
 bh-wasm-host = { path = "../../crates/bh-wasm-host" }
 serde.workspace = true
 serde_json.workspace = true
+wasmtime.workspace = true
