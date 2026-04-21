@@ -185,6 +185,28 @@ pub struct PageInfoRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnsureRealTabRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IframeTargetRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub url_substr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WaitForLoadRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default = "default_wait_timeout_seconds")]
+    pub timeout: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TabSummary {
     #[serde(rename = "targetId")]
     pub target_id: String,
@@ -207,6 +229,52 @@ pub struct GotoRequest {
     #[serde(default = "default_daemon_name")]
     pub daemon_name: String,
     pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClickRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default = "default_click_button")]
+    pub button: String,
+    #[serde(default = "default_clicks")]
+    pub clicks: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TypeTextRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PressKeyRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub modifiers: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScrollRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default = "default_scroll_dx")]
+    pub dx: f64,
+    #[serde(default = "default_scroll_dy")]
+    pub dy: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -425,6 +493,75 @@ impl Default for PageInfoRequest {
     }
 }
 
+impl Default for EnsureRealTabRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+        }
+    }
+}
+
+impl Default for IframeTargetRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            url_substr: String::new(),
+        }
+    }
+}
+
+impl Default for WaitForLoadRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            timeout: default_wait_timeout_seconds(),
+        }
+    }
+}
+
+impl Default for ClickRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            x: 0.0,
+            y: 0.0,
+            button: default_click_button(),
+            clicks: default_clicks(),
+        }
+    }
+}
+
+impl Default for TypeTextRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            text: String::new(),
+        }
+    }
+}
+
+impl Default for PressKeyRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            key: String::new(),
+            modifiers: 0,
+        }
+    }
+}
+
+impl Default for ScrollRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            x: 0.0,
+            y: 0.0,
+            dx: default_scroll_dx(),
+            dy: default_scroll_dy(),
+        }
+    }
+}
+
 impl CurrentSessionRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -504,6 +641,48 @@ impl PageInfoRequest {
     }
 }
 
+impl EnsureRealTabRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+        }
+    }
+}
+
+impl IframeTargetRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            url_substr: self.url_substr.clone(),
+        }
+    }
+}
+
+impl WaitForLoadRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            timeout: if self.timeout.is_finite() && self.timeout > 0.0 {
+                self.timeout
+            } else {
+                default_wait_timeout_seconds()
+            },
+        }
+    }
+}
+
 impl GotoRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -513,6 +692,69 @@ impl GotoRequest {
                 self.daemon_name.clone()
             },
             url: self.url.clone(),
+        }
+    }
+}
+
+impl ClickRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            x: self.x,
+            y: self.y,
+            button: if self.button.trim().is_empty() {
+                default_click_button()
+            } else {
+                self.button.clone()
+            },
+            clicks: self.clicks,
+        }
+    }
+}
+
+impl TypeTextRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            text: self.text.clone(),
+        }
+    }
+}
+
+impl PressKeyRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            key: self.key.clone(),
+            modifiers: self.modifiers,
+        }
+    }
+}
+
+impl ScrollRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            x: self.x,
+            y: self.y,
+            dx: self.dx,
+            dy: self.dy,
         }
     }
 }
@@ -1090,6 +1332,10 @@ fn default_wait_duration_ms() -> u64 {
     0
 }
 
+fn default_wait_timeout_seconds() -> f64 {
+    15.0
+}
+
 fn default_daemon_name() -> String {
     "default".to_string()
 }
@@ -1102,12 +1348,28 @@ fn default_new_tab_url() -> String {
     "about:blank".to_string()
 }
 
+fn default_click_button() -> String {
+    "left".to_string()
+}
+
+fn default_clicks() -> i64 {
+    1
+}
+
 fn default_wait_timeout_ms() -> u64 {
     15_000
 }
 
 fn default_poll_interval_ms() -> u64 {
     200
+}
+
+fn default_scroll_dx() -> f64 {
+    0.0
+}
+
+fn default_scroll_dy() -> f64 {
+    -300.0
 }
 
 fn json_contains_subset(actual: &Value, expected: &Value) -> bool {
@@ -1136,11 +1398,13 @@ mod tests {
     use super::{
         console_event_filter, console_event_matches, default_manifest, default_runner_config,
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
-        response_received_filter, CurrentSessionRequest, CurrentTabRequest, EventFilter,
-        ExecutionModel, GotoRequest, GuestTransport, JsRequest, ListTabsRequest, NewTabRequest,
-        PageInfoRequest, ProtocolFamilyKind, Stability, SwitchTabRequest, WaitForConsoleRequest,
-        WaitForDialogRequest, WaitForEventRequest, WaitForLoadEventRequest, WaitForResponseRequest,
-        WatchEventsLine, WatchEventsRequest,
+        response_received_filter, ClickRequest, CurrentSessionRequest, CurrentTabRequest,
+        EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest, GuestTransport,
+        IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest,
+        PressKeyRequest, ProtocolFamilyKind, ScrollRequest, Stability, SwitchTabRequest,
+        TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
+        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WatchEventsLine,
+        WatchEventsRequest,
     };
 
     #[test]
@@ -1364,6 +1628,40 @@ mod tests {
     }
 
     #[test]
+    fn ensure_real_tab_request_normalizes_blank_name() {
+        let request = EnsureRealTabRequest {
+            daemon_name: "   ".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+    }
+
+    #[test]
+    fn iframe_target_request_normalizes_blank_name() {
+        let request = IframeTargetRequest {
+            daemon_name: "   ".to_string(),
+            url_substr: "github.com".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.url_substr, "github.com");
+    }
+
+    #[test]
+    fn wait_for_load_request_normalizes_blank_name_and_timeout() {
+        let request = WaitForLoadRequest {
+            daemon_name: "   ".to_string(),
+            timeout: 0.0,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.timeout, 15.0);
+    }
+
+    #[test]
     fn goto_request_normalizes_blank_name() {
         let request = GotoRequest {
             daemon_name: "   ".to_string(),
@@ -1373,6 +1671,64 @@ mod tests {
 
         assert_eq!(normalized.daemon_name, "default");
         assert_eq!(normalized.url, "https://example.com");
+    }
+
+    #[test]
+    fn click_request_normalizes_blank_name_and_button() {
+        let request = ClickRequest {
+            daemon_name: "   ".to_string(),
+            x: 10.0,
+            y: 20.0,
+            button: "   ".to_string(),
+            clicks: 2,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.button, "left");
+        assert_eq!(normalized.clicks, 2);
+    }
+
+    #[test]
+    fn type_text_request_normalizes_blank_name() {
+        let request = TypeTextRequest {
+            daemon_name: "   ".to_string(),
+            text: "hello".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.text, "hello");
+    }
+
+    #[test]
+    fn press_key_request_normalizes_blank_name() {
+        let request = PressKeyRequest {
+            daemon_name: "   ".to_string(),
+            key: "Enter".to_string(),
+            modifiers: 2,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.key, "Enter");
+        assert_eq!(normalized.modifiers, 2);
+    }
+
+    #[test]
+    fn scroll_request_normalizes_blank_name() {
+        let request = ScrollRequest {
+            daemon_name: "   ".to_string(),
+            x: 1.0,
+            y: 2.0,
+            dx: 3.0,
+            dy: 4.0,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.x, 1.0);
+        assert_eq!(normalized.dy, 4.0);
     }
 
     #[test]

@@ -5,24 +5,27 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use bh_protocol::{
-    DaemonRequest, DaemonResponse, META_CURRENT_TAB, META_DRAIN_EVENTS, META_GOTO, META_JS,
-    META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
+    DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DRAIN_EVENTS,
+    META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB,
+    META_PAGE_INFO, META_PRESS_KEY, META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT,
+    META_WAIT_FOR_LOAD,
 };
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
-    operation_names, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, GotoRequest,
-    GuestCallRecord, GuestRunResult, GuestServeRequest, GuestServeResponse, JsRequest,
-    ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest, RunnerConfig, SwitchTabRequest,
-    SwitchTabResult, TabSummary, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
-    WaitForEventResult, WaitForLoadEventRequest, WaitForResponseRequest, WaitRequest, WaitResult,
-    WatchEventsLine, WatchEventsRequest,
+    operation_names, ClickRequest, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
+    EnsureRealTabRequest, GotoRequest, GuestCallRecord, GuestRunResult, GuestServeRequest,
+    GuestServeResponse, IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest,
+    NewTabResult, PageInfoRequest, PressKeyRequest, RunnerConfig, ScrollRequest, SwitchTabRequest,
+    SwitchTabResult, TabSummary, TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest,
+    WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest,
+    WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine, WatchEventsRequest,
 };
 use serde_json::{json, Value};
 use wasmtime::{Caller, Engine, Linker, Module, Store, TypedFunc};
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|page-info|goto|js|wait|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|scroll|wait|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
@@ -57,7 +60,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live page_info=live goto=live js=live wait=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live scroll=live wait=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -99,6 +102,17 @@ where
             let result = switch_tab(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("ensure-real-tab") => {
+            let request =
+                read_optional_json::<EnsureRealTabRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = ensure_real_tab(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("iframe-target") => {
+            let request = read_json::<IframeTargetRequest, _>(&mut stdin)?;
+            let result = iframe_target(request)?;
+            write_json(&mut stdout, &result)
+        }
         Some("page-info") => {
             let request = read_optional_json::<PageInfoRequest, _>(&mut stdin)?.unwrap_or_default();
             let result = page_info(request)?;
@@ -109,9 +123,35 @@ where
             let result = goto(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("wait-for-load") => {
+            let request =
+                read_optional_json::<WaitForLoadRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = wait_for_load(request)?;
+            write_json(&mut stdout, &result)
+        }
         Some("js") => {
             let request = read_json::<JsRequest, _>(&mut stdin)?;
             let result = js(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("click") => {
+            let request = read_optional_json::<ClickRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = click(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("type-text") => {
+            let request = read_optional_json::<TypeTextRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = type_text(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("press-key") => {
+            let request = read_optional_json::<PressKeyRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = press_key(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("scroll") => {
+            let request = read_optional_json::<ScrollRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = scroll(request)?;
             write_json(&mut stdout, &result)
         }
         Some("wait") => {
@@ -181,6 +221,14 @@ fn switch_tab(request: SwitchTabRequest) -> Result<SwitchTabResult, String> {
     switch_tab_with_sender(request, send_daemon_request)
 }
 
+fn ensure_real_tab(request: EnsureRealTabRequest) -> Result<Option<TabSummary>, String> {
+    ensure_real_tab_with_sender(request, send_daemon_request)
+}
+
+fn iframe_target(request: IframeTargetRequest) -> Result<Option<String>, String> {
+    iframe_target_with_sender(request, send_daemon_request)
+}
+
 fn page_info(request: PageInfoRequest) -> Result<Value, String> {
     page_info_with_sender(request, send_daemon_request)
 }
@@ -189,8 +237,28 @@ fn goto(request: GotoRequest) -> Result<Value, String> {
     goto_with_sender(request, send_daemon_request)
 }
 
+fn wait_for_load(request: WaitForLoadRequest) -> Result<bool, String> {
+    wait_for_load_with_sender(request, send_daemon_request)
+}
+
 fn js(request: JsRequest) -> Result<Value, String> {
     js_with_sender(request, send_daemon_request)
+}
+
+fn click(request: ClickRequest) -> Result<(), String> {
+    click_with_sender(request, send_daemon_request)
+}
+
+fn type_text(request: TypeTextRequest) -> Result<(), String> {
+    type_text_with_sender(request, send_daemon_request)
+}
+
+fn press_key(request: PressKeyRequest) -> Result<(), String> {
+    press_key_with_sender(request, send_daemon_request)
+}
+
+fn scroll(request: ScrollRequest) -> Result<(), String> {
+    scroll_with_sender(request, send_daemon_request)
 }
 
 fn wait(request: WaitRequest) -> WaitResult {
@@ -490,6 +558,38 @@ where
     Ok(SwitchTabResult { session_id })
 }
 
+fn ensure_real_tab_with_sender<F>(
+    request: EnsureRealTabRequest,
+    mut sender: F,
+) -> Result<Option<TabSummary>, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_ENSURE_REAL_TAB,
+        None,
+        &mut sender,
+    )
+}
+
+fn iframe_target_with_sender<F>(
+    request: IframeTargetRequest,
+    mut sender: F,
+) -> Result<Option<String>, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_IFRAME_TARGET,
+        Some(json!({"url_substr": request.url_substr})),
+        &mut sender,
+    )
+}
+
 fn page_info_with_sender<F>(request: PageInfoRequest, mut sender: F) -> Result<Value, String>
 where
     F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
@@ -511,6 +611,19 @@ where
     )
 }
 
+fn wait_for_load_with_sender<F>(request: WaitForLoadRequest, mut sender: F) -> Result<bool, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_WAIT_FOR_LOAD,
+        Some(json!({"timeout": request.timeout})),
+        &mut sender,
+    )
+}
+
 fn js_with_sender<F>(request: JsRequest, mut sender: F) -> Result<Value, String>
 where
     F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
@@ -525,6 +638,63 @@ where
         &request.daemon_name,
         META_JS,
         Some(Value::Object(params)),
+        &mut sender,
+    )
+}
+
+fn click_with_sender<F>(request: ClickRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_CLICK,
+        Some(json!({
+            "x": request.x,
+            "y": request.y,
+            "button": request.button,
+            "clicks": request.clicks,
+        })),
+        &mut sender,
+    )
+}
+
+fn type_text_with_sender<F>(request: TypeTextRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_TYPE_TEXT,
+        Some(json!({"text": request.text})),
+        &mut sender,
+    )
+}
+
+fn press_key_with_sender<F>(request: PressKeyRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_PRESS_KEY,
+        Some(json!({"key": request.key, "modifiers": request.modifiers})),
+        &mut sender,
+    )
+}
+
+fn scroll_with_sender<F>(request: ScrollRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_SCROLL,
+        Some(json!({"x": request.x, "y": request.y, "dx": request.dx, "dy": request.dy})),
         &mut sender,
     )
 }
@@ -820,9 +990,29 @@ fn dispatch_guest_operation(
         "switch_tab" => {
             serialize_guest_result(switch_tab(parse_request_value(&request)?), "switch_tab")?
         }
+        "ensure_real_tab" => serialize_guest_result(
+            ensure_real_tab(parse_request_value(&request)?),
+            "ensure_real_tab",
+        )?,
+        "iframe_target" => serialize_guest_result(
+            iframe_target(parse_request_value(&request)?),
+            "iframe_target",
+        )?,
         "page_info" => page_info(parse_request_value(&request)?)?,
         "goto" => goto(parse_request_value(&request)?)?,
+        "wait_for_load" => serialize_guest_result(
+            wait_for_load(parse_request_value(&request)?),
+            "wait_for_load",
+        )?,
         "js" => js(parse_request_value(&request)?)?,
+        "click" => serialize_guest_result(click(parse_request_value(&request)?), "click")?,
+        "type_text" => {
+            serialize_guest_result(type_text(parse_request_value(&request)?), "type_text")?
+        }
+        "press_key" => {
+            serialize_guest_result(press_key(parse_request_value(&request)?), "press_key")?
+        }
+        "scroll" => serialize_guest_result(scroll(parse_request_value(&request)?), "scroll")?,
         "wait" => serialize_guest_result(Ok(wait(parse_request_value(&request)?)), "wait")?,
         "wait_for_event" => serialize_guest_result(
             wait_for_event(parse_request_value(&request)?),
@@ -999,23 +1189,28 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        current_session_with_sender, current_tab_with_sender, dispatch_guest_operation,
-        goto_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
-        new_tab_with_sender, page_info_with_sender, run_cli, serialize_guest_result,
-        switch_tab_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
-        watch_events_with_drain, DaemonResponse, GuestHostState, GuestRuntime, META_CURRENT_TAB,
-        META_GOTO, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION,
-        META_SWITCH_TAB,
+        click_with_sender, current_session_with_sender, current_tab_with_sender,
+        dispatch_guest_operation, ensure_real_tab_with_sender, goto_with_sender,
+        iframe_target_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
+        new_tab_with_sender, page_info_with_sender, press_key_with_sender, run_cli,
+        scroll_with_sender, serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
+        wait, wait_for_console_with_drain, wait_for_event_with_drain, wait_for_load_with_sender,
+        watch_events_with_drain, DaemonResponse, GuestHostState, GuestRuntime, META_CLICK,
+        META_CURRENT_TAB, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
+        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCROLL, META_SESSION,
+        META_SWITCH_TAB, META_TYPE_TEXT, META_WAIT_FOR_LOAD,
     };
     use std::collections::VecDeque;
     use std::io;
 
     use bh_wasm_host::{
-        default_runner_config, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
-        EventFilter, GotoRequest, GuestServeResponse, JsRequest, ListTabsRequest, NewTabRequest,
-        PageInfoRequest, RunnerConfig, SwitchTabRequest, WaitForConsoleRequest,
-        WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
-        WaitForResponseRequest, WaitRequest, WatchEventsRequest,
+        default_runner_config, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
+        CurrentTabRequest, EnsureRealTabRequest, EventFilter, GotoRequest, GuestServeResponse,
+        IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest,
+        PressKeyRequest, RunnerConfig, ScrollRequest, SwitchTabRequest, TypeTextRequest,
+        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
+        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WaitRequest,
+        WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -1409,6 +1604,223 @@ mod tests {
     }
 
     #[test]
+    fn ensure_real_tab_uses_meta_request_result() {
+        let result = ensure_real_tab_with_sender(
+            EnsureRealTabRequest {
+                daemon_name: "runner".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_ENSURE_REAL_TAB));
+                assert_eq!(request.params, None);
+                Ok(DaemonResponse {
+                    result: Some(json!({
+                        "targetId":"target-3",
+                        "title":"Example",
+                        "url":"https://example.com"
+                    })),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("ensure real tab result");
+
+        assert_eq!(
+            result.as_ref().map(|tab| tab.target_id.as_str()),
+            Some("target-3")
+        );
+    }
+
+    #[test]
+    fn iframe_target_uses_meta_request_with_url_substring() {
+        let result = iframe_target_with_sender(
+            IframeTargetRequest {
+                daemon_name: "runner".to_string(),
+                url_substr: "github.com".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_IFRAME_TARGET));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("url_substr"))
+                        .and_then(Value::as_str),
+                    Some("github.com")
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!("iframe-3")),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("iframe target result");
+
+        assert_eq!(result.as_deref(), Some("iframe-3"));
+    }
+
+    #[test]
+    fn wait_for_load_uses_meta_request_timeout() {
+        let result = wait_for_load_with_sender(
+            WaitForLoadRequest {
+                daemon_name: "runner".to_string(),
+                timeout: 2.5,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_WAIT_FOR_LOAD));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("timeout"))
+                        .and_then(Value::as_f64),
+                    Some(2.5)
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!(true)),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("wait for load result");
+
+        assert!(result);
+    }
+
+    #[test]
+    fn click_uses_meta_request_payload() {
+        click_with_sender(
+            ClickRequest {
+                daemon_name: "runner".to_string(),
+                x: 12.0,
+                y: 34.0,
+                button: "middle".to_string(),
+                clicks: 2,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_CLICK));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("x"))
+                        .and_then(Value::as_f64),
+                    Some(12.0)
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("button"))
+                        .and_then(Value::as_str),
+                    Some("middle")
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("click result");
+    }
+
+    #[test]
+    fn type_text_uses_meta_request_payload() {
+        type_text_with_sender(
+            TypeTextRequest {
+                daemon_name: "runner".to_string(),
+                text: "token".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_TYPE_TEXT));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("text"))
+                        .and_then(Value::as_str),
+                    Some("token")
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("type text result");
+    }
+
+    #[test]
+    fn press_key_uses_meta_request_payload() {
+        press_key_with_sender(
+            PressKeyRequest {
+                daemon_name: "runner".to_string(),
+                key: "Enter".to_string(),
+                modifiers: 2,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_PRESS_KEY));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("key"))
+                        .and_then(Value::as_str),
+                    Some("Enter")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("modifiers"))
+                        .and_then(Value::as_i64),
+                    Some(2)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("press key result");
+    }
+
+    #[test]
+    fn scroll_uses_meta_request_payload() {
+        scroll_with_sender(
+            ScrollRequest {
+                daemon_name: "runner".to_string(),
+                x: 1.0,
+                y: 2.0,
+                dx: 3.0,
+                dy: 4.0,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_SCROLL));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("dy"))
+                        .and_then(Value::as_f64),
+                    Some(4.0)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("scroll result");
+    }
+
+    #[test]
     fn cli_summary_mentions_live_event_waiting() {
         let mut stdout = Vec::new();
 
@@ -1424,9 +1836,16 @@ mod tests {
         assert!(text.contains("list_tabs=live"));
         assert!(text.contains("new_tab=live"));
         assert!(text.contains("switch_tab=live"));
+        assert!(text.contains("ensure_real_tab=live"));
+        assert!(text.contains("iframe_target=live"));
         assert!(text.contains("page_info=live"));
         assert!(text.contains("goto=live"));
+        assert!(text.contains("wait_for_load=live"));
         assert!(text.contains("js=live"));
+        assert!(text.contains("click=live"));
+        assert!(text.contains("type_text=live"));
+        assert!(text.contains("press_key=live"));
+        assert!(text.contains("scroll=live"));
         assert!(text.contains("wait=live"));
         assert!(text.contains("current_session=live"));
         assert!(text.contains("wait_for_event=live"));
