@@ -68,6 +68,18 @@ WASM guest -> Rust host runner -> Rust daemon/core -> CDP -> local Chrome or Bro
 
 This removes the Python dynamic layer after the host API is proven stable.
 
+More specifically, the target shape is:
+
+```text
+WASM guest
+  -> bhrun (persistent runner)
+  -> bh-wasm-host (capability catalog + host-call routing)
+  -> bhd
+```
+
+The runner stays separate from the daemon so guest failures cannot kill the
+browser session.
+
 ## What Moves To Rust First
 
 These parts are stable, stateful, and worth compiling early:
@@ -97,6 +109,23 @@ These parts should remain Python for the POC:
 - raw escape hatches like `js(...)` and `cdp(...)`
 
 Rule of thumb: if a helper is still changing because agents are discovering the right behavior, keep it dynamic. If it is stable and stateful, move it into Rust.
+
+### Phase 1 boundary freeze
+
+The end of Phase 1 is not "zero Python helpers." The boundary is considered
+stable when:
+
+- Rust owns the stateful browser runtime, admin lifecycle, remote-browser
+  lifecycle, and the common typed helper surface
+- `helpers.py` remains as a thin compatibility shell
+- `cdp()` is kept intentionally as the raw escape hatch
+- `wait()` and `http_get()` remain intentionally client/runner-side utilities
+- unsupported typed meta commands degrade through the explicit
+  `unsupported meta command: <name>` contract instead of forcing immediate Rust
+  ports
+
+Reaching that state marks the end of the short-term rewrite. Starting Phase 2
+does not require migrating those intentional leftovers into `bhd`.
 
 ## Short-Term Rewrite Plan
 
@@ -186,11 +215,28 @@ Do not replace Python with WASM until the Rust daemon and host API are stable.
 - WASM is for task logic, not daemon ownership
 - Rust host owns browser state, sockets, tabs, CDP, retries, and shutdown
 - guest modules get a small capability-based host API
-- keep an explicit escape hatch for raw CDP, but make it deliberate
+- generated CDP bindings should be first-class, not an afterthought
+- the guest boundary should be protocol-first, with helpers layered on top
+- `bhrun` should be persistent so guest state can survive across calls
+- event primitives are more durable than adding many polling helpers
+- keep an explicit escape hatch for raw CDP, but make it deliberate and capability-gated
 
 ### Proposed WASM host API
 
-Core capabilities:
+The host boundary should have two layers.
+
+Generated protocol families:
+
+- `cdp.browser_protocol`
+- `cdp.js_protocol`
+
+Host utilities:
+
+- `wait(seconds)`
+- `wait_for_event(filter, timeout)`
+- `http_get(url, headers)`
+
+Compatibility helpers kept for ergonomics while the product transitions:
 
 - `page_info()`
 - `new_tab(url)`
@@ -198,15 +244,17 @@ Core capabilities:
 - `click(x, y)`
 - `type_text(text)`
 - `press_key(key, modifiers)`
+- `dispatch_key(selector, key, event)`
 - `scroll(x, y, dx, dy)`
 - `screenshot(full)`
-- `wait(seconds)`
 - `wait_for_load(timeout)`
 - `list_tabs()`
 - `switch_tab(target_id)`
 - `js(expression)`
-- `http_get(url, headers)`
-- `cdp_raw(method, params)` as an advanced escape hatch
+
+Escape hatch:
+
+- `cdp_raw(method, params)` as an advanced, capability-gated fallback
 
 ### WASM boundary
 
@@ -220,6 +268,12 @@ WASM guest module
 ```
 
 Do not let the guest own the daemon connection directly. Keep the guest separate from the daemon so guest failures cannot kill the browser session.
+
+Current design scaffold:
+
+- [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
+- `bhrun manifest`
+- `bhrun sample-config`
 
 ## Migration Milestones
 
