@@ -38,6 +38,9 @@ JSON
 cargo run --quiet --bin bhrun -- wait-for-event <<'JSON'
 {"daemon_name":"default","filter":{"method":"Page.loadEventFired"}}
 JSON
+cargo run --quiet --bin bhrun -- watch-events <<'JSON'
+{"daemon_name":"default","filter":{"session_id":"<current-session-id>"},"timeout_ms":2000,"max_events":10}
+JSON
 cargo run --quiet --bin bhrun -- wait-for-load-event <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>"}
 JSON
@@ -46,6 +49,9 @@ cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
 JSON
 cargo run --quiet --bin bhrun -- wait-for-console <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>","type":"log","text":"ready"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-dialog <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","type":"alert","message":"ready"}
 JSON
 ```
 
@@ -67,6 +73,12 @@ Live `bhrun wait-for-event` smoke:
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_event_smoke.py
 ```
 
+Live `bhrun watch-events` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_watch_events_smoke.py
+```
+
 Live `bhrun wait-for-response` smoke:
 
 ```bash
@@ -77,6 +89,12 @@ Live `bhrun wait-for-console` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_console_smoke.py
+```
+
+Live `bhrun wait-for-dialog` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_dialog_smoke.py
 ```
 
 Live GitHub domain-skill acceptance smoke:
