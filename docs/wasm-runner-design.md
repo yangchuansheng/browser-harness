@@ -136,6 +136,10 @@ cargo +stable build --release --target wasm32-unknown-unknown --manifest-path gu
 cargo run --quiet --bin bhrun -- run-guest guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm <<'JSON'
 {"daemon_name":"default","guest_module":"guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-tab-response-workflow/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm","granted_operations":["current_tab","list_tabs","new_tab","switch_tab","current_session","goto","wait_for_response","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
 JSON
@@ -196,6 +200,9 @@ execution slice is live.
 call trace for the guest's host interactions.
 `bh-guest-sdk` is the first Rust guest authoring layer above that import, and
 `guests/rust-navigate-and-read` is the first compiled Rust guest sample using it.
+`guests/rust-tab-response-workflow` is the first compiled Rust guest that uses
+runner-owned tab/session selection together with a network wait helper in one
+typed workflow.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.
@@ -216,6 +223,8 @@ which makes browser-free guest/runtime persistence checks possible.
 `wait-for-load-event` is the first helper layered directly on top of it.
 `current-session` is the runner-side introspection helper for session-scoped waits.
 `wait-for-response` is the first network helper layered on the same event contract.
+That helper is now exercised through `bh-guest-sdk` in a compiled Rust/Wasm
+workflow guest, not only through direct CLI smokes.
 `wait-for-console` is the first console/debugging helper layered on the same event contract.
 `wait-for-dialog` is the first dialog helper layered on the same event contract.
 

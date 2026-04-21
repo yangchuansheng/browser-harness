@@ -17,6 +17,7 @@ Current status:
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
+- `bh-guest-sdk` now also covers typed tab/session control and response waits, with a compiled workflow sample in `guests/rust-tab-response-workflow`
 
 Compatibility contract:
 
@@ -59,6 +60,10 @@ cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/rust-persis
 {"command":"run"}
 {"command":"stop"}
 NDJSON
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-tab-response-workflow/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm","granted_operations":["current_tab","list_tabs","new_tab","switch_tab","current_session","goto","wait_for_response","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
 cargo run --quiet --bin bhrun -- current-tab <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -163,6 +168,7 @@ Live `bhrun run-guest` smoke:
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... BU_GUEST_MODE=serve-guest BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_tab_response_guest_smoke.py
 ```
 
 Live `bhrun serve-guest` smoke:
