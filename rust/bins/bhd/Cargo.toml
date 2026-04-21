@@ -1,0 +1,9 @@
+[package]
+name = "bhd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bh-daemon = { path = "../../crates/bh-daemon" }
+tokio.workspace = true

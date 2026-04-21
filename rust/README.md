@@ -1,0 +1,37 @@
+# Rust Workspace
+
+This workspace is the starting point for the Browser Harness rewrite.
+
+The near-term goal is a Rust daemon/core that preserves the current Python
+workflow. The long-term goal is a Rust host with a WASM guest layer.
+
+Current status:
+
+- crate layout only
+- Rust daemon connects to local or remote CDP and serves the existing Unix socket contract
+- first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, low-level input primitives, and file upload
+- remote-browser shutdown parity is implemented in the Rust daemon
+- local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
+
+Compatibility contract:
+
+- [docs/rust-compat-contract.md](/home/allosaurus/Workspace/browser-harness/docs/rust-compat-contract.md)
+
+Quick verification:
+
+```bash
+cd rust
+cargo test --workspace
+```
+
+Python compatibility tests:
+
+```bash
+python3 -m unittest tests/test_rust_mode_contract.py
+```
+
+Live remote smoke test:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/remote_smoke.py
+```
