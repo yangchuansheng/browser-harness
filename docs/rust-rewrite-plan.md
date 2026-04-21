@@ -68,11 +68,7 @@ That means the boundary freeze below has been reached:
 
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser lifecycle, and the common typed helper surface
 - Python remains the compatibility shell and keeps the intentional leftovers (`cdp()`, `wait()`, `http_get()`, dynamic skills)
-- existing workflows have live acceptance coverage through the Rust path, including a domain-skill acceptance smoke for `domain-skills/github/scraping.md`
-
-Still desirable, but no longer blocking Phase 2 work:
-
-- one local Chrome/Edge attach acceptance smoke for the `DevToolsActivePort` path
+- existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md` and `domain-skills/reddit/scraping.md`
 
 ### Phase 2 target
 
@@ -99,6 +95,8 @@ Current runner-owned preview surface:
 - the runner/guest boundary now also carries more of the old compatibility helper surface: `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, and `scroll`
 - the first real domain-skill browser slice is now ported as `rust/guests/rust-github-trending`, while pure network helpers such as `http_get` still remain in the dynamic layer
 - a second real domain-skill browser slice is now ported as `rust/guests/rust-reddit-post-scrape`, showing that multi-step DOM extraction workflows can already live on the current guest boundary
+- real domain-skill guest acceptance is now primarily gated by local browser smokes, because Browser Use cloud verification for site-dependent targets is currently best-effort rather than a reliable gate
+- the next planned migration target should be another browser-first public workflow such as `domain-skills/producthunt/scraping.md`, not API-first skills like Hacker News or dev.to that would avoid exercising the guest boundary
 
 More specifically, the target shape is:
 

@@ -12,7 +12,8 @@ Current status:
 - first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, low-level input primitives, DOM key dispatch, and file upload
 - remote-browser shutdown parity is implemented in the Rust daemon
 - local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
-- live acceptance coverage includes the GitHub domain skill workflow from `domain-skills/github/scraping.md`
+- site-dependent domain-skill acceptance now has passing local browser smokes via `DevToolsActivePort`, including the GitHub trending and Reddit post guest slices
+- Browser Use remote remains useful for simple runner/plumbing smokes, but site-dependent guest verification against origins such as GitHub and Reddit is currently best-effort because cloud navigation to those sites has been intermittently unreliable
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](../docs/wasm-runner-design.md)
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
@@ -206,6 +207,13 @@ BROWSER_USE_API_KEY=... python3 scripts/bhrun_github_trending_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_reddit_guest_smoke.py
 ```
 
+Local `bhrun` domain-skill guest smokes:
+
+```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_github_trending_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_reddit_guest_smoke.py
+```
+
 Live `bhrun serve-guest` smoke:
 
 ```bash
@@ -219,7 +227,7 @@ Local `bhrun serve-guest` smoke:
 python3 scripts/bhrun_persistent_guest_smoke.py
 ```
 
-Live GitHub domain-skill acceptance smoke:
+Remote GitHub domain-skill acceptance smoke (best-effort):
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/domain_skill_github_smoke.py
