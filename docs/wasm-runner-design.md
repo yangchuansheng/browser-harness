@@ -118,6 +118,7 @@ Current scaffold goals:
 
 - define a manifest for protocol families and guest-exposed operations
 - define a sample runner configuration
+- define the first guest authoring SDK layer above the raw `bh.call_json` import
 - keep the implementation small until the runtime boundary is more proven
 
 Current commands:
@@ -129,6 +130,11 @@ cargo run --quiet --bin bhrun -- sample-config
 cargo run --quiet --bin bhrun -- capabilities
 cargo run --quiet --bin bhrun -- run-guest guests/navigate_and_read.wat <<'JSON'
 {"daemon_name":"default","guest_module":"guests/navigate_and_read.wat","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-navigate-and-read/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
@@ -188,6 +194,8 @@ execution slice is live.
 `run-guest` currently loads a core Wasm module, exposes a single generic
 `bh.call_json` import, enforces `RunnerConfig.granted_operations`, and returns a
 call trace for the guest's host interactions.
+`bh-guest-sdk` is the first Rust guest authoring layer above that import, and
+`guests/rust-navigate-and-read` is the first compiled Rust guest sample using it.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.

@@ -95,6 +95,15 @@ name = "bh-discovery"
 version = "0.1.0"
 
 [[package]]
+name = "bh-guest-sdk"
+version = "0.1.0"
+dependencies = [
+ "bh-wasm-host",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bh-protocol"
 version = "0.1.0"
 dependencies = [

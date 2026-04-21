@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/bh-guest-sdk",
     "crates/bh-protocol",
     "crates/bh-discovery",
     "crates/bh-cdp",

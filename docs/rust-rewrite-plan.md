@@ -93,6 +93,7 @@ Current runner-owned preview surface:
 - browser-free runner utility coverage via `wait`
 - typed runner utilities for session lookup, event waiting, response/console/dialog waits, and tab/action helpers
 - local and live remote smoke coverage for persistent guest state in the runner boundary
+- the first Rust guest authoring path via `bh-guest-sdk` and a compiled Rust Wasm sample guest
 
 More specifically, the target shape is:
 
