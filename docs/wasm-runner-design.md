@@ -127,6 +127,27 @@ cd rust
 cargo run --quiet --bin bhrun -- manifest
 cargo run --quiet --bin bhrun -- sample-config
 cargo run --quiet --bin bhrun -- capabilities
+cargo run --quiet --bin bhrun -- current-tab <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- list-tabs <<'JSON'
+{"daemon_name":"default","include_internal":true}
+JSON
+cargo run --quiet --bin bhrun -- new-tab <<'JSON'
+{"daemon_name":"default","url":"https://example.com"}
+JSON
+cargo run --quiet --bin bhrun -- switch-tab <<'JSON'
+{"daemon_name":"default","target_id":"<target-id>"}
+JSON
+cargo run --quiet --bin bhrun -- page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- goto <<'JSON'
+{"daemon_name":"default","url":"https://example.com"}
+JSON
+cargo run --quiet --bin bhrun -- js <<'JSON'
+{"daemon_name":"default","expression":"location.href"}
+JSON
 cargo run --quiet --bin bhrun -- current-session <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -151,6 +172,12 @@ JSON
 ```
 
 These commands are not a guest runtime yet. They are only a design scaffold.
+`current-tab`, `list-tabs`, `new-tab`, and `switch-tab` are the first live
+runner-owned target control helpers, giving guests direct tab/session selection
+without reaching around the runner boundary.
+`page-info`, `goto`, and `js` are the first live runner-owned action helpers,
+bridging into the daemon's typed compatibility surface without going through the
+Python shell.
 `wait-for-event` is the first live Phase 2 runner primitive.
 `watch-events` is the first generic streaming primitive layered on the same daemon event buffer.
 `wait-for-load-event` is the first helper layered directly on top of it.

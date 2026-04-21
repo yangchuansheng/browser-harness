@@ -3,18 +3,23 @@ use std::os::unix::net::UnixStream;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bh_protocol::{DaemonResponse, META_DRAIN_EVENTS, META_SESSION};
+use bh_protocol::{
+    DaemonRequest, DaemonResponse, META_CURRENT_TAB, META_DRAIN_EVENTS, META_GOTO, META_JS,
+    META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
+};
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
-    operation_names, CurrentSessionRequest, CurrentSessionResult, WaitForConsoleRequest,
-    WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
-    WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
+    operation_names, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, GotoRequest,
+    JsRequest, ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest, SwitchTabRequest,
+    SwitchTabResult, TabSummary, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
+    WaitForEventResult, WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsLine,
+    WatchEventsRequest,
 };
 use serde_json::{json, Value};
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|current-tab|list-tabs|new-tab|switch-tab|page-info|goto|js|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: event waiting is live; WASM guest execution is not implemented yet"
     );
 }
@@ -49,13 +54,49 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=not_implemented",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live page_info=live goto=live js=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=not_implemented",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
                 manifest.operations.len()
             )
             .map_err(|err| format!("write stdout: {err}"))
+        }
+        Some("current-tab") => {
+            let request =
+                read_optional_json::<CurrentTabRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = current_tab(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("list-tabs") => {
+            let request = read_optional_json::<ListTabsRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = list_tabs(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("new-tab") => {
+            let request = read_optional_json::<NewTabRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = new_tab(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("switch-tab") => {
+            let request = read_json::<SwitchTabRequest, _>(&mut stdin)?;
+            let result = switch_tab(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("page-info") => {
+            let request = read_optional_json::<PageInfoRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = page_info(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("goto") => {
+            let request = read_json::<GotoRequest, _>(&mut stdin)?;
+            let result = goto(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("js") => {
+            let request = read_json::<JsRequest, _>(&mut stdin)?;
+            let result = js(request)?;
+            write_json(&mut stdout, &result)
         }
         Some("current-session") => {
             let request =
@@ -103,6 +144,34 @@ fn current_session(request: CurrentSessionRequest) -> Result<CurrentSessionResul
     current_session_with_sender(request, send_daemon_meta_request)
 }
 
+fn current_tab(request: CurrentTabRequest) -> Result<TabSummary, String> {
+    current_tab_with_sender(request, send_daemon_request)
+}
+
+fn list_tabs(request: ListTabsRequest) -> Result<Vec<TabSummary>, String> {
+    list_tabs_with_sender(request, send_daemon_request)
+}
+
+fn new_tab(request: NewTabRequest) -> Result<NewTabResult, String> {
+    new_tab_with_sender(request, send_daemon_request)
+}
+
+fn switch_tab(request: SwitchTabRequest) -> Result<SwitchTabResult, String> {
+    switch_tab_with_sender(request, send_daemon_request)
+}
+
+fn page_info(request: PageInfoRequest) -> Result<Value, String> {
+    page_info_with_sender(request, send_daemon_request)
+}
+
+fn goto(request: GotoRequest) -> Result<Value, String> {
+    goto_with_sender(request, send_daemon_request)
+}
+
+fn js(request: JsRequest) -> Result<Value, String> {
+    js_with_sender(request, send_daemon_request)
+}
+
 fn current_session_with_sender<F>(
     request: CurrentSessionRequest,
     mut sender: F,
@@ -115,6 +184,103 @@ where
     Ok(CurrentSessionResult {
         session_id: response.session_id.unwrap_or(None),
     })
+}
+
+fn current_tab_with_sender<F>(
+    request: CurrentTabRequest,
+    mut sender: F,
+) -> Result<TabSummary, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(&request.daemon_name, META_CURRENT_TAB, None, &mut sender)
+}
+
+fn list_tabs_with_sender<F>(
+    request: ListTabsRequest,
+    mut sender: F,
+) -> Result<Vec<TabSummary>, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_LIST_TABS,
+        Some(json!({"include_internal": request.include_internal})),
+        &mut sender,
+    )
+}
+
+fn new_tab_with_sender<F>(request: NewTabRequest, mut sender: F) -> Result<NewTabResult, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let target_id: String = typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_NEW_TAB,
+        Some(json!({"url": request.url})),
+        &mut sender,
+    )?;
+    Ok(NewTabResult { target_id })
+}
+
+fn switch_tab_with_sender<F>(
+    request: SwitchTabRequest,
+    mut sender: F,
+) -> Result<SwitchTabResult, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let session_id: String = typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_SWITCH_TAB,
+        Some(json!({"target_id": request.target_id})),
+        &mut sender,
+    )?;
+    Ok(SwitchTabResult { session_id })
+}
+
+fn page_info_with_sender<F>(request: PageInfoRequest, mut sender: F) -> Result<Value, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    meta_result_with_sender(&request.daemon_name, META_PAGE_INFO, None, &mut sender)
+}
+
+fn goto_with_sender<F>(request: GotoRequest, mut sender: F) -> Result<Value, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    meta_result_with_sender(
+        &request.daemon_name,
+        META_GOTO,
+        Some(json!({"url": request.url})),
+        &mut sender,
+    )
+}
+
+fn js_with_sender<F>(request: JsRequest, mut sender: F) -> Result<Value, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let mut params =
+        serde_json::Map::from_iter([("expression".to_string(), Value::String(request.expression))]);
+    if let Some(target_id) = request.target_id {
+        params.insert("target_id".to_string(), Value::String(target_id));
+    }
+    meta_result_with_sender(
+        &request.daemon_name,
+        META_JS,
+        Some(Value::Object(params)),
+        &mut sender,
+    )
 }
 
 fn wait_for_event(request: WaitForEventRequest) -> Result<WaitForEventResult, String> {
@@ -292,6 +458,40 @@ fn drain_events(daemon_name: &str) -> Result<Vec<Value>, String> {
         .unwrap_or_default())
 }
 
+fn meta_result_with_sender<F>(
+    daemon_name: &str,
+    meta: &str,
+    params: Option<Value>,
+    mut sender: F,
+) -> Result<Value, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let response = sender(
+        daemon_name,
+        &DaemonRequest {
+            meta: Some(meta.to_string()),
+            params,
+            ..DaemonRequest::default()
+        },
+    )?;
+    Ok(response.result.unwrap_or(Value::Null))
+}
+
+fn typed_meta_result_with_sender<T, F>(
+    daemon_name: &str,
+    meta: &str,
+    params: Option<Value>,
+    sender: F,
+) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let result = meta_result_with_sender(daemon_name, meta, params, sender)?;
+    serde_json::from_value(result).map_err(|err| format!("parse {meta} result: {err}"))
+}
+
 fn read_json<T, R>(stdin: &mut R) -> Result<T, String>
 where
     T: serde::de::DeserializeOwned,
@@ -325,6 +525,19 @@ where
 }
 
 fn send_daemon_meta_request(daemon_name: &str, meta: &str) -> Result<DaemonResponse, String> {
+    send_daemon_request(
+        daemon_name,
+        &DaemonRequest {
+            meta: Some(meta.to_string()),
+            ..DaemonRequest::default()
+        },
+    )
+}
+
+fn send_daemon_request(
+    daemon_name: &str,
+    request: &DaemonRequest,
+) -> Result<DaemonResponse, String> {
     let mut stream = UnixStream::connect(format!("/tmp/bu-{daemon_name}.sock"))
         .map_err(|err| format!("connect daemon socket: {err}"))?;
     stream
@@ -334,9 +547,8 @@ fn send_daemon_meta_request(daemon_name: &str, meta: &str) -> Result<DaemonRespo
         .set_write_timeout(Some(Duration::from_secs(5)))
         .map_err(|err| format!("set write timeout: {err}"))?;
 
-    let request = json!({"meta": meta});
     let payload =
-        serde_json::to_vec(&request).map_err(|err| format!("serialize daemon request: {err}"))?;
+        serde_json::to_vec(request).map_err(|err| format!("serialize daemon request: {err}"))?;
     stream
         .write_all(&payload)
         .and_then(|_| stream.write_all(b"\n"))
@@ -393,16 +605,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        current_session_with_sender, run_cli, wait_for_console_with_drain,
-        wait_for_event_with_drain, watch_events_with_drain, DaemonResponse, META_SESSION,
+        current_session_with_sender, current_tab_with_sender, goto_with_sender, js_with_sender,
+        list_tabs_with_sender, new_tab_with_sender, page_info_with_sender, run_cli,
+        switch_tab_with_sender, wait_for_console_with_drain, wait_for_event_with_drain,
+        watch_events_with_drain, DaemonResponse, META_CURRENT_TAB, META_GOTO, META_JS,
+        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
     };
     use std::collections::VecDeque;
     use std::io;
 
     use bh_wasm_host::{
-        CurrentSessionRequest, CurrentSessionResult, EventFilter, WaitForConsoleRequest,
-        WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
-        WaitForResponseRequest, WatchEventsRequest,
+        CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, EventFilter, GotoRequest,
+        JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest, SwitchTabRequest,
+        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
+        WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -489,6 +705,207 @@ mod tests {
     }
 
     #[test]
+    fn page_info_uses_meta_request_result() {
+        let result = page_info_with_sender(PageInfoRequest::default(), |daemon, request| {
+            assert_eq!(daemon, "default");
+            assert_eq!(request.meta.as_deref(), Some(META_PAGE_INFO));
+            assert_eq!(request.params, None);
+            Ok(DaemonResponse {
+                result: Some(json!({"url":"about:blank","title":"","w":1280})),
+                ..DaemonResponse::default()
+            })
+        })
+        .expect("page info result");
+
+        assert_eq!(
+            result.pointer("/url").and_then(Value::as_str),
+            Some("about:blank")
+        );
+    }
+
+    #[test]
+    fn goto_uses_meta_request_with_url() {
+        let result = goto_with_sender(
+            GotoRequest {
+                daemon_name: "runner".to_string(),
+                url: "https://example.com".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_GOTO));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("url"))
+                        .and_then(Value::as_str),
+                    Some("https://example.com")
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!({"frameId":"frame-1"})),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("goto result");
+
+        assert_eq!(
+            result.pointer("/frameId").and_then(Value::as_str),
+            Some("frame-1")
+        );
+    }
+
+    #[test]
+    fn js_uses_meta_request_with_expression_and_target_id() {
+        let result = js_with_sender(
+            JsRequest {
+                daemon_name: "runner".to_string(),
+                expression: "location.href".to_string(),
+                target_id: Some("iframe-7".to_string()),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_JS));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("expression"))
+                        .and_then(Value::as_str),
+                    Some("location.href")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("target_id"))
+                        .and_then(Value::as_str),
+                    Some("iframe-7")
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!("https://example.com/frame")),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("js result");
+
+        assert_eq!(result.as_str(), Some("https://example.com/frame"));
+    }
+
+    #[test]
+    fn current_tab_uses_meta_request_result() {
+        let result = current_tab_with_sender(CurrentTabRequest::default(), |daemon, request| {
+            assert_eq!(daemon, "default");
+            assert_eq!(request.meta.as_deref(), Some(META_CURRENT_TAB));
+            assert_eq!(request.params, None);
+            Ok(DaemonResponse {
+                result: Some(json!({
+                    "targetId":"target-1",
+                    "title":"Example",
+                    "url":"https://example.com"
+                })),
+                ..DaemonResponse::default()
+            })
+        })
+        .expect("current tab result");
+
+        assert_eq!(result.target_id, "target-1");
+        assert_eq!(result.url, "https://example.com");
+    }
+
+    #[test]
+    fn list_tabs_uses_meta_request_flag() {
+        let result = list_tabs_with_sender(
+            ListTabsRequest {
+                daemon_name: "runner".to_string(),
+                include_internal: false,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_LIST_TABS));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("include_internal"))
+                        .and_then(Value::as_bool),
+                    Some(false)
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!([
+                        {"targetId":"target-1","title":"One","url":"about:blank"},
+                        {"targetId":"target-2","title":"Two","url":"https://example.com"}
+                    ])),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("list tabs result");
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[1].target_id, "target-2");
+    }
+
+    #[test]
+    fn new_tab_uses_meta_request_with_url() {
+        let result = new_tab_with_sender(
+            NewTabRequest {
+                daemon_name: "runner".to_string(),
+                url: "https://example.com/new".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_NEW_TAB));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("url"))
+                        .and_then(Value::as_str),
+                    Some("https://example.com/new")
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!("target-new")),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("new tab result");
+
+        assert_eq!(result.target_id, "target-new");
+    }
+
+    #[test]
+    fn switch_tab_uses_meta_request_with_target_id() {
+        let result = switch_tab_with_sender(
+            SwitchTabRequest {
+                daemon_name: "runner".to_string(),
+                target_id: "target-9".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_SWITCH_TAB));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("target_id"))
+                        .and_then(Value::as_str),
+                    Some("target-9")
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!("session-9")),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("switch tab result");
+
+        assert_eq!(result.session_id, "session-9");
+    }
+
+    #[test]
     fn cli_summary_mentions_live_event_waiting() {
         let mut stdout = Vec::new();
 
@@ -500,6 +917,13 @@ mod tests {
         .expect("summary");
 
         let text = String::from_utf8(stdout).expect("utf-8");
+        assert!(text.contains("current_tab=live"));
+        assert!(text.contains("list_tabs=live"));
+        assert!(text.contains("new_tab=live"));
+        assert!(text.contains("switch_tab=live"));
+        assert!(text.contains("page_info=live"));
+        assert!(text.contains("goto=live"));
+        assert!(text.contains("js=live"));
         assert!(text.contains("current_session=live"));
         assert!(text.contains("wait_for_event=live"));
         assert!(text.contains("watch_events=live"));

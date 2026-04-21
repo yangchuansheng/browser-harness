@@ -32,6 +32,27 @@ WASM design scaffold:
 cd rust
 cargo run --quiet --bin bhrun -- manifest
 cargo run --quiet --bin bhrun -- sample-config
+cargo run --quiet --bin bhrun -- current-tab <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- list-tabs <<'JSON'
+{"daemon_name":"default","include_internal":true}
+JSON
+cargo run --quiet --bin bhrun -- new-tab <<'JSON'
+{"daemon_name":"default","url":"https://example.com"}
+JSON
+cargo run --quiet --bin bhrun -- switch-tab <<'JSON'
+{"daemon_name":"default","target_id":"<target-id>"}
+JSON
+cargo run --quiet --bin bhrun -- page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- goto <<'JSON'
+{"daemon_name":"default","url":"https://example.com"}
+JSON
+cargo run --quiet --bin bhrun -- js <<'JSON'
+{"daemon_name":"default","expression":"location.href"}
+JSON
 cargo run --quiet --bin bhrun -- current-session <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -95,6 +116,18 @@ Live `bhrun wait-for-dialog` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_dialog_smoke.py
+```
+
+Live `bhrun` action smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_actions_smoke.py
+```
+
+Live `bhrun` tab/session smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_tabs_smoke.py
 ```
 
 Live GitHub domain-skill acceptance smoke:
