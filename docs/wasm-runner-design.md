@@ -145,6 +145,10 @@ cargo +stable build --release --target wasm32-unknown-unknown --manifest-path gu
 cargo run --quiet --bin bhrun -- run-guest guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm <<'JSON'
 {"daemon_name":"default","guest_module":"guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
 JSON
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-reddit-post-scrape/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-reddit-post-scrape/target/wasm32-unknown-unknown/release/rust_reddit_post_scrape_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-reddit-post-scrape/target/wasm32-unknown-unknown/release/rust_reddit_post_scrape_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","scroll","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
 JSON
@@ -232,6 +236,9 @@ typed workflow.
 `guests/rust-github-trending` is the first guest shaped like a real domain
 skill, porting the browser-trending slice of `domain-skills/github/scraping.md`
 onto the guest boundary.
+`guests/rust-reddit-post-scrape` is the next skill-shaped guest, porting the
+browser DOM extraction slice of `domain-skills/reddit/scraping.md` onto the
+same helper surface.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.
