@@ -191,6 +191,8 @@ call trace for the guest's host interactions.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.
+That boundary now has both a browser-free persistence smoke and a live
+browser-backed persistence smoke.
 `current-tab`, `list-tabs`, `new-tab`, and `switch-tab` are the first live
 runner-owned target control helpers, giving guests direct tab/session selection
 without reaching around the runner boundary.
