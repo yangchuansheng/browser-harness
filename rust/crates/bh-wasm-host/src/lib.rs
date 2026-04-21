@@ -83,6 +83,75 @@ pub struct CurrentSessionResult {
     pub session_id: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CurrentTabRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListTabsRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default = "default_include_internal")]
+    pub include_internal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewTabRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default = "default_new_tab_url")]
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SwitchTabRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub target_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageInfoRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TabSummary {
+    #[serde(rename = "targetId")]
+    pub target_id: String,
+    pub title: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewTabResult {
+    pub target_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SwitchTabResult {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GotoRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JsRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub expression: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -248,6 +317,40 @@ impl Default for CurrentSessionRequest {
     }
 }
 
+impl Default for CurrentTabRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+        }
+    }
+}
+
+impl Default for ListTabsRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            include_internal: default_include_internal(),
+        }
+    }
+}
+
+impl Default for NewTabRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            url: default_new_tab_url(),
+        }
+    }
+}
+
+impl Default for PageInfoRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+        }
+    }
+}
+
 impl CurrentSessionRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -256,6 +359,100 @@ impl CurrentSessionRequest {
             } else {
                 self.daemon_name.clone()
             },
+        }
+    }
+}
+
+impl CurrentTabRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+        }
+    }
+}
+
+impl ListTabsRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            include_internal: self.include_internal,
+        }
+    }
+}
+
+impl NewTabRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            url: if self.url.trim().is_empty() {
+                default_new_tab_url()
+            } else {
+                self.url.clone()
+            },
+        }
+    }
+}
+
+impl SwitchTabRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            target_id: self.target_id.clone(),
+        }
+    }
+}
+
+impl PageInfoRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+        }
+    }
+}
+
+impl GotoRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            url: self.url.clone(),
+        }
+    }
+}
+
+impl JsRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            expression: self.expression.clone(),
+            target_id: self.target_id.clone(),
         }
     }
 }
@@ -811,6 +1008,14 @@ fn default_daemon_name() -> String {
     "default".to_string()
 }
 
+fn default_include_internal() -> bool {
+    true
+}
+
+fn default_new_tab_url() -> String {
+    "about:blank".to_string()
+}
+
 fn default_wait_timeout_ms() -> u64 {
     15_000
 }
@@ -845,10 +1050,11 @@ mod tests {
     use super::{
         console_event_filter, console_event_matches, default_manifest, default_runner_config,
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
-        response_received_filter, CurrentSessionRequest, EventFilter, ExecutionModel,
-        GuestTransport, ProtocolFamilyKind, Stability, WaitForConsoleRequest, WaitForDialogRequest,
-        WaitForEventRequest, WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsLine,
-        WatchEventsRequest,
+        response_received_filter, CurrentSessionRequest, CurrentTabRequest, EventFilter,
+        ExecutionModel, GotoRequest, GuestTransport, JsRequest, ListTabsRequest, NewTabRequest,
+        PageInfoRequest, ProtocolFamilyKind, Stability, SwitchTabRequest, WaitForConsoleRequest,
+        WaitForDialogRequest, WaitForEventRequest, WaitForLoadEventRequest, WaitForResponseRequest,
+        WatchEventsLine, WatchEventsRequest,
     };
 
     #[test]
@@ -1013,6 +1219,88 @@ mod tests {
         let normalized = request.normalized();
 
         assert_eq!(normalized.daemon_name, "default");
+    }
+
+    #[test]
+    fn current_tab_request_normalizes_blank_name() {
+        let request = CurrentTabRequest {
+            daemon_name: "   ".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+    }
+
+    #[test]
+    fn list_tabs_request_normalizes_blank_name() {
+        let request = ListTabsRequest {
+            daemon_name: "   ".to_string(),
+            include_internal: false,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert!(!normalized.include_internal);
+    }
+
+    #[test]
+    fn new_tab_request_normalizes_blank_name_and_url() {
+        let request = NewTabRequest {
+            daemon_name: "   ".to_string(),
+            url: "   ".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.url, "about:blank");
+    }
+
+    #[test]
+    fn switch_tab_request_normalizes_blank_name() {
+        let request = SwitchTabRequest {
+            daemon_name: "   ".to_string(),
+            target_id: "target-7".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.target_id, "target-7");
+    }
+
+    #[test]
+    fn page_info_request_normalizes_blank_name() {
+        let request = PageInfoRequest {
+            daemon_name: "   ".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+    }
+
+    #[test]
+    fn goto_request_normalizes_blank_name() {
+        let request = GotoRequest {
+            daemon_name: "   ".to_string(),
+            url: "https://example.com".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.url, "https://example.com");
+    }
+
+    #[test]
+    fn js_request_normalizes_blank_name() {
+        let request = JsRequest {
+            daemon_name: "   ".to_string(),
+            expression: "location.href".to_string(),
+            target_id: Some("iframe-1".to_string()),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.expression, "location.href");
+        assert_eq!(normalized.target_id.as_deref(), Some("iframe-1"));
     }
 
     #[test]
