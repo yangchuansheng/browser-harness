@@ -199,6 +199,8 @@ call trace for the guest's host interactions.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.
+`guests/rust-persistent-browser-state` is the first compiled Rust guest that
+depends on that persistence model across repeated `serve-guest` runs.
 That boundary now has both a browser-free persistence smoke and a live
 browser-backed persistence smoke.
 `current-tab`, `list-tabs`, `new-tab`, and `switch-tab` are the first live
