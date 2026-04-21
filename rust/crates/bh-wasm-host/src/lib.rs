@@ -61,7 +61,7 @@ pub struct HostManifest {
     pub operations: Vec<HostOperation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunnerConfig {
     pub daemon_name: String,
     pub guest_module: Option<String>,
@@ -69,6 +69,23 @@ pub struct RunnerConfig {
     pub allow_http: bool,
     pub allow_raw_cdp: bool,
     pub persistent_guest_state: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GuestCallRecord {
+    pub operation: String,
+    pub request: Value,
+    pub response: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GuestRunResult {
+    pub exit_code: i32,
+    pub success: bool,
+    #[serde(default)]
+    pub calls: Vec<GuestCallRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trap: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,5 +1,6 @@
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -10,17 +11,18 @@ use bh_protocol::{
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
     operation_names, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, GotoRequest,
-    JsRequest, ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest, SwitchTabRequest,
-    SwitchTabResult, TabSummary, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
-    WaitForEventResult, WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsLine,
-    WatchEventsRequest,
+    GuestCallRecord, GuestRunResult, JsRequest, ListTabsRequest, NewTabRequest, NewTabResult,
+    PageInfoRequest, RunnerConfig, SwitchTabRequest, SwitchTabResult, TabSummary,
+    WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
+    WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
 };
 use serde_json::{json, Value};
+use wasmtime::{Caller, Engine, Linker, Module, Store};
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|current-tab|list-tabs|new-tab|switch-tab|page-info|goto|js|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
-         runner scaffold: event waiting is live; WASM guest execution is not implemented yet"
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|current-tab|list-tabs|new-tab|switch-tab|page-info|goto|js|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+         runner scaffold: event waiting and minimal guest execution are live"
     );
 }
 
@@ -54,13 +56,25 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live page_info=live goto=live js=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=not_implemented",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live page_info=live goto=live js=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
                 manifest.operations.len()
             )
             .map_err(|err| format!("write stdout: {err}"))
+        }
+        Some("run-guest") => {
+            let request = read_optional_json::<RunnerConfig, _>(&mut stdin)?
+                .unwrap_or_else(default_runner_config);
+            let guest_path = args
+                .next()
+                .or_else(|| request.guest_module.clone())
+                .ok_or_else(|| {
+                    "run-guest requires a guest path or config.guest_module".to_string()
+                })?;
+            let result = run_guest(&guest_path, request)?;
+            write_json(&mut stdout, &result)
         }
         Some("current-tab") => {
             let request =
@@ -170,6 +184,86 @@ fn goto(request: GotoRequest) -> Result<Value, String> {
 
 fn js(request: JsRequest) -> Result<Value, String> {
     js_with_sender(request, send_daemon_request)
+}
+
+#[derive(Debug)]
+struct GuestHostState {
+    config: RunnerConfig,
+    calls: Vec<GuestCallRecord>,
+    error: Option<String>,
+}
+
+fn run_guest(path: &str, config: RunnerConfig) -> Result<GuestRunResult, String> {
+    let engine = Engine::default();
+    let module = Module::from_file(&engine, Path::new(path))
+        .map_err(|err| format!("load guest module: {err}"))?;
+    let mut linker = Linker::new(&engine);
+    linker
+        .func_wrap(
+            "bh",
+            "call_json",
+            |mut caller: Caller<'_, GuestHostState>,
+             operation_ptr: i32,
+             operation_len: i32,
+             request_ptr: i32,
+             request_len: i32,
+             out_ptr: i32,
+             out_cap: i32|
+             -> i32 {
+                let operation = match read_guest_utf8(&mut caller, operation_ptr, operation_len) {
+                    Ok(operation) => operation,
+                    Err(err) => return set_guest_error(caller.data_mut(), err),
+                };
+                let request_text = match read_guest_utf8(&mut caller, request_ptr, request_len) {
+                    Ok(request_text) => request_text,
+                    Err(err) => return set_guest_error(caller.data_mut(), err),
+                };
+                let response =
+                    match dispatch_guest_operation(caller.data_mut(), &operation, &request_text) {
+                        Ok(response) => response,
+                        Err(err) => return set_guest_error(caller.data_mut(), err),
+                    };
+                match write_guest_bytes(&mut caller, out_ptr, out_cap, &response) {
+                    Ok(written) => written,
+                    Err(err) => set_guest_error(caller.data_mut(), err),
+                }
+            },
+        )
+        .map_err(|err| format!("define guest host function: {err}"))?;
+
+    let mut store = Store::new(
+        &engine,
+        GuestHostState {
+            config,
+            calls: Vec::new(),
+            error: None,
+        },
+    );
+    let instance = linker
+        .instantiate(&mut store, &module)
+        .map_err(|err| format!("instantiate guest module: {err}"))?;
+    let run = instance
+        .get_typed_func::<(), i32>(&mut store, "run")
+        .map_err(|err| format!("locate guest export run: {err}"))?;
+    let outcome = run.call(&mut store, ());
+    let state = store.data();
+    let calls = state.calls.clone();
+    let host_error = state.error.clone();
+
+    Ok(match outcome {
+        Ok(exit_code) => GuestRunResult {
+            exit_code,
+            success: exit_code == 0 && host_error.is_none(),
+            calls,
+            trap: host_error,
+        },
+        Err(err) => GuestRunResult {
+            exit_code: -1,
+            success: false,
+            calls,
+            trap: Some(host_error.unwrap_or_else(|| err.to_string())),
+        },
+    })
 }
 
 fn current_session_with_sender<F>(
@@ -492,6 +586,138 @@ where
     serde_json::from_value(result).map_err(|err| format!("parse {meta} result: {err}"))
 }
 
+fn read_guest_utf8(
+    caller: &mut Caller<'_, GuestHostState>,
+    ptr: i32,
+    len: i32,
+) -> Result<String, String> {
+    let memory = caller
+        .get_export("memory")
+        .and_then(|export| export.into_memory())
+        .ok_or_else(|| "guest did not export memory".to_string())?;
+    if ptr < 0 || len < 0 {
+        return Err("guest memory read used negative ptr/len".to_string());
+    }
+    let mut buf = vec![0u8; len as usize];
+    memory
+        .read(caller, ptr as usize, &mut buf)
+        .map_err(|err| format!("read guest memory: {err}"))?;
+    String::from_utf8(buf).map_err(|err| format!("guest string was not utf-8: {err}"))
+}
+
+fn write_guest_bytes(
+    caller: &mut Caller<'_, GuestHostState>,
+    ptr: i32,
+    cap: i32,
+    bytes: &[u8],
+) -> Result<i32, String> {
+    let memory = caller
+        .get_export("memory")
+        .and_then(|export| export.into_memory())
+        .ok_or_else(|| "guest did not export memory".to_string())?;
+    if ptr < 0 || cap < 0 {
+        return Err("guest memory write used negative ptr/cap".to_string());
+    }
+    if bytes.len() > cap as usize {
+        return Err(format!(
+            "guest output buffer too small: need {}, have {}",
+            bytes.len(),
+            cap
+        ));
+    }
+    memory
+        .write(caller, ptr as usize, bytes)
+        .map_err(|err| format!("write guest memory: {err}"))?;
+    Ok(bytes.len() as i32)
+}
+
+fn set_guest_error(state: &mut GuestHostState, err: String) -> i32 {
+    if state.error.is_none() {
+        state.error = Some(err);
+    }
+    -1
+}
+
+fn dispatch_guest_operation(
+    state: &mut GuestHostState,
+    operation: &str,
+    request_text: &str,
+) -> Result<Vec<u8>, String> {
+    if !state
+        .config
+        .granted_operations
+        .iter()
+        .any(|granted| granted == operation)
+    {
+        return Err(format!("operation denied by runner config: {operation}"));
+    }
+
+    let request = inject_daemon_name(request_text, &state.config.daemon_name)?;
+    let response = match operation {
+        "current_session" => serde_json::to_value(current_session(parse_request_value(&request)?))
+            .map_err(|err| format!("serialize current_session result: {err}"))?,
+        "current_tab" => serde_json::to_value(current_tab(parse_request_value(&request)?))
+            .map_err(|err| format!("serialize current_tab result: {err}"))?,
+        "list_tabs" => serde_json::to_value(list_tabs(parse_request_value(&request)?))
+            .map_err(|err| format!("serialize list_tabs result: {err}"))?,
+        "new_tab" => serde_json::to_value(new_tab(parse_request_value(&request)?))
+            .map_err(|err| format!("serialize new_tab result: {err}"))?,
+        "switch_tab" => serde_json::to_value(switch_tab(parse_request_value(&request)?))
+            .map_err(|err| format!("serialize switch_tab result: {err}"))?,
+        "page_info" => page_info(parse_request_value(&request)?)?,
+        "goto" => goto(parse_request_value(&request)?)?,
+        "js" => js(parse_request_value(&request)?)?,
+        "wait_for_event" => serde_json::to_value(wait_for_event(parse_request_value(&request)?)?)
+            .map_err(|err| format!("serialize wait_for_event result: {err}"))?,
+        "wait_for_load_event" => {
+            serde_json::to_value(wait_for_load_event(parse_request_value(&request)?)?)
+                .map_err(|err| format!("serialize wait_for_load_event result: {err}"))?
+        }
+        "wait_for_response" => {
+            serde_json::to_value(wait_for_response(parse_request_value(&request)?)?)
+                .map_err(|err| format!("serialize wait_for_response result: {err}"))?
+        }
+        "wait_for_console" => {
+            serde_json::to_value(wait_for_console(parse_request_value(&request)?)?)
+                .map_err(|err| format!("serialize wait_for_console result: {err}"))?
+        }
+        "wait_for_dialog" => serde_json::to_value(wait_for_dialog(parse_request_value(&request)?)?)
+            .map_err(|err| format!("serialize wait_for_dialog result: {err}"))?,
+        unsupported => return Err(format!("unsupported guest operation: {unsupported}")),
+    };
+    state.calls.push(GuestCallRecord {
+        operation: operation.to_string(),
+        request: serde_json::from_str(&request)
+            .map_err(|err| format!("parse normalized request: {err}"))?,
+        response: response.clone(),
+    });
+    serde_json::to_vec(&response).map_err(|err| format!("serialize guest response JSON: {err}"))
+}
+
+fn inject_daemon_name(request_text: &str, daemon_name: &str) -> Result<String, String> {
+    let trimmed = request_text.trim();
+    let mut request = if trimmed.is_empty() {
+        json!({})
+    } else {
+        serde_json::from_str::<Value>(trimmed)
+            .map_err(|err| format!("invalid guest request JSON: {err}"))?
+    };
+    let object = request
+        .as_object_mut()
+        .ok_or_else(|| "guest request JSON must be an object".to_string())?;
+    object
+        .entry("daemon_name".to_string())
+        .or_insert_with(|| Value::String(daemon_name.to_string()));
+    serde_json::to_string(&request).map_err(|err| format!("serialize guest request JSON: {err}"))
+}
+
+fn parse_request_value<T>(request_text: &str) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+{
+    serde_json::from_str(request_text).map_err(|err| format!("parse guest request: {err}"))
+}
+
 fn read_json<T, R>(stdin: &mut R) -> Result<T, String>
 where
     T: serde::de::DeserializeOwned,
@@ -605,18 +831,19 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        current_session_with_sender, current_tab_with_sender, goto_with_sender, js_with_sender,
-        list_tabs_with_sender, new_tab_with_sender, page_info_with_sender, run_cli,
-        switch_tab_with_sender, wait_for_console_with_drain, wait_for_event_with_drain,
-        watch_events_with_drain, DaemonResponse, META_CURRENT_TAB, META_GOTO, META_JS,
-        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
+        current_session_with_sender, current_tab_with_sender, dispatch_guest_operation,
+        goto_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
+        new_tab_with_sender, page_info_with_sender, run_cli, switch_tab_with_sender,
+        wait_for_console_with_drain, wait_for_event_with_drain, watch_events_with_drain,
+        DaemonResponse, GuestHostState, META_CURRENT_TAB, META_GOTO, META_JS, META_LIST_TABS,
+        META_NEW_TAB, META_PAGE_INFO, META_SESSION, META_SWITCH_TAB,
     };
     use std::collections::VecDeque;
     use std::io;
 
     use bh_wasm_host::{
         CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, EventFilter, GotoRequest,
-        JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest, SwitchTabRequest,
+        JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest, RunnerConfig, SwitchTabRequest,
         WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
         WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsRequest,
     };
@@ -702,6 +929,43 @@ mod tests {
                 .and_then(Value::as_str),
             Some("Runtime.consoleAPICalled")
         );
+    }
+
+    #[test]
+    fn inject_daemon_name_adds_runner_daemon_when_missing() {
+        let request = inject_daemon_name(r#"{"expression":"location.href"}"#, "runner")
+            .expect("inject daemon name");
+        let value: Value = serde_json::from_str(&request).expect("parse injected request");
+
+        assert_eq!(
+            value.get("daemon_name").and_then(Value::as_str),
+            Some("runner")
+        );
+        assert_eq!(
+            value.get("expression").and_then(Value::as_str),
+            Some("location.href")
+        );
+    }
+
+    #[test]
+    fn dispatch_guest_operation_rejects_ungranted_operation() {
+        let mut state = GuestHostState {
+            config: RunnerConfig {
+                daemon_name: "runner".to_string(),
+                guest_module: None,
+                granted_operations: vec!["page_info".to_string()],
+                allow_http: false,
+                allow_raw_cdp: false,
+                persistent_guest_state: true,
+            },
+            calls: Vec::new(),
+            error: None,
+        };
+
+        let err = dispatch_guest_operation(&mut state, "goto", r#"{"url":"https://example.com"}"#)
+            .expect_err("ungranted operation should fail");
+        assert_eq!(err, "operation denied by runner config: goto");
+        assert!(state.calls.is_empty());
     }
 
     #[test]

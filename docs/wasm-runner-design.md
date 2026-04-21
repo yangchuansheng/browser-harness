@@ -118,7 +118,7 @@ Current scaffold goals:
 
 - define a manifest for protocol families and guest-exposed operations
 - define a sample runner configuration
-- keep the implementation declarative until the runtime boundary is more proven
+- keep the implementation small until the runtime boundary is more proven
 
 Current commands:
 
@@ -127,6 +127,9 @@ cd rust
 cargo run --quiet --bin bhrun -- manifest
 cargo run --quiet --bin bhrun -- sample-config
 cargo run --quiet --bin bhrun -- capabilities
+cargo run --quiet --bin bhrun -- run-guest guests/navigate_and_read.wat <<'JSON'
+{"daemon_name":"default","guest_module":"guests/navigate_and_read.wat","granted_operations":["goto","wait_for_load_event","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
 cargo run --quiet --bin bhrun -- current-tab <<'JSON'
 {"daemon_name":"default"}
 JSON
@@ -171,7 +174,11 @@ cargo run --quiet --bin bhrun -- wait-for-dialog <<'JSON'
 JSON
 ```
 
-These commands are not a guest runtime yet. They are only a design scaffold.
+These commands are not a full guest runtime yet, but the first preview guest
+execution slice is live.
+`run-guest` currently loads a core Wasm module, exposes a single generic
+`bh.call_json` import, enforces `RunnerConfig.granted_operations`, and returns a
+call trace for the guest's host interactions.
 `current-tab`, `list-tabs`, `new-tab`, and `switch-tab` are the first live
 runner-owned target control helpers, giving guests direct tab/session selection
 without reaching around the runner boundary.
