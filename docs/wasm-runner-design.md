@@ -239,6 +239,9 @@ onto the guest boundary.
 `guests/rust-reddit-post-scrape` is the next skill-shaped guest, porting the
 browser DOM extraction slice of `domain-skills/reddit/scraping.md` onto the
 same helper surface.
+Those two guest slices now have passing local browser acceptance through
+`DevToolsActivePort`, which is the primary gate for site-dependent skill
+migration right now.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
 instance alive, accepts line-delimited control messages, and reuses the same
 guest state across repeated `run` invocations.
@@ -269,6 +272,13 @@ workflow guest, not only through direct CLI smokes.
 Pure HTTP utilities such as `http_get` still remain intentionally outside the
 guest boundary today, which is why the GitHub guest currently ports only the
 browser-trending half of that skill.
+Browser Use cloud remains useful for simple runner and daemon plumbing smokes,
+but external-site guest acceptance against origins such as GitHub and Reddit is
+currently best-effort because cloud navigation to those sites has intermittently
+failed.
+The next migration target should therefore stay browser-first and public, such
+as `domain-skills/producthunt/scraping.md`, rather than API-first skills like
+Hacker News or dev.to that would add less signal to the guest boundary.
 
 ## Current Event Contract
 
