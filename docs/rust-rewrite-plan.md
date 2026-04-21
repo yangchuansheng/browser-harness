@@ -60,6 +60,20 @@ Python script -> Python wrappers -> Rust daemon/core -> CDP -> local Chrome or B
 
 This preserves the current workflow while moving stateful runtime logic into Rust.
 
+### Phase 1 status
+
+Phase 1 is complete for the in-repo hybrid rewrite.
+
+That means the boundary freeze below has been reached:
+
+- Rust owns the stateful browser runtime, admin lifecycle, remote-browser lifecycle, and the common typed helper surface
+- Python remains the compatibility shell and keeps the intentional leftovers (`cdp()`, `wait()`, `http_get()`, dynamic skills)
+- existing workflows have live acceptance coverage through the Rust path, including a domain-skill acceptance smoke for `domain-skills/github/scraping.md`
+
+Still desirable, but no longer blocking Phase 2 work:
+
+- one local Chrome/Edge attach acceptance smoke for the `DevToolsActivePort` path
+
 ### Phase 2 target
 
 ```text
@@ -203,6 +217,7 @@ Verification should cover:
 - input primitives
 - stale-session recovery
 - remote browser startup/shutdown
+- at least one unchanged domain-skill workflow through the Rust compatibility path
 
 Keep the smallest meaningful tests first, then add broader integration coverage.
 
