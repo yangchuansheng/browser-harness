@@ -115,6 +115,37 @@ pub struct WaitForEventResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WatchEventsRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub filter: EventFilter,
+    #[serde(default = "default_wait_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_events: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WatchEventsLine {
+    Event {
+        event: Value,
+        index: u64,
+        elapsed_ms: u64,
+    },
+    End {
+        matched_events: u64,
+        polls: u64,
+        elapsed_ms: u64,
+        timed_out: bool,
+        reached_max_events: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WaitForLoadEventRequest {
     #[serde(default = "default_daemon_name")]
     pub daemon_name: String,
@@ -157,6 +188,22 @@ pub struct WaitForConsoleRequest {
     pub poll_interval_ms: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitForDialogRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub dialog_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(default = "default_wait_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
 impl Default for WaitForEventRequest {
     fn default() -> Self {
         Self {
@@ -164,6 +211,31 @@ impl Default for WaitForEventRequest {
             filter: EventFilter::default(),
             timeout_ms: default_wait_timeout_ms(),
             poll_interval_ms: default_poll_interval_ms(),
+        }
+    }
+}
+
+impl Default for WaitForDialogRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            session_id: None,
+            dialog_type: None,
+            message: None,
+            timeout_ms: default_wait_timeout_ms(),
+            poll_interval_ms: default_poll_interval_ms(),
+        }
+    }
+}
+
+impl Default for WatchEventsRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            filter: EventFilter::default(),
+            timeout_ms: default_wait_timeout_ms(),
+            poll_interval_ms: default_poll_interval_ms(),
+            max_events: None,
         }
     }
 }
@@ -203,6 +275,61 @@ impl WaitForEventRequest {
             } else {
                 self.poll_interval_ms
             },
+        }
+    }
+}
+
+impl WaitForDialogRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            session_id: self.session_id.clone(),
+            dialog_type: self.dialog_type.clone(),
+            message: self.message.clone(),
+            timeout_ms: self.timeout_ms,
+            poll_interval_ms: if self.poll_interval_ms == 0 {
+                default_poll_interval_ms()
+            } else {
+                self.poll_interval_ms
+            },
+        }
+    }
+
+    pub fn into_wait_for_event_request(self) -> WaitForEventRequest {
+        let request = self.normalized();
+        WaitForEventRequest {
+            daemon_name: request.daemon_name,
+            filter: dialog_event_filter(
+                request.session_id.as_deref(),
+                request.dialog_type.as_deref(),
+                request.message.as_deref(),
+            ),
+            timeout_ms: request.timeout_ms,
+            poll_interval_ms: request.poll_interval_ms,
+        }
+    }
+}
+
+impl WatchEventsRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            filter: self.filter.clone(),
+            timeout_ms: self.timeout_ms,
+            poll_interval_ms: if self.poll_interval_ms == 0 {
+                default_poll_interval_ms()
+            } else {
+                self.poll_interval_ms
+            },
+            max_events: self.max_events.filter(|max| *max > 0),
         }
     }
 }
@@ -444,6 +571,12 @@ pub fn default_operations() -> Vec<HostOperation> {
                 "Wait for a filtered browser event stream match owned by the runner/daemon.",
         },
         HostOperation {
+            name: "watch_events",
+            kind: ProtocolFamilyKind::HostUtility,
+            stability: Stability::Preview,
+            description: "Stream matching browser events as NDJSON until timeout or max_events.",
+        },
+        HostOperation {
             name: "wait_for_load_event",
             kind: ProtocolFamilyKind::HostUtility,
             stability: Stability::Preview,
@@ -463,6 +596,13 @@ pub fn default_operations() -> Vec<HostOperation> {
             stability: Stability::Preview,
             description:
                 "Wait for browser console output matching an optional type and message text.",
+        },
+        HostOperation {
+            name: "wait_for_dialog",
+            kind: ProtocolFamilyKind::HostUtility,
+            stability: Stability::Preview,
+            description:
+                "Wait for Page.javascriptDialogOpening matching an optional dialog type and message.",
         },
         HostOperation {
             name: "http_get",
@@ -638,6 +778,26 @@ pub fn console_event_matches(event: &Value, request: &WaitForConsoleRequest) -> 
     }
 }
 
+pub fn dialog_event_filter(
+    session_id: Option<&str>,
+    dialog_type: Option<&str>,
+    message: Option<&str>,
+) -> EventFilter {
+    let mut params = serde_json::Map::new();
+    if let Some(dialog_type) = dialog_type {
+        params.insert("type".to_string(), Value::String(dialog_type.to_string()));
+    }
+    if let Some(message) = message {
+        params.insert("message".to_string(), Value::String(message.to_string()));
+    }
+
+    EventFilter {
+        method: Some("Page.javascriptDialogOpening".to_string()),
+        session_id: session_id.map(str::to_string),
+        params_subset: (!params.is_empty()).then_some(Value::Object(params)),
+    }
+}
+
 fn compatibility_helper(name: &'static str, description: &'static str) -> HostOperation {
     HostOperation {
         name,
@@ -684,10 +844,11 @@ mod tests {
 
     use super::{
         console_event_filter, console_event_matches, default_manifest, default_runner_config,
-        event_matches_filter, load_event_filter, operation_names, response_received_filter,
-        CurrentSessionRequest, EventFilter, ExecutionModel, GuestTransport, ProtocolFamilyKind,
-        Stability, WaitForConsoleRequest, WaitForEventRequest, WaitForLoadEventRequest,
-        WaitForResponseRequest,
+        dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
+        response_received_filter, CurrentSessionRequest, EventFilter, ExecutionModel,
+        GuestTransport, ProtocolFamilyKind, Stability, WaitForConsoleRequest, WaitForDialogRequest,
+        WaitForEventRequest, WaitForLoadEventRequest, WaitForResponseRequest, WatchEventsLine,
+        WatchEventsRequest,
     };
 
     #[test]
@@ -728,9 +889,11 @@ mod tests {
         assert!(names.contains(&"page_info"));
         assert!(names.contains(&"current_session"));
         assert!(names.contains(&"wait_for_event"));
+        assert!(names.contains(&"watch_events"));
         assert!(names.contains(&"wait_for_load_event"));
         assert!(names.contains(&"wait_for_response"));
         assert!(names.contains(&"wait_for_console"));
+        assert!(names.contains(&"wait_for_dialog"));
         assert!(names.contains(&"cdp_raw"));
     }
 
@@ -787,6 +950,21 @@ mod tests {
 
         assert_eq!(normalized.daemon_name, "default");
         assert_eq!(normalized.poll_interval_ms, 200);
+    }
+
+    #[test]
+    fn watch_events_request_normalizes_blank_name_zero_poll_and_zero_max() {
+        let request = WatchEventsRequest {
+            daemon_name: "   ".to_string(),
+            poll_interval_ms: 0,
+            max_events: Some(0),
+            ..WatchEventsRequest::default()
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.poll_interval_ms, 200);
+        assert_eq!(normalized.max_events, None);
     }
 
     #[test]
@@ -948,6 +1126,53 @@ mod tests {
     }
 
     #[test]
+    fn dialog_event_filter_scopes_type_message_and_session() {
+        let event = json!({
+            "method":"Page.javascriptDialogOpening",
+            "session_id":"session-2",
+            "params":{"type":"alert","message":"token-1"}
+        });
+
+        assert!(event_matches_filter(
+            &event,
+            &dialog_event_filter(Some("session-2"), Some("alert"), Some("token-1"))
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &dialog_event_filter(Some("session-1"), Some("alert"), Some("token-1"))
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &dialog_event_filter(Some("session-2"), Some("confirm"), Some("token-1"))
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &dialog_event_filter(Some("session-2"), Some("alert"), Some("token-2"))
+        ));
+    }
+
+    #[test]
+    fn wait_for_dialog_request_builds_scoped_wait_for_event_request() {
+        let request = WaitForDialogRequest {
+            daemon_name: "runner".to_string(),
+            session_id: Some("session-7".to_string()),
+            dialog_type: Some("alert".to_string()),
+            message: Some("token-8".to_string()),
+            timeout_ms: 2500,
+            poll_interval_ms: 50,
+        };
+        let built = request.into_wait_for_event_request();
+
+        assert_eq!(built.daemon_name, "runner");
+        assert_eq!(built.timeout_ms, 2500);
+        assert_eq!(built.poll_interval_ms, 50);
+        assert_eq!(
+            built.filter,
+            dialog_event_filter(Some("session-7"), Some("alert"), Some("token-8"))
+        );
+    }
+
+    #[test]
     fn console_event_matches_runtime_and_console_domain_shapes() {
         let request = WaitForConsoleRequest {
             daemon_name: "runner".to_string(),
@@ -978,5 +1203,42 @@ mod tests {
 
         assert!(console_event_matches(&runtime_event, &request));
         assert!(console_event_matches(&console_event, &request));
+    }
+
+    #[test]
+    fn watch_events_line_serializes_as_tagged_ndjson_payloads() {
+        let event_line = WatchEventsLine::Event {
+            event: json!({"method":"Page.loadEventFired"}),
+            index: 2,
+            elapsed_ms: 99,
+        };
+        let end_line = WatchEventsLine::End {
+            matched_events: 2,
+            polls: 4,
+            elapsed_ms: 150,
+            timed_out: false,
+            reached_max_events: true,
+        };
+
+        assert_eq!(
+            serde_json::to_value(event_line).expect("serialize event line"),
+            json!({
+                "kind":"event",
+                "event":{"method":"Page.loadEventFired"},
+                "index":2,
+                "elapsed_ms":99
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(end_line).expect("serialize end line"),
+            json!({
+                "kind":"end",
+                "matched_events":2,
+                "polls":4,
+                "elapsed_ms":150,
+                "timed_out":false,
+                "reached_max_events":true
+            })
+        );
     }
 }
