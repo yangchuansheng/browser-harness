@@ -1,7 +1,7 @@
 use std::fmt;
 
 pub use bh_wasm_host::{
-    CurrentSessionResult, NewTabResult, SwitchTabResult, TabSummary, WaitForEventResult,
+    CurrentSessionResult, NewTabResult, SwitchTabResult, TabSummary, WaitForEventResult, WaitResult,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -45,6 +45,15 @@ pub fn goto(url: &str) -> Result<Value, GuestError> {
     call_json("goto", &json!({ "url": url }))
 }
 
+pub fn wait(duration_ms: u64) -> Result<WaitResult, GuestError> {
+    call_json(
+        "wait",
+        &json!({
+            "duration_ms": duration_ms,
+        }),
+    )
+}
+
 pub fn current_session() -> Result<CurrentSessionResult, GuestError> {
     call_json("current_session", &json!({}))
 }
@@ -75,8 +84,30 @@ pub fn switch_tab(target_id: &str) -> Result<SwitchTabResult, GuestError> {
     )
 }
 
+pub fn ensure_real_tab() -> Result<Option<TabSummary>, GuestError> {
+    call_json("ensure_real_tab", &json!({}))
+}
+
+pub fn iframe_target(url_substr: &str) -> Result<Option<String>, GuestError> {
+    call_json(
+        "iframe_target",
+        &json!({
+            "url_substr": url_substr,
+        }),
+    )
+}
+
 pub fn page_info() -> Result<Value, GuestError> {
     call_json("page_info", &json!({}))
+}
+
+pub fn wait_for_load(timeout: f64) -> Result<bool, GuestError> {
+    call_json(
+        "wait_for_load",
+        &json!({
+            "timeout": timeout,
+        }),
+    )
 }
 
 pub fn js<T>(expression: &str) -> Result<T, GuestError>
@@ -84,6 +115,49 @@ where
     T: DeserializeOwned,
 {
     call_json("js", &json!({ "expression": expression }))
+}
+
+pub fn click(x: f64, y: f64, button: &str, clicks: i64) -> Result<(), GuestError> {
+    call_json(
+        "click",
+        &json!({
+            "x": x,
+            "y": y,
+            "button": button,
+            "clicks": clicks,
+        }),
+    )
+}
+
+pub fn type_text(text: &str) -> Result<(), GuestError> {
+    call_json(
+        "type_text",
+        &json!({
+            "text": text,
+        }),
+    )
+}
+
+pub fn press_key(key: &str, modifiers: i64) -> Result<(), GuestError> {
+    call_json(
+        "press_key",
+        &json!({
+            "key": key,
+            "modifiers": modifiers,
+        }),
+    )
+}
+
+pub fn scroll(x: f64, y: f64, dy: f64, dx: f64) -> Result<(), GuestError> {
+    call_json(
+        "scroll",
+        &json!({
+            "x": x,
+            "y": y,
+            "dy": dy,
+            "dx": dx,
+        }),
+    )
 }
 
 pub fn wait_for_load_event(
@@ -179,9 +253,10 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 #[cfg(test)]
 mod tests {
     use super::{
-        call_json_with, current_session, current_tab, goto, js, list_tabs, new_tab, page_info,
-        switch_tab, wait_for_load_event, wait_for_response, CurrentSessionResult, GuestError,
-        NewTabResult, SwitchTabResult, TabSummary,
+        call_json_with, click, current_session, current_tab, ensure_real_tab, goto, iframe_target,
+        js, list_tabs, new_tab, page_info, press_key, scroll, switch_tab, type_text, wait,
+        wait_for_load, wait_for_load_event, wait_for_response, CurrentSessionResult, GuestError,
+        NewTabResult, SwitchTabResult, TabSummary, WaitResult,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -319,6 +394,150 @@ mod tests {
     }
 
     #[test]
+    fn utility_and_target_helpers_serialize_expected_requests() {
+        let wait_result: WaitResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("duration_ms").and_then(Value::as_u64),
+                    Some(2000)
+                );
+                let response =
+                    serde_json::to_vec(&json!({"elapsed_ms":2000})).expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait",
+            &json!({"duration_ms":2000}),
+        )
+        .expect("wait result");
+        assert_eq!(wait_result.elapsed_ms, 2000);
+
+        let ensured_tab: Option<TabSummary> = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"ensure_real_tab");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request, json!({}));
+                let response = serde_json::to_vec(&json!({
+                    "targetId":"target-real",
+                    "title":"Trending",
+                    "url":"https://github.com/trending"
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "ensure_real_tab",
+            &json!({}),
+        )
+        .expect("ensure real tab result");
+        assert_eq!(
+            ensured_tab.as_ref().map(|tab| tab.target_id.as_str()),
+            Some("target-real")
+        );
+
+        let iframe: Option<String> = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"iframe_target");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("url_substr").and_then(Value::as_str),
+                    Some("github.com")
+                );
+                let response = serde_json::to_vec(&json!("iframe-7")).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "iframe_target",
+            &json!({"url_substr":"github.com"}),
+        )
+        .expect("iframe target result");
+        assert_eq!(iframe.as_deref(), Some("iframe-7"));
+
+        let loaded: bool = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_load");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("timeout").and_then(Value::as_f64), Some(2.0));
+                let response = serde_json::to_vec(&json!(true)).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_load",
+            &json!({"timeout":2.0}),
+        )
+        .expect("wait for load result");
+        assert!(loaded);
+    }
+
+    #[test]
+    fn input_helpers_serialize_expected_requests() {
+        let click_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"click");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("x").and_then(Value::as_f64), Some(10.0));
+                assert_eq!(request.get("button").and_then(Value::as_str), Some("left"));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "click",
+            &json!({"x":10.0,"y":20.0,"button":"left","clicks":2}),
+        )
+        .expect("click result");
+        assert_eq!(click_result, ());
+
+        let type_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"type_text");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("text").and_then(Value::as_str), Some("hello"));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "type_text",
+            &json!({"text":"hello"}),
+        )
+        .expect("type text result");
+        assert_eq!(type_result, ());
+
+        let press_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"press_key");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("key").and_then(Value::as_str), Some("Enter"));
+                assert_eq!(request.get("modifiers").and_then(Value::as_i64), Some(2));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "press_key",
+            &json!({"key":"Enter","modifiers":2}),
+        )
+        .expect("press key result");
+        assert_eq!(press_result, ());
+
+        let scroll_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"scroll");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("dy").and_then(Value::as_f64), Some(100.0));
+                assert_eq!(request.get("dx").and_then(Value::as_f64), Some(5.0));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "scroll",
+            &json!({"x":1.0,"y":2.0,"dy":100.0,"dx":5.0}),
+        )
+        .expect("scroll result");
+        assert_eq!(scroll_result, ());
+    }
+
+    #[test]
     fn js_deserializes_string_response() {
         let title: String = call_json_with(
             |operation, request, output| {
@@ -427,13 +646,21 @@ mod tests {
 
     #[test]
     fn helper_functions_use_expected_operations() {
+        let _ = wait;
         let _ = current_session;
         let _ = current_tab;
         let _ = list_tabs;
         let _ = new_tab;
         let _ = switch_tab;
+        let _ = ensure_real_tab;
+        let _ = iframe_target;
         let _ = goto;
+        let _ = wait_for_load;
         let _ = page_info;
+        let _ = click;
+        let _ = type_text;
+        let _ = press_key;
+        let _ = scroll;
         let _ = wait_for_load_event;
         let _ = wait_for_response;
         let _ = js::<String>;
