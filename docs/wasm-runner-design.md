@@ -138,6 +138,9 @@ JSON
 cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","status":200}
 JSON
+cargo run --quiet --bin bhrun -- wait-for-console <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","type":"log","text":"ready"}
+JSON
 ```
 
 These commands are not a guest runtime yet. They are only a design scaffold.
@@ -145,6 +148,7 @@ These commands are not a guest runtime yet. They are only a design scaffold.
 `wait-for-load-event` is the first helper layered directly on top of it.
 `current-session` is the runner-side introspection helper for session-scoped waits.
 `wait-for-response` is the first network helper layered on the same event contract.
+`wait-for-console` is the first console/debugging helper layered on the same event contract.
 
 ## Current Event Contract
 
@@ -209,6 +213,11 @@ Session guidance:
 - `wait-for-response` is the runner's convenience wrapper for
   `Network.responseReceived` and should be preferred when you know the exact URL
   and optional status you want to observe
+- `wait-for-console` is the runner's convenience wrapper for
+  browser console events and should be preferred when you know the session,
+  optional console `type`, and exact message text you want to observe; today it
+  matches `Console.messageAdded` live and also tolerates
+  `Runtime.consoleAPICalled` where that is exposed
 
 This keeps the first runner contract small while still being expressive enough
 for page lifecycle, network, dialog, and console events.
