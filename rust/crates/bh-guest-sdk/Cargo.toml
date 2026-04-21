@@ -1,0 +1,10 @@
+[package]
+name = "bh-guest-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bh-wasm-host = { path = "../bh-wasm-host" }
+serde.workspace = true
+serde_json.workspace = true

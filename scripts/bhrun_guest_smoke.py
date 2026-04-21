@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a live end-to-end smoke test for `bhrun run-guest`.
+"""Run a live end-to-end smoke test for `bhrun` guest execution.
 
 Required:
   BROWSER_USE_API_KEY
@@ -8,6 +8,8 @@ Optional:
   BU_NAME                   defaults to "bhrun-guest-smoke"
   BU_DAEMON_IMPL            defaults to "rust"
   BU_REMOTE_TIMEOUT_MINUTES defaults to "1"
+  BU_GUEST_MODE             defaults to "run-guest", or use "serve-guest"
+  BU_GUEST_PATH             override the guest module path
   BU_RUST_RUNNER_BIN        override the bhrun binary path
 """
 
@@ -62,6 +64,45 @@ def run_runner_command(subcommand, payload=None, timeout_seconds=10, extra_args=
     return json.loads(stdout), payload
 
 
+def start_runner_process(subcommand, extra_args=None):
+    cmd, cwd = runner_process_spec()
+    return subprocess.Popen(
+        cmd + [subcommand] + (extra_args or []),
+        cwd=cwd,
+        env=os.environ.copy(),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def send_line(proc, payload):
+    if proc.stdin is None or proc.stdout is None:
+        raise RuntimeError("bhrun process pipes are not available")
+    proc.stdin.write(json.dumps(payload) + "\n")
+    proc.stdin.flush()
+    line = proc.stdout.readline()
+    if not line:
+        stderr = proc.stderr.read().strip() if proc.stderr is not None else ""
+        raise RuntimeError(stderr or "bhrun returned no output")
+    return json.loads(line)
+
+
+def finish_runner_process(proc, timeout_seconds=10):
+    if proc.stdin is not None and not proc.stdin.closed:
+        proc.stdin.close()
+    try:
+        proc.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        raise RuntimeError("bhrun command timed out")
+    stderr = proc.stderr.read().strip() if proc.stderr is not None else ""
+    if proc.returncode != 0:
+        raise RuntimeError(stderr or f"bhrun exited {proc.returncode}")
+    return stderr
+
+
 def main():
     if not os.environ.get("BROWSER_USE_API_KEY"):
         raise SystemExit("BROWSER_USE_API_KEY is required")
@@ -69,12 +110,19 @@ def main():
     os.environ.setdefault("BU_DAEMON_IMPL", "rust")
     name = os.environ["BU_NAME"]
     timeout = int(os.environ.get("BU_REMOTE_TIMEOUT_MINUTES", "1"))
-    guest_path = REPO / "rust" / "guests" / "navigate_and_read.wat"
+    guest_mode = os.environ.get("BU_GUEST_MODE", "run-guest")
+    guest_path = Path(
+        os.environ.get(
+            "BU_GUEST_PATH",
+            str(REPO / "rust" / "guests" / "navigate_and_read.wat"),
+        )
+    )
 
     browser = None
     result = {
         "name": name,
         "daemon_impl": os.environ["BU_DAEMON_IMPL"],
+        "guest_mode": guest_mode,
         "guest_path": str(guest_path),
     }
     try:
@@ -92,13 +140,45 @@ def main():
         ]
         result["guest_config"] = sample_config
 
-        result["guest_run"], _ = run_runner_command(
-            "run-guest",
-            sample_config,
-            timeout_seconds=15,
-            extra_args=[str(guest_path)],
-        )
-        guest_run = result["guest_run"]
+        if guest_mode == "run-guest":
+            result["guest_run"], _ = run_runner_command(
+                "run-guest",
+                sample_config,
+                timeout_seconds=15,
+                extra_args=[str(guest_path)],
+            )
+            guest_run = result["guest_run"]
+        elif guest_mode == "serve-guest":
+            proc = start_runner_process("serve-guest", extra_args=[str(guest_path)])
+            try:
+                result["guest_ready"] = send_line(
+                    proc,
+                    {"command": "start", "config": sample_config},
+                )
+                run_response = send_line(proc, {"command": "run"})
+                result["guest_run_response"] = run_response
+                result["guest_status"] = send_line(proc, {"command": "status"})
+                result["guest_stopped"] = send_line(proc, {"command": "stop"})
+                stderr = finish_runner_process(proc, timeout_seconds=10)
+                if stderr:
+                    result["guest_runner_stderr"] = stderr
+            except Exception:
+                proc.kill()
+                raise
+
+            if result["guest_ready"].get("kind") != "ready":
+                raise RuntimeError(f"unexpected serve-guest ready response: {result['guest_ready']!r}")
+            if result["guest_status"].get("kind") != "status":
+                raise RuntimeError(f"unexpected serve-guest status response: {result['guest_status']!r}")
+            if result["guest_stopped"].get("kind") != "stopped":
+                raise RuntimeError(f"unexpected serve-guest stop response: {result['guest_stopped']!r}")
+            if run_response.get("kind") != "run_result":
+                raise RuntimeError(f"unexpected serve-guest run response: {run_response!r}")
+            guest_run = run_response.get("result") or {}
+            result["guest_run"] = guest_run
+        else:
+            raise RuntimeError(f"unsupported BU_GUEST_MODE: {guest_mode!r}")
+
         if not guest_run.get("success"):
             raise RuntimeError(f"guest run failed: {guest_run}")
         if guest_run.get("exit_code") != 0:
