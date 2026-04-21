@@ -40,7 +40,9 @@ Request shapes:
 {"meta":"click","params":{"x":640,"y":320,"button":"left","clicks":1}}
 {"meta":"type_text","params":{"text":"hello"}}
 {"meta":"press_key","params":{"key":"Enter","modifiers":0}}
+{"meta":"dispatch_key","params":{"selector":"#search","key":"Enter","event":"keypress"}}
 {"meta":"scroll","params":{"x":640,"y":320,"dx":0,"dy":300}}
+{"meta":"screenshot","params":{"full":true}}
 {"meta":"upload_file","params":{"selector":"#file1","files":["/abs/path/file.txt"],"target_id":"iframe-1"}}
 {"meta":"shutdown"}
 {"method":"Page.navigate","params":{"url":"https://example.com"},"session_id":"..."}
@@ -57,6 +59,15 @@ Response shapes:
 {"result":{...}}
 {"error":"..."}
 ```
+
+Unsupported typed meta negotiation:
+
+- If a daemon does not implement a typed helper meta command, it must respond
+  with `{"error":"unsupported meta command: <name>"}`.
+- `helpers.py` treats that exact prefix as a capability check and falls back to
+  raw CDP or client-side behavior where a compatibility path exists.
+- Raw CDP requests sent through `cdp(...)` remain part of the compatibility
+  contract and are not considered a migration gap.
 
 Supported meta commands:
 
@@ -77,7 +88,9 @@ Supported meta commands:
 - `click` -> `{"result":null}`
 - `type_text` -> `{"result":null}`
 - `press_key` -> `{"result":null}`
+- `dispatch_key` -> `{"result":null}`
 - `scroll` -> `{"result":null}`
+- `screenshot` -> `{"result":"<base64-png>"}`
 - `upload_file` -> `{"result":null}`
 - `shutdown` -> `{"ok":true}`
 

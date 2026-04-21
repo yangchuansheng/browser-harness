@@ -14,6 +14,7 @@ Optional:
 import json
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -22,7 +23,7 @@ sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "remote-smoke")
 
 from admin import _browser_use, restart_daemon, start_remote_daemon  # noqa: E402
-from helpers import goto, js, new_tab, page_info, wait_for_load  # noqa: E402
+from helpers import dispatch_key, goto, js, new_tab, page_info, screenshot, wait_for_load  # noqa: E402
 
 
 def poll_browser_status(browser_id, attempts=10, delay=1.0):
@@ -45,6 +46,7 @@ def main():
     timeout = int(os.environ.get("BU_REMOTE_TIMEOUT_MINUTES", "1"))
 
     browser = None
+    shot_path = None
     result = {"name": name, "daemon_impl": os.environ["BU_DAEMON_IMPL"]}
     try:
         browser = start_remote_daemon(name=name, timeout=timeout)
@@ -52,11 +54,27 @@ def main():
         result["browser_id"] = browser_id
         result["initial_page"] = page_info()
         result["new_tab_target"] = new_tab("https://example.com")
+        result["after_new_tab"] = page_info()
+        if result["after_new_tab"].get("url") == "about:blank":
+            raise RuntimeError("new_tab left the active page at about:blank")
         result["loaded"] = wait_for_load()
         result["url_via_js"] = js("location.href")
         result["goto_result"] = goto("https://example.com/?via=typed-goto")
         result["loaded_after_goto"] = wait_for_load()
         result["after_nav"] = page_info()
+        js(
+            "(()=>{let e=document.querySelector('#codex-dispatch');"
+            "if(!e){e=document.createElement('input');e.id='codex-dispatch';document.body.appendChild(e)}"
+            "window.__dispatchKey=null;"
+            "e.addEventListener('keypress',ev=>window.__dispatchKey={key:ev.key,which:ev.which,type:ev.type},{once:true});"
+            "return true})()"
+        )
+        dispatch_key("#codex-dispatch", key="Enter", event="keypress")
+        result["dispatch_key"] = js("window.__dispatchKey")
+        fd, shot_path = tempfile.mkstemp(prefix=f"{name}-", suffix=".png")
+        os.close(fd)
+        screenshot(shot_path, full=True)
+        result["screenshot_size"] = Path(shot_path).stat().st_size
     finally:
         restart_daemon(name)
         time.sleep(1)
@@ -66,6 +84,8 @@ def main():
         if log_path.exists():
             lines = log_path.read_text().strip().splitlines()
             result["log_tail"] = lines[-8:]
+        if shot_path is not None:
+            Path(shot_path).unlink(missing_ok=True)
 
     print(json.dumps(result))
 

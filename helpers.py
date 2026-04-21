@@ -56,7 +56,7 @@ def _typed_result(meta, **params):
 
 
 def cdp(method, session_id=None, **params):
-    """Raw CDP. cdp('Page.navigate', url='...'), cdp('DOM.getDocument', depth=-1)."""
+    """Raw CDP escape hatch kept intentionally for advanced compatibility work."""
     return _send({"method": method, "params": params, "session_id": session_id}).get("result", {})
 
 
@@ -132,8 +132,10 @@ def scroll(x, y, dy=-300, dx=0):
 
 # --- visual ---
 def screenshot(path="/tmp/shot.png", full=False):
-    r = cdp("Page.captureScreenshot", format="png", captureBeyondViewport=full)
-    open(path, "wb").write(base64.b64decode(r["data"]))
+    typed = _typed_result("screenshot", full=full)
+    data = typed if typed is not _UNSUPPORTED else cdp("Page.captureScreenshot", format="png", captureBeyondViewport=full)["data"]
+    with open(path, "wb") as handle:
+        handle.write(base64.b64decode(data))
     return path
 
 
@@ -180,12 +182,19 @@ def new_tab(url="about:blank"):
     if typed is not _UNSUPPORTED:
         return typed
     # Always create blank, then goto: passing url to createTarget races with
-    # attach, so the brief about:blank is "complete" by the time the caller
-    # polls and wait_for_load() returns before navigation actually starts.
+    # attach. Wait for the URL to change so callers do not observe the initial
+    # about:blank as a completed load.
     tid = cdp("Target.createTarget", url="about:blank")["targetId"]
     switch_tab(tid)
     if url != "about:blank":
         goto(url)
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            if js("location.href") != "about:blank":
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError("new_tab navigation did not start before timeout")
     return tid
 
 def ensure_real_tab():
@@ -218,6 +227,7 @@ def iframe_target(url_substr):
 
 # --- utility ---
 def wait(seconds=1.0):
+    """Client-side sleep utility kept intentionally outside the daemon contract."""
     time.sleep(seconds)
 
 def wait_for_load(timeout=15.0):
@@ -250,6 +260,9 @@ def dispatch_key(selector, key="Enter", event="keypress"):
     Use this when a site reacts to synthetic DOM key events on an element more reliably
     than to raw CDP input events.
     """
+    typed = _typed_result("dispatch_key", selector=selector, key=key, event=event)
+    if typed is not _UNSUPPORTED:
+        return typed
     kc = _KC.get(key, ord(key) if len(key) == 1 else 0)
     js(
         f"(()=>{{const e=document.querySelector({json.dumps(selector)});if(e){{e.focus();e.dispatchEvent(new KeyboardEvent({json.dumps(event)},{{key:{json.dumps(key)},code:{json.dumps(key)},keyCode:{kc},which:{kc},bubbles:true}}));}}}})()"
@@ -275,7 +288,7 @@ def upload_file(selector, path, target_id=None):
                 pass
 
 def http_get(url, headers=None, timeout=20.0):
-    """Pure HTTP — no browser. Use for static pages / APIs. Wrap in ThreadPoolExecutor for bulk."""
+    """Pure HTTP runner utility kept intentionally outside the daemon contract."""
     import urllib.request, gzip
     h = {"User-Agent": "Mozilla/5.0", "Accept-Encoding": "gzip"}
     if headers: h.update(headers)

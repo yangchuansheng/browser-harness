@@ -48,6 +48,11 @@ class StubState:
     def __init__(self):
         self.dialog = None
         self.events = []
+        self.unsupported_meta = {
+            meta.strip()
+            for meta in os.environ.get("STUB_UNSUPPORTED_META", "").split(",")
+            if meta.strip()
+        }
         self.current_target = "target-1"
         self.current_session = "session-1"
         self.next_target = 2
@@ -70,6 +75,7 @@ class StubState:
         self.last_click = None
         self.last_text = None
         self.last_key = None
+        self.last_dispatch_key = None
         self.last_scroll = None
         self.uploads = []
         self.should_stop = False
@@ -126,6 +132,9 @@ def evaluate_expression(target, expression):
 
 def handle_meta(state, request, log_path):
     meta = request.get("meta")
+    if meta in state.unsupported_meta:
+        log_line(log_path, f"unsupported_meta={meta}")
+        return {"error": f"unsupported meta command: {meta}"}
     if meta == "drain_events":
         events = state.events
         state.events = []
@@ -243,6 +252,9 @@ def handle_meta(state, request, log_path):
             target["title"] = target["title"].removeprefix(f"{MARK} ")
             return {"result": None}
         return {"result": evaluate_expression(target, expression)}
+    if meta == "screenshot":
+        log_line(log_path, "typed_meta=screenshot")
+        return {"result": "c3R1Yi1zaG90"}
     if meta == "click":
         log_line(log_path, "typed_meta=click")
         state.last_click = dict(request.get("params") or {})
@@ -254,6 +266,10 @@ def handle_meta(state, request, log_path):
     if meta == "press_key":
         log_line(log_path, "typed_meta=press_key")
         state.last_key = dict(request.get("params") or {})
+        return {"result": None}
+    if meta == "dispatch_key":
+        log_line(log_path, "typed_meta=dispatch_key")
+        state.last_dispatch_key = dict(request.get("params") or {})
         return {"result": None}
     if meta == "scroll":
         log_line(log_path, "typed_meta=scroll")
@@ -297,6 +313,7 @@ def handle_request(state, request, log_path):
 
     method = request.get("method")
     params = request.get("params") or {}
+    log_line(log_path, f"raw_method={method}")
 
     if method == "Target.getTargets":
         return {"result": {"targetInfos": list(state.targets.values())}}

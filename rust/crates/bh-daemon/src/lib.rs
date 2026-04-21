@@ -10,11 +10,11 @@ use std::time::Duration;
 use bh_cdp::{is_browser_level_method, CdpClient, CdpEvent};
 use bh_discovery::{get_ws_url, is_internal_url, runtime_paths, RuntimePaths};
 use bh_protocol::{
-    DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DRAIN_EVENTS,
-    META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB,
-    META_PAGE_INFO, META_PENDING_DIALOG, META_PRESS_KEY, META_SCROLL, META_SESSION,
-    META_SET_SESSION, META_SHUTDOWN, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
-    META_WAIT_FOR_LOAD,
+    DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY,
+    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
+    META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PENDING_DIALOG, META_PRESS_KEY,
+    META_SCREENSHOT, META_SCROLL, META_SESSION, META_SET_SESSION, META_SHUTDOWN, META_SWITCH_TAB,
+    META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
 };
 use bh_remote::BrowserUseClient;
 use serde_json::{json, Value};
@@ -367,6 +367,8 @@ impl Daemon {
             let session_id = self.ensure_session().await?;
             self.send_with_retry("Page.navigate", json!({"url": url}), Some(session_id))
                 .await?;
+            self.wait_for_navigation_start_result("about:blank", 5.0)
+                .await?;
         }
         Ok(Value::String(target_id))
     }
@@ -458,6 +460,46 @@ impl Daemon {
                 return Ok(Value::Bool(false));
             }
             sleep(Duration::from_millis(300)).await;
+        }
+    }
+
+    async fn wait_for_navigation_start_result(
+        &self,
+        previous_url: &str,
+        timeout_seconds: f64,
+    ) -> Result<(), String> {
+        let timeout_seconds = if timeout_seconds.is_finite() && timeout_seconds > 0.0 {
+            timeout_seconds
+        } else {
+            5.0
+        };
+        let deadline = Instant::now() + Duration::from_secs_f64(timeout_seconds);
+        loop {
+            let session_id = self.ensure_session().await?;
+            let result = self
+                .send_with_retry(
+                    "Runtime.evaluate",
+                    json!({
+                        "expression": "location.href",
+                        "returnByValue": true
+                    }),
+                    Some(session_id),
+                )
+                .await?;
+            let current_url = result
+                .get("result")
+                .and_then(|result| result.get("value"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if current_url != previous_url {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "navigation did not start before timeout from {previous_url}"
+                ));
+            }
+            sleep(Duration::from_millis(100)).await;
         }
     }
 
@@ -558,6 +600,25 @@ impl Daemon {
         Ok(Value::Null)
     }
 
+    async fn screenshot_result(&self, full: bool) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        let result = self
+            .send_with_retry(
+                "Page.captureScreenshot",
+                json!({
+                    "format": "png",
+                    "captureBeyondViewport": full
+                }),
+                Some(session_id),
+            )
+            .await?;
+        let data = result
+            .get("data")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Page.captureScreenshot missing data".to_string())?;
+        Ok(Value::String(data.to_string()))
+    }
+
     async fn type_text_result(&self, text: &str) -> Result<Value, String> {
         let session_id = self.ensure_session().await?;
         self.send_with_retry(
@@ -621,6 +682,39 @@ impl Daemon {
                 "modifiers": modifiers,
                 "windowsVirtualKeyCode": vk,
                 "nativeVirtualKeyCode": vk
+            }),
+            Some(session_id),
+        )
+        .await?;
+        Ok(Value::Null)
+    }
+
+    async fn dispatch_key_result(
+        &self,
+        selector: &str,
+        key: &str,
+        event: &str,
+    ) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        let selector_json =
+            serde_json::to_string(selector).map_err(|err| format!("serialize selector: {err}"))?;
+        let key_json = serde_json::to_string(key).map_err(|err| format!("serialize key: {err}"))?;
+        let event_json =
+            serde_json::to_string(event).map_err(|err| format!("serialize event: {err}"))?;
+        let key_code = key_fields(key).0;
+        let expression = format!(
+            "(()=>{{const e=document.querySelector({selector});if(e){{e.focus();e.dispatchEvent(new KeyboardEvent({event},{{key:{key},code:{key},keyCode:{key_code},which:{key_code},bubbles:true}}));}}}})()",
+            selector = selector_json,
+            event = event_json,
+            key = key_json,
+            key_code = key_code,
+        );
+        self.send_with_retry(
+            "Runtime.evaluate",
+            json!({
+                "expression": expression,
+                "returnByValue": true,
+                "awaitPromise": true
             }),
             Some(session_id),
         )
@@ -926,6 +1020,24 @@ impl Daemon {
                     },
                 }
             }
+            Some(META_SCREENSHOT) => {
+                let full = request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("full"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                match self.screenshot_result(full).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
             Some(META_CLICK) => {
                 let params = request.params.as_ref();
                 let x = params
@@ -990,6 +1102,36 @@ impl Daemon {
                     },
                     Err(err) => DaemonResponse {
                         error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_DISPATCH_KEY) => {
+                let params = request.params.as_ref();
+                let selector = params
+                    .and_then(|params| params.get("selector"))
+                    .and_then(Value::as_str);
+                let key = params
+                    .and_then(|params| params.get("key"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("Enter");
+                let event = params
+                    .and_then(|params| params.get("event"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("keypress");
+                match selector {
+                    Some(selector) => match self.dispatch_key_result(selector, key, event).await {
+                        Ok(result) => DaemonResponse {
+                            result: Some(result),
+                            ..DaemonResponse::default()
+                        },
+                        Err(err) => DaemonResponse {
+                            error: Some(err),
+                            ..DaemonResponse::default()
+                        },
+                    },
+                    None => DaemonResponse {
+                        error: Some("dispatch_key requires params.selector".to_string()),
                         ..DaemonResponse::default()
                     },
                 }
