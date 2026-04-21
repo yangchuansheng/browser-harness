@@ -7,11 +7,12 @@ workflow. The long-term goal is a Rust host with a WASM guest layer.
 
 Current status:
 
-- crate layout only
+- Phase 1 hybrid rewrite is complete: Rust owns the daemon/runtime core and Python remains the compatibility shell
 - Rust daemon connects to local or remote CDP and serves the existing Unix socket contract
 - first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, low-level input primitives, DOM key dispatch, and file upload
 - remote-browser shutdown parity is implemented in the Rust daemon
 - local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
+- live acceptance coverage includes the GitHub domain skill workflow from `domain-skills/github/scraping.md`
 - long-term WASM design scaffolding exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
 
 Compatibility contract:
@@ -76,4 +77,10 @@ Live `bhrun wait-for-console` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_console_smoke.py
+```
+
+Live GitHub domain-skill acceptance smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/domain_skill_github_smoke.py
 ```
