@@ -54,6 +54,7 @@ These are small operations that do not belong in generated CDP:
 
 - `wait`
 - `wait_for_event`
+- `watch_events`
 - `http_get`
 
 Other utilities can exist, but they should stay narrow and clearly host-owned.
@@ -132,6 +133,9 @@ JSON
 cargo run --quiet --bin bhrun -- wait-for-event <<'JSON'
 {"daemon_name":"default","filter":{"method":"Page.loadEventFired"}}
 JSON
+cargo run --quiet --bin bhrun -- watch-events <<'JSON'
+{"daemon_name":"default","filter":{"session_id":"<current-session-id>"},"timeout_ms":2000,"max_events":10}
+JSON
 cargo run --quiet --bin bhrun -- wait-for-load-event <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>"}
 JSON
@@ -141,14 +145,19 @@ JSON
 cargo run --quiet --bin bhrun -- wait-for-console <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>","type":"log","text":"ready"}
 JSON
+cargo run --quiet --bin bhrun -- wait-for-dialog <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","type":"alert","message":"ready"}
+JSON
 ```
 
 These commands are not a guest runtime yet. They are only a design scaffold.
 `wait-for-event` is the first live Phase 2 runner primitive.
+`watch-events` is the first generic streaming primitive layered on the same daemon event buffer.
 `wait-for-load-event` is the first helper layered directly on top of it.
 `current-session` is the runner-side introspection helper for session-scoped waits.
 `wait-for-response` is the first network helper layered on the same event contract.
 `wait-for-console` is the first console/debugging helper layered on the same event contract.
+`wait-for-dialog` is the first dialog helper layered on the same event contract.
 
 ## Current Event Contract
 
@@ -172,6 +181,14 @@ Current request shape:
   "timeout_ms": 15000,
   "poll_interval_ms": 200
 }
+```
+
+Current `watch-events` output is NDJSON:
+
+```json
+{"kind":"event","event":{"method":"Page.frameStartedNavigating","session_id":"session-1"},"index":1,"elapsed_ms":87}
+{"kind":"event","event":{"method":"Page.loadEventFired","session_id":"session-1"},"index":2,"elapsed_ms":214}
+{"kind":"end","matched_events":2,"polls":4,"elapsed_ms":401,"timed_out":true,"reached_max_events":false}
 ```
 
 Current response shape:
@@ -207,6 +224,9 @@ Session guidance:
 - omit `session_id` only when any matching event is acceptable
 - pass `session_id` for multi-tab or iframe-sensitive waits so the runner does
   not consume another target's event by accident
+- `watch-events` is the runner's generic streaming primitive and should be
+  preferred when a guest needs to observe more than one matching event before
+  making a decision
 - `wait-for-load-event` is the runner's convenience wrapper for the common
   `Page.loadEventFired` case and should be preferred over a handwritten filter
   when you already know the session you care about
@@ -218,6 +238,10 @@ Session guidance:
   optional console `type`, and exact message text you want to observe; today it
   matches `Console.messageAdded` live and also tolerates
   `Runtime.consoleAPICalled` where that is exposed
+- `wait-for-dialog` is the runner's convenience wrapper for
+  `Page.javascriptDialogOpening` and should be preferred when you know the
+  session, optional dialog `type`, and exact message text you want to observe
+  before dismissing the dialog via CDP
 
 This keeps the first runner contract small while still being expressive enough
 for page lifecycle, network, dialog, and console events.

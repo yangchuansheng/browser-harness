@@ -7,13 +7,14 @@ use bh_protocol::{DaemonResponse, META_DRAIN_EVENTS, META_SESSION};
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
     operation_names, CurrentSessionRequest, CurrentSessionResult, WaitForConsoleRequest,
-    WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForResponseRequest,
+    WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
+    WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
 };
 use serde_json::{json, Value};
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|current-session|wait-for-event|wait-for-load-event|wait-for-response|wait-for-console>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: event waiting is live; WASM guest execution is not implemented yet"
     );
 }
@@ -48,7 +49,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_session=live wait_for_event=live wait_for_response=live wait_for_console=live wasm_guests=not_implemented",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=not_implemented",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -67,6 +68,10 @@ where
             let result = wait_for_event(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("watch-events") => {
+            let request = read_json::<WatchEventsRequest, _>(&mut stdin)?;
+            watch_events(request, &mut stdout)
+        }
         Some("wait-for-load-event") => {
             let request = read_json::<WaitForLoadEventRequest, _>(&mut stdin)?;
             let result = wait_for_load_event(request)?;
@@ -80,6 +85,11 @@ where
         Some("wait-for-console") => {
             let request = read_json::<WaitForConsoleRequest, _>(&mut stdin)?;
             let result = wait_for_console(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("wait-for-dialog") => {
+            let request = read_json::<WaitForDialogRequest, _>(&mut stdin)?;
+            let result = wait_for_dialog(request)?;
             write_json(&mut stdout, &result)
         }
         _ => {
@@ -121,6 +131,17 @@ fn wait_for_response(request: WaitForResponseRequest) -> Result<WaitForEventResu
 
 fn wait_for_console(request: WaitForConsoleRequest) -> Result<WaitForEventResult, String> {
     wait_for_console_with_drain(request, drain_events)
+}
+
+fn wait_for_dialog(request: WaitForDialogRequest) -> Result<WaitForEventResult, String> {
+    wait_for_event(request.into_wait_for_event_request())
+}
+
+fn watch_events<W>(request: WatchEventsRequest, stdout: &mut W) -> Result<(), String>
+where
+    W: Write,
+{
+    watch_events_with_drain(request, stdout, drain_events)
 }
 
 fn wait_for_event_with_drain<F>(
@@ -197,6 +218,68 @@ where
                 polls,
                 elapsed_ms: start.elapsed().as_millis() as u64,
             });
+        }
+
+        thread::sleep(poll_interval.min(timeout.saturating_sub(start.elapsed())));
+    }
+}
+
+fn watch_events_with_drain<W, F>(
+    request: WatchEventsRequest,
+    stdout: &mut W,
+    mut drain: F,
+) -> Result<(), String>
+where
+    W: Write,
+    F: FnMut(&str) -> Result<Vec<Value>, String>,
+{
+    let request = request.normalized();
+    let start = Instant::now();
+    let timeout = Duration::from_millis(request.timeout_ms);
+    let poll_interval = Duration::from_millis(request.poll_interval_ms);
+    let mut polls = 0;
+    let mut matched_events = 0;
+
+    loop {
+        polls += 1;
+        let events = drain(&request.daemon_name)?;
+        for event in events {
+            if event_matches_filter(&event, &request.filter) {
+                matched_events += 1;
+                write_json_line(
+                    stdout,
+                    &WatchEventsLine::Event {
+                        event,
+                        index: matched_events,
+                        elapsed_ms: start.elapsed().as_millis() as u64,
+                    },
+                )?;
+                if request.max_events == Some(matched_events) {
+                    return write_json_line(
+                        stdout,
+                        &WatchEventsLine::End {
+                            matched_events,
+                            polls,
+                            elapsed_ms: start.elapsed().as_millis() as u64,
+                            timed_out: false,
+                            reached_max_events: true,
+                        },
+                    );
+                }
+            }
+        }
+
+        if start.elapsed() >= timeout {
+            return write_json_line(
+                stdout,
+                &WatchEventsLine::End {
+                    matched_events,
+                    polls,
+                    elapsed_ms: start.elapsed().as_millis() as u64,
+                    timed_out: true,
+                    reached_max_events: false,
+                },
+            );
         }
 
         thread::sleep(poll_interval.min(timeout.saturating_sub(start.elapsed())));
@@ -294,18 +377,32 @@ where
     writeln!(stdout, "{text}").map_err(|err| format!("write stdout: {err}"))
 }
 
+fn write_json_line<T, W>(stdout: &mut W, value: &T) -> Result<(), String>
+where
+    T: serde::Serialize,
+    W: Write,
+{
+    let text = serde_json::to_string(value).map_err(|err| format!("serialize JSON: {err}"))?;
+    stdout
+        .write_all(text.as_bytes())
+        .and_then(|_| stdout.write_all(b"\n"))
+        .and_then(|_| stdout.flush())
+        .map_err(|err| format!("write stdout: {err}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         current_session_with_sender, run_cli, wait_for_console_with_drain,
-        wait_for_event_with_drain, DaemonResponse, META_SESSION,
+        wait_for_event_with_drain, watch_events_with_drain, DaemonResponse, META_SESSION,
     };
     use std::collections::VecDeque;
     use std::io;
 
     use bh_wasm_host::{
         CurrentSessionRequest, CurrentSessionResult, EventFilter, WaitForConsoleRequest,
-        WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForResponseRequest,
+        WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
+        WaitForResponseRequest, WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -405,8 +502,73 @@ mod tests {
         let text = String::from_utf8(stdout).expect("utf-8");
         assert!(text.contains("current_session=live"));
         assert!(text.contains("wait_for_event=live"));
+        assert!(text.contains("watch_events=live"));
         assert!(text.contains("wait_for_response=live"));
         assert!(text.contains("wait_for_console=live"));
+        assert!(text.contains("wait_for_dialog=live"));
+    }
+
+    #[test]
+    fn watch_events_streams_ndjson_events_and_end_summary() {
+        let mut drains = VecDeque::from(vec![
+            Ok(vec![json!({
+                "method":"Network.requestWillBeSent",
+                "session_id":"session-1"
+            })]),
+            Ok(vec![
+                json!({
+                    "method":"Page.loadEventFired",
+                    "params":{"timestamp":1.0},
+                    "session_id":"session-1"
+                }),
+                json!({
+                    "method":"Page.loadEventFired",
+                    "params":{"timestamp":2.0},
+                    "session_id":"session-1"
+                }),
+            ]),
+        ]);
+        let mut stdout = Vec::new();
+
+        watch_events_with_drain(
+            WatchEventsRequest {
+                daemon_name: "stub".to_string(),
+                filter: EventFilter {
+                    method: Some("Page.loadEventFired".to_string()),
+                    session_id: Some("session-1".to_string()),
+                    ..EventFilter::default()
+                },
+                timeout_ms: 500,
+                poll_interval_ms: 10,
+                max_events: Some(2),
+            },
+            &mut stdout,
+            |_| drains.pop_front().unwrap_or_else(|| Ok(vec![])),
+        )
+        .expect("watch events result");
+
+        let lines = String::from_utf8(stdout).expect("utf-8");
+        let parsed = lines
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).expect("parse json line"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(parsed.len(), 3);
+        assert_eq!(parsed[0].get("kind").and_then(Value::as_str), Some("event"));
+        assert_eq!(parsed[0].get("index").and_then(Value::as_u64), Some(1));
+        assert_eq!(
+            parsed[1].pointer("/event/method").and_then(Value::as_str),
+            Some("Page.loadEventFired")
+        );
+        assert_eq!(parsed[2].get("kind").and_then(Value::as_str), Some("end"));
+        assert_eq!(
+            parsed[2].get("reached_max_events").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            parsed[2].get("matched_events").and_then(Value::as_u64),
+            Some(2)
+        );
     }
 
     #[test]
@@ -641,6 +803,125 @@ mod tests {
     }
 
     #[test]
+    fn wait_for_dialog_ignores_other_types_messages_and_sessions() {
+        let mut drains = VecDeque::from(vec![
+            Ok(vec![json!({
+                "method":"Page.javascriptDialogOpening",
+                "params":{"type":"confirm","message":"token-1"},
+                "session_id":"session-target"
+            })]),
+            Ok(vec![json!({
+                "method":"Page.javascriptDialogOpening",
+                "params":{"type":"alert","message":"token-2"},
+                "session_id":"session-target"
+            })]),
+            Ok(vec![json!({
+                "method":"Page.javascriptDialogOpening",
+                "params":{"type":"alert","message":"token-1"},
+                "session_id":"session-other"
+            })]),
+            Ok(vec![json!({
+                "method":"Page.javascriptDialogOpening",
+                "params":{"type":"alert","message":"token-1"},
+                "session_id":"session-target"
+            })]),
+        ]);
+        let result = wait_for_event_with_drain(
+            WaitForDialogRequest {
+                daemon_name: "stub".to_string(),
+                session_id: Some("session-target".to_string()),
+                dialog_type: Some("alert".to_string()),
+                message: Some("token-1".to_string()),
+                timeout_ms: 500,
+                poll_interval_ms: 10,
+            }
+            .into_wait_for_event_request(),
+            |_| drains.pop_front().unwrap_or_else(|| Ok(vec![])),
+        )
+        .expect("dialog wait result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 4);
+        assert_eq!(
+            result
+                .event
+                .as_ref()
+                .and_then(|event| event.pointer("/params/message"))
+                .and_then(Value::as_str),
+            Some("token-1")
+        );
+    }
+
+    #[test]
+    fn cli_wait_for_dialog_prints_json_result() {
+        let output = wait_for_dialog_with_stub(
+            r#"{"daemon_name":"stub","session_id":"session-2","type":"alert","message":"token-9","timeout_ms":100,"poll_interval_ms":10}"#,
+            |_| {
+                Ok(vec![json!({
+                    "method":"Page.javascriptDialogOpening",
+                    "params":{"type":"alert","message":"token-9"},
+                    "session_id":"session-2"
+                })])
+            },
+        )
+        .expect("cli result");
+
+        assert_eq!(output.matched, true);
+        assert_eq!(
+            output
+                .event
+                .as_ref()
+                .and_then(|event| event.get("method"))
+                .and_then(Value::as_str),
+            Some("Page.javascriptDialogOpening")
+        );
+        assert_eq!(
+            output
+                .event
+                .as_ref()
+                .and_then(|event| event.pointer("/params/type"))
+                .and_then(Value::as_str),
+            Some("alert")
+        );
+        assert_eq!(
+            output
+                .event
+                .as_ref()
+                .and_then(|event| event.pointer("/params/message"))
+                .and_then(Value::as_str),
+            Some("token-9")
+        );
+    }
+
+    #[test]
+    fn watch_events_with_stub_prints_ndjson_lines() {
+        let output = watch_events_with_stub(
+            r#"{"daemon_name":"stub","filter":{"method":"Page.loadEventFired","session_id":"session-2"},"timeout_ms":100,"poll_interval_ms":10,"max_events":1}"#,
+            |_| {
+                Ok(vec![json!({
+                    "method":"Page.loadEventFired",
+                    "params":{"timestamp":5.0},
+                    "session_id":"session-2"
+                })])
+            },
+        )
+        .expect("cli result");
+
+        let parsed = output
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).expect("parse json line"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].get("kind").and_then(Value::as_str), Some("event"));
+        assert_eq!(parsed[1].get("kind").and_then(Value::as_str), Some("end"));
+        assert_eq!(
+            parsed[1].get("reached_max_events").and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
     fn current_session_uses_sender_response() {
         let result =
             current_session_with_sender(CurrentSessionRequest::default(), |daemon, meta| {
@@ -713,5 +994,25 @@ mod tests {
         let request: WaitForConsoleRequest =
             serde_json::from_str(input).map_err(|err| format!("parse request: {err}"))?;
         wait_for_console_with_drain(request, drain)
+    }
+
+    fn wait_for_dialog_with_stub<F>(input: &str, drain: F) -> Result<WaitForEventResult, String>
+    where
+        F: FnMut(&str) -> Result<Vec<Value>, String>,
+    {
+        let request: WaitForDialogRequest =
+            serde_json::from_str(input).map_err(|err| format!("parse request: {err}"))?;
+        wait_for_event_with_drain(request.into_wait_for_event_request(), drain)
+    }
+
+    fn watch_events_with_stub<F>(input: &str, drain: F) -> Result<String, String>
+    where
+        F: FnMut(&str) -> Result<Vec<Value>, String>,
+    {
+        let request: WatchEventsRequest =
+            serde_json::from_str(input).map_err(|err| format!("parse request: {err}"))?;
+        let mut stdout = Vec::new();
+        watch_events_with_drain(request, &mut stdout, drain)?;
+        String::from_utf8(stdout).map_err(|err| format!("utf-8: {err}"))
     }
 }
