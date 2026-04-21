@@ -98,6 +98,7 @@ Current runner-owned preview surface:
 - the guest SDK now also covers typed tab/session control plus `wait_for_response`, with a compiled workflow guest and live remote smoke
 - the runner/guest boundary now also carries more of the old compatibility helper surface: `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, and `scroll`
 - the first real domain-skill browser slice is now ported as `rust/guests/rust-github-trending`, while pure network helpers such as `http_get` still remain in the dynamic layer
+- a second real domain-skill browser slice is now ported as `rust/guests/rust-reddit-post-scrape`, showing that multi-step DOM extraction workflows can already live on the current guest boundary
 
 More specifically, the target shape is:
 
