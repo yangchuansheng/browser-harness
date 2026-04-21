@@ -16,6 +16,7 @@ Current status:
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](/home/allosaurus/Workspace/browser-harness/docs/wasm-runner-design.md)
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
+- the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
 
 Compatibility contract:
 
@@ -47,6 +48,13 @@ cargo run --quiet --bin bhrun -- wait <<'JSON'
 JSON
 cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/persistent_counter.wat
 {"command":"start","config":{"daemon_name":"default","guest_module":"guests/persistent_counter.wat","granted_operations":["wait"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}}
+{"command":"run"}
+{"command":"run"}
+{"command":"stop"}
+NDJSON
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-persistent-browser-state/Cargo.toml
+cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/rust-persistent-browser-state/target/wasm32-unknown-unknown/release/rust_persistent_browser_state_guest.wasm
+{"command":"start","config":{"daemon_name":"default","guest_module":"guests/rust-persistent-browser-state/target/wasm32-unknown-unknown/release/rust_persistent_browser_state_guest.wasm","granted_operations":["goto","wait_for_load_event","js","page_info"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}}
 {"command":"run"}
 {"command":"run"}
 {"command":"stop"}
@@ -161,6 +169,7 @@ Live `bhrun serve-guest` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_persistent_guest_remote_smoke.py
+BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-persistent-browser-state/target/wasm32-unknown-unknown/release/rust_persistent_browser_state_guest.wasm" python3 scripts/bhrun_persistent_guest_remote_smoke.py
 ```
 
 Local `bhrun serve-guest` smoke:
