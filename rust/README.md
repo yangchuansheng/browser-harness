@@ -149,6 +149,12 @@ Live `bhrun run-guest` smoke:
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
 ```
 
+Live `bhrun serve-guest` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_persistent_guest_remote_smoke.py
+```
+
 Local `bhrun serve-guest` smoke:
 
 ```bash

@@ -92,6 +92,7 @@ Current runner-owned preview surface:
 - persistent guest execution via `bhrun serve-guest`
 - browser-free runner utility coverage via `wait`
 - typed runner utilities for session lookup, event waiting, response/console/dialog waits, and tab/action helpers
+- local and live remote smoke coverage for persistent guest state in the runner boundary
 
 More specifically, the target shape is:
 
