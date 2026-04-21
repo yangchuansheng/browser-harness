@@ -126,9 +126,92 @@ cd rust
 cargo run --quiet --bin bhrun -- manifest
 cargo run --quiet --bin bhrun -- sample-config
 cargo run --quiet --bin bhrun -- capabilities
+cargo run --quiet --bin bhrun -- current-session <<'JSON'
+{"daemon_name":"default"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-event <<'JSON'
+{"daemon_name":"default","filter":{"method":"Page.loadEventFired"}}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-load-event <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","status":200}
+JSON
 ```
 
 These commands are not a guest runtime yet. They are only a design scaffold.
+`wait-for-event` is the first live Phase 2 runner primitive.
+`wait-for-load-event` is the first helper layered directly on top of it.
+`current-session` is the runner-side introspection helper for session-scoped waits.
+`wait-for-response` is the first network helper layered on the same event contract.
+
+## Current Event Contract
+
+The first real runner-owned primitive is event waiting over the daemon's
+existing `drain_events` buffer.
+
+Current request shape:
+
+```json
+{
+  "daemon_name": "default",
+  "filter": {
+    "method": "Network.responseReceived",
+    "session_id": "session-1",
+    "params_subset": {
+      "response": {
+        "status": 200
+      }
+    }
+  },
+  "timeout_ms": 15000,
+  "poll_interval_ms": 200
+}
+```
+
+Current response shape:
+
+```json
+{
+  "matched": true,
+  "event": {
+    "method": "Network.responseReceived",
+    "params": {
+      "response": {
+        "status": 200
+      }
+    },
+    "session_id": "session-1"
+  },
+  "polls": 3,
+  "elapsed_ms": 421
+}
+```
+
+Matching rules:
+
+- `method` is exact string equality
+- `session_id` is exact string equality
+- `params_subset` is a recursive object subset match against the event's
+  top-level `params`
+
+Session guidance:
+
+- use `current-session` to fetch the runner-visible active session id before
+  issuing a session-scoped wait
+- omit `session_id` only when any matching event is acceptable
+- pass `session_id` for multi-tab or iframe-sensitive waits so the runner does
+  not consume another target's event by accident
+- `wait-for-load-event` is the runner's convenience wrapper for the common
+  `Page.loadEventFired` case and should be preferred over a handwritten filter
+  when you already know the session you care about
+- `wait-for-response` is the runner's convenience wrapper for
+  `Network.responseReceived` and should be preferred when you know the exact URL
+  and optional status you want to observe
+
+This keeps the first runner contract small while still being expressive enough
+for page lifecycle, network, dialog, and console events.
 
 ## Before Real Guest Execution
 
