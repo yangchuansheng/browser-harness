@@ -23,6 +23,9 @@ use bh_wasm_host::{
 use serde_json::{json, Value};
 use wasmtime::{Caller, Engine, Linker, Module, Store, TypedFunc};
 
+const DEFAULT_DAEMON_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
+
 fn print_usage() {
     eprintln!(
         "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|scroll|wait|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
@@ -1125,7 +1128,7 @@ fn send_daemon_request(
     let mut stream = UnixStream::connect(format!("/tmp/bu-{daemon_name}.sock"))
         .map_err(|err| format!("connect daemon socket: {err}"))?;
     stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(daemon_read_timeout(request)))
         .map_err(|err| format!("set read timeout: {err}"))?;
     stream
         .set_write_timeout(Some(Duration::from_secs(5)))
@@ -1163,6 +1166,20 @@ fn send_daemon_request(
     Ok(parsed)
 }
 
+fn daemon_read_timeout(request: &DaemonRequest) -> Duration {
+    match request.meta.as_deref() {
+        Some(META_WAIT_FOR_LOAD) => request
+            .params
+            .as_ref()
+            .and_then(|params| params.get("timeout"))
+            .and_then(Value::as_f64)
+            .filter(|timeout| timeout.is_finite() && *timeout >= 0.0)
+            .map(|timeout| Duration::from_secs_f64(timeout) + DAEMON_TIMEOUT_SLACK)
+            .unwrap_or(DEFAULT_DAEMON_READ_TIMEOUT),
+        _ => DEFAULT_DAEMON_READ_TIMEOUT,
+    }
+}
+
 fn write_json<T, W>(stdout: &mut W, value: &T) -> Result<(), String>
 where
     T: serde::Serialize,
@@ -1190,19 +1207,21 @@ where
 mod tests {
     use super::{
         click_with_sender, current_session_with_sender, current_tab_with_sender,
-        dispatch_guest_operation, ensure_real_tab_with_sender, goto_with_sender,
-        iframe_target_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
-        new_tab_with_sender, page_info_with_sender, press_key_with_sender, run_cli,
-        scroll_with_sender, serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
-        wait, wait_for_console_with_drain, wait_for_event_with_drain, wait_for_load_with_sender,
-        watch_events_with_drain, DaemonResponse, GuestHostState, GuestRuntime, META_CLICK,
-        META_CURRENT_TAB, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
-        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCROLL, META_SESSION,
-        META_SWITCH_TAB, META_TYPE_TEXT, META_WAIT_FOR_LOAD,
+        daemon_read_timeout, dispatch_guest_operation, ensure_real_tab_with_sender,
+        goto_with_sender, iframe_target_with_sender, inject_daemon_name, js_with_sender,
+        list_tabs_with_sender, new_tab_with_sender, page_info_with_sender, press_key_with_sender,
+        run_cli, scroll_with_sender, serialize_guest_result, switch_tab_with_sender,
+        type_text_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
+        wait_for_load_with_sender, watch_events_with_drain, DaemonResponse, GuestHostState,
+        GuestRuntime, META_CLICK, META_CURRENT_TAB, META_ENSURE_REAL_TAB, META_GOTO,
+        META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
+        META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_WAIT_FOR_LOAD,
     };
     use std::collections::VecDeque;
     use std::io;
+    use std::time::Duration;
 
+    use bh_protocol::DaemonRequest;
     use bh_wasm_host::{
         default_runner_config, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
         CurrentTabRequest, EnsureRealTabRequest, EventFilter, GotoRequest, GuestServeResponse,
@@ -1687,6 +1706,27 @@ mod tests {
         .expect("wait for load result");
 
         assert!(result);
+    }
+
+    #[test]
+    fn daemon_read_timeout_extends_wait_for_load_timeout() {
+        let timeout = daemon_read_timeout(&DaemonRequest {
+            meta: Some(META_WAIT_FOR_LOAD.to_string()),
+            params: Some(json!({"timeout": 15.0})),
+            ..DaemonRequest::default()
+        });
+
+        assert_eq!(timeout, Duration::from_secs(20));
+    }
+
+    #[test]
+    fn daemon_read_timeout_defaults_for_other_requests() {
+        let timeout = daemon_read_timeout(&DaemonRequest {
+            meta: Some(META_GOTO.to_string()),
+            ..DaemonRequest::default()
+        });
+
+        assert_eq!(timeout, Duration::from_secs(30));
     }
 
     #[test]
