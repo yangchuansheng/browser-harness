@@ -43,6 +43,9 @@ JSON
 cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","status":200}
 JSON
+cargo run --quiet --bin bhrun -- wait-for-console <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","type":"log","text":"ready"}
+JSON
 ```
 
 Python compatibility tests:
@@ -67,4 +70,10 @@ Live `bhrun wait-for-response` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_response_smoke.py
+```
+
+Live `bhrun wait-for-console` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_console_smoke.py
 ```

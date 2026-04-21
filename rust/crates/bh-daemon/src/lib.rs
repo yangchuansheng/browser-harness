@@ -226,7 +226,7 @@ impl Daemon {
     }
 
     async fn enable_session_domains(&self, session_id: &str) {
-        for domain in ["Page", "DOM", "Runtime", "Network"] {
+        for domain in ["Page", "DOM", "Runtime", "Network", "Log", "Console"] {
             if let Err(err) = self
                 .cdp
                 .send_raw(&format!("{domain}.enable"), json!({}), Some(session_id))

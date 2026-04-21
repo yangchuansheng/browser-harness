@@ -141,6 +141,22 @@ pub struct WaitForResponseRequest {
     pub poll_interval_ms: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitForConsoleRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub console_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default = "default_wait_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
 impl Default for WaitForEventRequest {
     fn default() -> Self {
         Self {
@@ -259,6 +275,54 @@ impl WaitForResponseRequest {
                 request.session_id.as_deref(),
                 &request.url,
                 request.status,
+            ),
+            timeout_ms: request.timeout_ms,
+            poll_interval_ms: request.poll_interval_ms,
+        }
+    }
+}
+
+impl Default for WaitForConsoleRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            session_id: None,
+            console_type: None,
+            text: None,
+            timeout_ms: default_wait_timeout_ms(),
+            poll_interval_ms: default_poll_interval_ms(),
+        }
+    }
+}
+
+impl WaitForConsoleRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            session_id: self.session_id.clone(),
+            console_type: self.console_type.clone(),
+            text: self.text.clone(),
+            timeout_ms: self.timeout_ms,
+            poll_interval_ms: if self.poll_interval_ms == 0 {
+                default_poll_interval_ms()
+            } else {
+                self.poll_interval_ms
+            },
+        }
+    }
+
+    pub fn into_wait_for_event_request(self) -> WaitForEventRequest {
+        let request = self.normalized();
+        WaitForEventRequest {
+            daemon_name: request.daemon_name,
+            filter: console_event_filter(
+                request.session_id.as_deref(),
+                request.console_type.as_deref(),
+                request.text.as_deref(),
             ),
             timeout_ms: request.timeout_ms,
             poll_interval_ms: request.poll_interval_ms,
@@ -394,6 +458,13 @@ pub fn default_operations() -> Vec<HostOperation> {
                 "Wait for Network.responseReceived matching a URL and optional HTTP status.",
         },
         HostOperation {
+            name: "wait_for_console",
+            kind: ProtocolFamilyKind::HostUtility,
+            stability: Stability::Preview,
+            description:
+                "Wait for browser console output matching an optional type and message text.",
+        },
+        HostOperation {
             name: "http_get",
             kind: ProtocolFamilyKind::HostUtility,
             stability: Stability::Preview,
@@ -484,6 +555,89 @@ pub fn response_received_filter(
     }
 }
 
+pub fn console_event_filter(
+    session_id: Option<&str>,
+    console_type: Option<&str>,
+    text: Option<&str>,
+) -> EventFilter {
+    let mut params = serde_json::Map::new();
+    if let Some(console_type) = console_type {
+        params.insert(
+            "message".to_string(),
+            Value::Object(serde_json::Map::from_iter([(
+                "level".to_string(),
+                Value::String(console_type.to_string()),
+            )])),
+        );
+    }
+    if let Some(text) = text {
+        let message = params
+            .entry("message".to_string())
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if let Some(message) = message.as_object_mut() {
+            message.insert("text".to_string(), Value::String(text.to_string()));
+        }
+    }
+
+    EventFilter {
+        method: Some("Console.messageAdded".to_string()),
+        session_id: session_id.map(str::to_string),
+        params_subset: (!params.is_empty()).then_some(Value::Object(params)),
+    }
+}
+
+pub fn console_event_matches(event: &Value, request: &WaitForConsoleRequest) -> bool {
+    let request = request.normalized();
+    if let Some(session_id) = request.session_id.as_deref() {
+        if event.get("session_id").and_then(Value::as_str) != Some(session_id) {
+            return false;
+        }
+    }
+
+    match event.get("method").and_then(Value::as_str) {
+        Some("Console.messageAdded") => {
+            if let Some(console_type) = request.console_type.as_deref() {
+                if event
+                    .pointer("/params/message/level")
+                    .and_then(Value::as_str)
+                    != Some(console_type)
+                {
+                    return false;
+                }
+            }
+            if let Some(text) = request.text.as_deref() {
+                if event
+                    .pointer("/params/message/text")
+                    .and_then(Value::as_str)
+                    != Some(text)
+                {
+                    return false;
+                }
+            }
+            true
+        }
+        Some("Runtime.consoleAPICalled") => {
+            if let Some(console_type) = request.console_type.as_deref() {
+                if event.pointer("/params/type").and_then(Value::as_str) != Some(console_type) {
+                    return false;
+                }
+            }
+            if let Some(text) = request.text.as_deref() {
+                let arg = event.pointer("/params/args/0");
+                let value = arg.and_then(|arg| arg.get("value")).and_then(Value::as_str);
+                let description = arg
+                    .and_then(|arg| arg.get("description"))
+                    .and_then(Value::as_str);
+                if value != Some(text) && description != Some(text) {
+                    return false;
+                }
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
 fn compatibility_helper(name: &'static str, description: &'static str) -> HostOperation {
     HostOperation {
         name,
@@ -529,10 +683,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        default_manifest, default_runner_config, event_matches_filter, load_event_filter,
-        operation_names, response_received_filter, CurrentSessionRequest, EventFilter,
-        ExecutionModel, GuestTransport, ProtocolFamilyKind, Stability, WaitForEventRequest,
-        WaitForLoadEventRequest, WaitForResponseRequest,
+        console_event_filter, console_event_matches, default_manifest, default_runner_config,
+        event_matches_filter, load_event_filter, operation_names, response_received_filter,
+        CurrentSessionRequest, EventFilter, ExecutionModel, GuestTransport, ProtocolFamilyKind,
+        Stability, WaitForConsoleRequest, WaitForEventRequest, WaitForLoadEventRequest,
+        WaitForResponseRequest,
     };
 
     #[test]
@@ -575,6 +730,7 @@ mod tests {
         assert!(names.contains(&"wait_for_event"));
         assert!(names.contains(&"wait_for_load_event"));
         assert!(names.contains(&"wait_for_response"));
+        assert!(names.contains(&"wait_for_console"));
         assert!(names.contains(&"cdp_raw"));
     }
 
@@ -737,5 +893,90 @@ mod tests {
                 }
             }))
         );
+    }
+
+    #[test]
+    fn console_event_filter_scopes_type_text_and_session() {
+        let event = json!({
+            "method": "Console.messageAdded",
+            "session_id": "session-2",
+            "params": {
+                "message": {
+                    "level": "log",
+                    "text": "token-1"
+                }
+            }
+        });
+
+        assert!(event_matches_filter(
+            &event,
+            &console_event_filter(Some("session-2"), Some("log"), Some("token-1"))
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &console_event_filter(Some("session-1"), Some("log"), Some("token-1"))
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &console_event_filter(Some("session-2"), Some("error"), Some("token-1"))
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &console_event_filter(Some("session-2"), Some("log"), Some("token-2"))
+        ));
+    }
+
+    #[test]
+    fn wait_for_console_request_builds_scoped_wait_for_event_request() {
+        let request = WaitForConsoleRequest {
+            daemon_name: "runner".to_string(),
+            session_id: Some("session-8".to_string()),
+            console_type: Some("log".to_string()),
+            text: Some("token-3".to_string()),
+            timeout_ms: 2500,
+            poll_interval_ms: 50,
+        };
+        let built = request.into_wait_for_event_request();
+
+        assert_eq!(built.daemon_name, "runner");
+        assert_eq!(built.timeout_ms, 2500);
+        assert_eq!(built.poll_interval_ms, 50);
+        assert_eq!(
+            built.filter,
+            console_event_filter(Some("session-8"), Some("log"), Some("token-3"))
+        );
+    }
+
+    #[test]
+    fn console_event_matches_runtime_and_console_domain_shapes() {
+        let request = WaitForConsoleRequest {
+            daemon_name: "runner".to_string(),
+            session_id: Some("session-5".to_string()),
+            console_type: Some("log".to_string()),
+            text: Some("token-9".to_string()),
+            timeout_ms: 1000,
+            poll_interval_ms: 50,
+        };
+        let runtime_event = json!({
+            "method": "Runtime.consoleAPICalled",
+            "session_id": "session-5",
+            "params": {
+                "type": "log",
+                "args": [{"type": "string", "value": "token-9"}]
+            }
+        });
+        let console_event = json!({
+            "method": "Console.messageAdded",
+            "session_id": "session-5",
+            "params": {
+                "message": {
+                    "level": "log",
+                    "text": "token-9"
+                }
+            }
+        });
+
+        assert!(console_event_matches(&runtime_event, &request));
+        assert!(console_event_matches(&console_event, &request));
     }
 }
