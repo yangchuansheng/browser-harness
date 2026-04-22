@@ -273,6 +273,17 @@ pub struct PressKeyRequest {
     pub modifiers: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DispatchKeyRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub selector: String,
+    #[serde(default = "default_dispatch_key")]
+    pub key: String,
+    #[serde(default = "default_dispatch_event")]
+    pub event: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScrollRequest {
     #[serde(default = "default_daemon_name")]
@@ -293,6 +304,17 @@ pub struct ScreenshotRequest {
     pub daemon_name: String,
     #[serde(default)]
     pub full: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UploadFileRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub selector: String,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -578,6 +600,17 @@ impl Default for PressKeyRequest {
     }
 }
 
+impl Default for DispatchKeyRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            selector: String::new(),
+            key: default_dispatch_key(),
+            event: default_dispatch_event(),
+        }
+    }
+}
+
 impl Default for ScrollRequest {
     fn default() -> Self {
         Self {
@@ -595,6 +628,17 @@ impl Default for ScreenshotRequest {
         Self {
             daemon_name: default_daemon_name(),
             full: false,
+        }
+    }
+}
+
+impl Default for UploadFileRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            selector: String::new(),
+            files: Vec::new(),
+            target_id: None,
         }
     }
 }
@@ -780,6 +824,29 @@ impl PressKeyRequest {
     }
 }
 
+impl DispatchKeyRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            selector: self.selector.clone(),
+            key: if self.key.trim().is_empty() {
+                default_dispatch_key()
+            } else {
+                self.key.clone()
+            },
+            event: if self.event.trim().is_empty() {
+                default_dispatch_event()
+            } else {
+                self.event.clone()
+            },
+        }
+    }
+}
+
 impl ScrollRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -805,6 +872,21 @@ impl ScreenshotRequest {
                 self.daemon_name.clone()
             },
             full: self.full,
+        }
+    }
+}
+
+impl UploadFileRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            selector: self.selector.clone(),
+            files: self.files.clone(),
+            target_id: self.target_id.clone(),
         }
     }
 }
@@ -1424,6 +1506,14 @@ fn default_clicks() -> i64 {
     1
 }
 
+fn default_dispatch_key() -> String {
+    "Enter".to_string()
+}
+
+fn default_dispatch_event() -> String {
+    "keypress".to_string()
+}
+
 fn default_wait_timeout_ms() -> u64 {
     15_000
 }
@@ -1467,12 +1557,12 @@ mod tests {
         console_event_filter, console_event_matches, default_manifest, default_runner_config,
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
         response_received_filter, ClickRequest, CurrentSessionRequest, CurrentTabRequest,
-        EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest, GuestTransport,
-        HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest,
-        PageInfoRequest, PressKeyRequest, ProtocolFamilyKind, ScreenshotRequest, ScrollRequest,
-        Stability, SwitchTabRequest, TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest,
-        WaitForEventRequest, WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest,
-        WatchEventsLine, WatchEventsRequest,
+        DispatchKeyRequest, EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest,
+        GuestTransport, HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest,
+        NewTabRequest, PageInfoRequest, PressKeyRequest, ProtocolFamilyKind, ScreenshotRequest,
+        ScrollRequest, Stability, SwitchTabRequest, TypeTextRequest, UploadFileRequest,
+        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForLoadEventRequest,
+        WaitForLoadRequest, WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
     };
     use std::collections::BTreeMap;
 
@@ -1520,6 +1610,8 @@ mod tests {
         assert!(names.contains(&"wait_for_console"));
         assert!(names.contains(&"wait_for_dialog"));
         assert!(names.contains(&"screenshot"));
+        assert!(names.contains(&"dispatch_key"));
+        assert!(names.contains(&"upload_file"));
         assert!(names.contains(&"http_get"));
         assert!(names.contains(&"cdp_raw"));
     }
@@ -1787,6 +1879,22 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_key_request_normalizes_blank_name_key_and_event() {
+        let request = DispatchKeyRequest {
+            daemon_name: "   ".to_string(),
+            selector: "#search".to_string(),
+            key: "   ".to_string(),
+            event: "   ".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.selector, "#search");
+        assert_eq!(normalized.key, "Enter");
+        assert_eq!(normalized.event, "keypress");
+    }
+
+    #[test]
     fn scroll_request_normalizes_blank_name() {
         let request = ScrollRequest {
             daemon_name: "   ".to_string(),
@@ -1812,6 +1920,22 @@ mod tests {
 
         assert_eq!(normalized.daemon_name, "default");
         assert!(normalized.full);
+    }
+
+    #[test]
+    fn upload_file_request_normalizes_blank_name() {
+        let request = UploadFileRequest {
+            daemon_name: "   ".to_string(),
+            selector: "#file".to_string(),
+            files: vec!["/tmp/example.txt".to_string()],
+            target_id: Some("iframe-1".to_string()),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.selector, "#file");
+        assert_eq!(normalized.files, vec!["/tmp/example.txt".to_string()]);
+        assert_eq!(normalized.target_id.as_deref(), Some("iframe-1"));
     }
 
     #[test]

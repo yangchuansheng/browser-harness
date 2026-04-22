@@ -15,7 +15,7 @@ const ADMIN_COMMANDS: &[&str] = &[
     "stop-daemon",
 ];
 
-const RUNNER_HELP: &str = "manifest|sample-config|capabilities|summary|run-guest|serve-guest|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|scroll|screenshot|wait|http-get|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog";
+const RUNNER_HELP: &str = "manifest|sample-config|capabilities|summary|run-guest|serve-guest|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|upload-file|wait|http-get|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Route {
