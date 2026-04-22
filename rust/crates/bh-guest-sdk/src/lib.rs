@@ -1,13 +1,15 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 pub use bh_wasm_host::{
-    CurrentSessionResult, NewTabResult, SwitchTabResult, TabSummary, WaitForEventResult, WaitResult,
+    CurrentSessionResult, HttpGetRequest, NewTabResult, SwitchTabResult, TabSummary,
+    WaitForEventResult, WaitResult,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-const DEFAULT_OUTPUT_CAPACITY: usize = 256 * 1024;
+const DEFAULT_OUTPUT_CAPACITY: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GuestError {
@@ -50,6 +52,21 @@ pub fn wait(duration_ms: u64) -> Result<WaitResult, GuestError> {
         "wait",
         &json!({
             "duration_ms": duration_ms,
+        }),
+    )
+}
+
+pub fn http_get(
+    url: &str,
+    headers: Option<BTreeMap<String, String>>,
+    timeout: Option<f64>,
+) -> Result<String, GuestError> {
+    call_json(
+        "http_get",
+        &json!({
+            "url": url,
+            "headers": headers,
+            "timeout": timeout,
         }),
     )
 }
@@ -253,13 +270,14 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 #[cfg(test)]
 mod tests {
     use super::{
-        call_json_with, click, current_session, current_tab, ensure_real_tab, goto, iframe_target,
-        js, list_tabs, new_tab, page_info, press_key, scroll, switch_tab, type_text, wait,
-        wait_for_load, wait_for_load_event, wait_for_response, CurrentSessionResult, GuestError,
-        NewTabResult, SwitchTabResult, TabSummary, WaitResult,
+        call_json_with, click, current_session, current_tab, ensure_real_tab, goto, http_get,
+        iframe_target, js, list_tabs, new_tab, page_info, press_key, scroll, switch_tab, type_text,
+        wait, wait_for_load, wait_for_load_event, wait_for_response, CurrentSessionResult,
+        GuestError, NewTabResult, SwitchTabResult, TabSummary, WaitResult,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
+    use std::collections::BTreeMap;
 
     #[test]
     fn goto_serializes_url_request() {
@@ -469,6 +487,32 @@ mod tests {
         )
         .expect("wait for load result");
         assert!(loaded);
+
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Test".to_string(), "value".to_string());
+        let body: String = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"http_get");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("url").and_then(Value::as_str),
+                    Some("https://example.com/api")
+                );
+                assert_eq!(request["headers"]["X-Test"], "value");
+                assert_eq!(request.get("timeout").and_then(Value::as_f64), Some(12.5));
+                let response = serde_json::to_vec("ok").expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "http_get",
+            &json!({
+                "url":"https://example.com/api",
+                "headers": headers,
+                "timeout": 12.5
+            }),
+        )
+        .expect("http get result");
+        assert_eq!(body, "ok");
     }
 
     #[test]
@@ -647,6 +691,7 @@ mod tests {
     #[test]
     fn helper_functions_use_expected_operations() {
         let _ = wait;
+        let _ = http_get;
         let _ = current_session;
         let _ = current_tab;
         let _ = list_tabs;

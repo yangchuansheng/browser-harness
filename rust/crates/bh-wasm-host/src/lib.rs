@@ -6,6 +6,7 @@ use bh_protocol::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -130,6 +131,15 @@ pub enum GuestServeResponse {
 pub struct WaitRequest {
     #[serde(default = "default_wait_duration_ms")]
     pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HttpGetRequest {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<BTreeMap<String, String>>,
+    #[serde(default = "default_http_timeout_seconds")]
+    pub timeout: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -459,6 +469,16 @@ impl Default for WaitRequest {
     }
 }
 
+impl Default for HttpGetRequest {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            headers: None,
+            timeout: default_http_timeout_seconds(),
+        }
+    }
+}
+
 impl Default for CurrentTabRequest {
     fn default() -> Self {
         Self {
@@ -777,6 +797,20 @@ impl WaitRequest {
     pub fn normalized(&self) -> Self {
         Self {
             duration_ms: self.duration_ms,
+        }
+    }
+}
+
+impl HttpGetRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            url: self.url.clone(),
+            headers: self.headers.clone(),
+            timeout: if self.timeout.is_finite() && self.timeout > 0.0 {
+                self.timeout
+            } else {
+                default_http_timeout_seconds()
+            },
         }
     }
 }
@@ -1336,6 +1370,10 @@ fn default_wait_timeout_seconds() -> f64 {
     15.0
 }
 
+fn default_http_timeout_seconds() -> f64 {
+    20.0
+}
+
 fn default_daemon_name() -> String {
     "default".to_string()
 }
@@ -1400,12 +1438,13 @@ mod tests {
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
         response_received_filter, ClickRequest, CurrentSessionRequest, CurrentTabRequest,
         EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest, GuestTransport,
-        IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest,
-        PressKeyRequest, ProtocolFamilyKind, ScrollRequest, Stability, SwitchTabRequest,
-        TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
-        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WatchEventsLine,
-        WatchEventsRequest,
+        HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest,
+        PageInfoRequest, PressKeyRequest, ProtocolFamilyKind, ScrollRequest, Stability,
+        SwitchTabRequest, TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest,
+        WaitForEventRequest, WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest,
+        WatchEventsLine, WatchEventsRequest,
     };
+    use std::collections::BTreeMap;
 
     #[test]
     fn manifest_uses_persistent_runner_boundary() {
@@ -1450,6 +1489,7 @@ mod tests {
         assert!(names.contains(&"wait_for_response"));
         assert!(names.contains(&"wait_for_console"));
         assert!(names.contains(&"wait_for_dialog"));
+        assert!(names.contains(&"http_get"));
         assert!(names.contains(&"cdp_raw"));
     }
 
@@ -1743,6 +1783,22 @@ mod tests {
         assert_eq!(normalized.daemon_name, "default");
         assert_eq!(normalized.expression, "location.href");
         assert_eq!(normalized.target_id.as_deref(), Some("iframe-1"));
+    }
+
+    #[test]
+    fn http_get_request_normalizes_timeout_and_keeps_headers() {
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Test".to_string(), "value".to_string());
+        let request = HttpGetRequest {
+            url: "https://example.com".to_string(),
+            headers: Some(headers.clone()),
+            timeout: 0.0,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.url, "https://example.com");
+        assert_eq!(normalized.timeout, 20.0);
+        assert_eq!(normalized.headers, Some(headers));
     }
 
     #[test]
