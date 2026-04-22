@@ -246,12 +246,12 @@ Local `bhrun` tab/session smoke:
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- tabs
 ```
 
-Live `bhrun run-guest` smoke:
+Live `bhrun` guest smokes:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
-BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
-BROWSER_USE_API_KEY=... BU_GUEST_MODE=serve-guest BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- guest-run
+BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- guest-run
+BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- guest-serve
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_tab_response_guest_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_github_trending_guest_smoke.py
@@ -280,14 +280,14 @@ python3 scripts/bhrun_tradingview_symbol_search_guest_smoke.py
 Live `bhrun serve-guest` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_persistent_guest_remote_smoke.py
-BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-persistent-browser-state/target/wasm32-unknown-unknown/release/rust_persistent_browser_state_guest.wasm" python3 scripts/bhrun_persistent_guest_remote_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- persistent-guest-browser
+BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-persistent-browser-state/target/wasm32-unknown-unknown/release/rust_persistent_browser_state_guest.wasm" cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- persistent-guest-browser
 ```
 
 Local `bhrun serve-guest` smoke:
 
 ```bash
-python3 scripts/bhrun_persistent_guest_smoke.py
+cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- persistent-guest
 ```
 
 Remote GitHub domain-skill acceptance smoke (best-effort):
