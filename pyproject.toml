@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=69", "setuptools-rust>=1.10.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,14 +7,26 @@ name = "harness"
 version = "0.1.0"
 description = "The simplest, thinnest, and most powerful harness to control your real browser with your agent."
 requires-python = ">=3.11"
-dependencies = [
-    "browser-harness==0.0.1",
-    "cdp-use==1.4.5",
-    "websockets==16.0",
-]
+dependencies = []
 
 [project.scripts]
-browser-harness = "run:main"
+browser-harness-py = "run:main"
 
 [tool.setuptools]
-py-modules = ["run", "helpers", "daemon", "admin"]
+py-modules = ["run", "helpers", "admin"]
+
+[[tool.setuptools-rust.bins]]
+target = "browser-harness"
+path = "rust/bins/browser-harness-cli/Cargo.toml"
+
+[[tool.setuptools-rust.bins]]
+target = "bhctl"
+path = "rust/bins/bhctl/Cargo.toml"
+
+[[tool.setuptools-rust.bins]]
+target = "bhrun"
+path = "rust/bins/bhrun/Cargo.toml"
+
+[[tool.setuptools-rust.bins]]
+target = "bhd"
+path = "rust/bins/bhd/Cargo.toml"

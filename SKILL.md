@@ -9,17 +9,28 @@ Easiest and most powerful way to interact with the browser. **Read this file in 
 
 ## Fast start
 
-Read `helpers.py` first. For first-time install or reconnect/bootstrap, read `install.md` first.
+Read `install.md` first for first-time install or reconnect/bootstrap.
+
+Rust now owns the runtime/control plane. The repo-local Rust-native entrypoint
+is:
 
 ```bash
-browser-harness <<'PY'
-new_tab("https://docs.browser-use.com")
-wait_for_load()
-print(page_info())
-PY
+cd rust
+cargo run --quiet --bin browser-harness -- --help
 ```
 
-- Invoke as `browser-harness` — it's on `$PATH`. No `cd`, no `uv run`.
+`browser-harness-py <<'PY'` and `helpers.py` are now legacy compatibility-only.
+
+```bash
+cd rust
+cargo run --quiet --bin browser-harness -- ensure-daemon
+cargo run --quiet --bin browser-harness -- page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
+```
+
+- For Rust-native repo-local use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
+- The Python heredoc shell remains available only for legacy compatibility.
 - First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
 
 The code is the doc.
@@ -33,19 +44,21 @@ Available domain skills:
 ## Tool call shape
 
 ```bash
-browser-harness <<'PY'
-# any python. helpers pre-imported. daemon auto-starts.
-PY
+cd rust
+cargo run --quiet --bin browser-harness -- page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
 ```
 
-`run.py` calls `ensure_daemon()` before `exec` — you never start/stop manually unless you want to.
+The Rust-native CLI is now the preferred path. The Python heredoc shell is
+legacy compatibility only.
 
 ### Remote browsers
 
 Use remote for **parallel sub-agents** (each gets its own isolated browser via a distinct `BU_NAME`) or on a headless server. `BROWSER_USE_API_KEY` must be set. `start_remote_daemon`, `list_cloud_profiles`, `list_local_profiles`, `sync_local_profile` are pre-imported.
 
 ```bash
-browser-harness <<'PY'
+browser-harness-py <<'PY'
 start_remote_daemon("work")                               # default — clean browser, no profile
 # start_remote_daemon("work", profileName="my-work")      # reuse a cloud profile (already logged in)
 # start_remote_daemon("work", profileId="<uuid>")         # same, but by UUID
@@ -53,7 +66,7 @@ start_remote_daemon("work")                               # default — clean br
 # start_remote_daemon("work", proxyCountryCode=None)      # disable the Browser Use proxy
 PY
 
-BU_NAME=work browser-harness <<'PY'
+BU_NAME=work browser-harness-py <<'PY'
 new_tab("https://example.com")
 print(page_info())
 PY
@@ -141,14 +154,14 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 - **Coordinate clicks default.** `Input.dispatchMouseEvent` goes through iframes/shadow/cross-origin at the compositor level.
 - **Connect to the user's running Chrome.** Don't launch your own browser.
 - **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
-- **`run.py` stays tiny.** No argparse, subcommands, or extra control layer.
-- **Helpers stay short.** Browser primitives in `helpers.py`; daemon/bootstrap and remote session admin live in `admin.py`.
+- **The Rust CLI stays thin.** `browser-harness` is only a facade over `bhctl` and `bhrun`.
+- **Legacy helpers stay compatibility-only.** Browser primitives in `helpers.py`; daemon/bootstrap and remote session admin in `admin.py` are no longer the primary product path.
 - **Don't add a manager layer.** No retries framework, session manager, daemon supervisor, config system, or logging framework.
 
 ## Architecture
 
 ```text
-Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.py
+Chrome / Browser Use cloud -> CDP WS -> bhd -> /tmp/bu-<NAME>.sock -> bhrun / bhctl -> browser-harness
 ```
 
 - Protocol is one JSON line each way.
@@ -171,10 +184,7 @@ Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.
 - **CDP target order != Chrome's visible tab-strip order.** Use UI automation when the user means "the first/second tab I can see"; `Target.activateTarget` only shows a known target.
 - **Default daemon sessions can go stale.** `ensure_real_tab()` re-attaches to a real page.
 - **`no close frame received or sent` usually means a stale daemon / websocket.** Restart the daemon once with:
-  `uv run python - <<'PY'`
-  `from admin import restart_daemon`
-  `restart_daemon()`
-  `PY`
+  `cd rust && cargo run --quiet --bin browser-harness -- restart-daemon`
   before assuming setup is wrong.
 - **If `restart_daemon()` also hangs**, kill Chrome entirely (`pkill -9 -f "Google Chrome"`), clean sockets (`rm -f /tmp/bu-default.sock /tmp/bu-default.pid`), reopen Chrome (`open -a "Google Chrome"`), wait 5s, then reconnect. This resets all CDP state.
 - **Browser Use API is camelCase on the wire.** `cdpUrl`, `proxyCountryCode`, etc.
