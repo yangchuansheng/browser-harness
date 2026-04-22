@@ -13,6 +13,14 @@ Current compatibility split:
 - `admin.py` is deprecated and is only a compatibility alias for `admin_cli.py`
 - `run.py` / `browser-harness-py` is the deprecated heredoc shell
 
+Installed-package policy:
+
+- installed packages ship `run.py`, `runner_cli.py`, and `admin_cli.py`
+- installed packages do not ship `helpers.py` or `admin.py`
+- source-tree compatibility tests still cover `helpers.py` and `admin.py`
+- `run.py` must keep working when `helpers.py` is absent by preloading a
+  `runner_cli`-backed fallback helper surface
+
 Deprecation-warning contract:
 
 - `browser-harness-py` warns on invocation
