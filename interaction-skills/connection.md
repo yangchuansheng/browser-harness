@@ -1,47 +1,58 @@
 # Connection & Tab Visibility
 
-## The omnibox popup problem
+Treat connection recovery and visible-tab recovery as runner concerns first.
 
-When Chrome opens fresh, the only CDP `type: "page"` targets are `chrome://inspect` and `chrome://omnibox-popup.top-chrome/` (a 1px invisible viewport). If the daemon attaches to the omnibox popup, all subsequent work — including `new_tab()` and `goto()` — happens on tabs that exist in CDP but may not be visible in the Chrome UI.
+The Rust-native path is:
 
-The daemon's `attach_first_page()` handles this by creating an `about:blank` tab when no real pages exist. If you still end up on an invisible tab, use `switch_tab()` which calls `Target.activateTarget` to bring the tab to front.
+- `browser-harness ensure-daemon`
+- `bhrun list-tabs`
+- `bhrun current-tab`
+- `bhrun ensure-real-tab`
+- `bhrun switch-tab`
 
-## Startup sequence
+## The Real Problem
 
-1. Check if a daemon is already running with `daemon_alive()`
-2. If stale sockets exist but daemon is dead, clean them up
-3. List open tabs with `list_tabs()` to see what's available
-4. `ensure_real_tab()` attaches to a real page
-5. `switch_tab(target_id)` both attaches AND activates (brings to front)
+Fresh Chrome can expose internal page targets such as:
 
-```python
-if not daemon_alive():
-    import os
-    for f in ["/tmp/bu-default.sock", "/tmp/bu-default.pid"]:
-        if os.path.exists(f): os.unlink(f)
-    ensure_daemon()
+- `chrome://inspect`
+- `chrome://omnibox-popup.top-chrome/`
 
-tabs = list_tabs()
-for t in tabs:
-    print(t["url"][:60])
+If the daemon attaches there, later navigation may succeed in CDP while the user
+still sees the wrong surface.
 
-tab = ensure_real_tab()
+`ensure-real-tab` is the recovery primitive for that case.
+
+## Preferred Startup Sequence
+
+1. start or confirm the daemon
+2. list tabs
+3. call `ensure-real-tab`
+4. only then navigate or switch
+
+```bash
+browser-harness ensure-daemon
+
+bhrun list-tabs <<'JSON'
+{"daemon_name":"default","include_internal":false}
+JSON
+
+bhrun ensure-real-tab <<'JSON'
+{"daemon_name":"default"}
+JSON
 ```
 
-## Bringing Chrome to front
+## Rules
 
-If Chrome is behind other windows or on another desktop:
+- prefer `ensure-real-tab` before a browser-first workflow starts
+- use `switch-tab` when you already know the target id you want
+- treat `new-tab` as a creation primitive, not as visibility proof
+- if `page_info()` shows `w=0` or `h=0`, recover the attachment instead of
+  continuing blindly
 
-```python
-import subprocess
-subprocess.run(["osascript", "-e", 'tell application "Google Chrome" to activate'])
-```
+## Verification
 
-## Navigating
+Use `page_info()` or `current-tab` after recovery and confirm:
 
-Prefer navigating an existing tab over `new_tab()`. Tabs created via CDP's `Target.createTarget` are visible but may open behind the active tab.
-
-```python
-tab = ensure_real_tab()
-goto("https://example.com")
-```
+- the URL is a real page
+- the viewport dimensions are non-zero
+- the tab is the one you intended to automate

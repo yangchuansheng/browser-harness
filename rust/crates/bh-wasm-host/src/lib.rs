@@ -1,8 +1,10 @@
 use bh_protocol::{
-    META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO,
-    META_HANDLE_DIALOG, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO,
-    META_PRESS_KEY, META_SCREENSHOT, META_SCROLL, META_SWITCH_TAB, META_TYPE_TEXT,
-    META_UPLOAD_FILE, META_WAIT_FOR_LOAD, PROTOCOL_VERSION,
+    META_CLICK, META_CONFIGURE_DOWNLOADS, META_CURRENT_TAB, META_DISPATCH_KEY,
+    META_ENSURE_REAL_TAB, META_GET_COOKIES, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
+    META_JS, META_LIST_TABS, META_MOUSE_DOWN, META_MOUSE_MOVE, META_MOUSE_UP, META_NEW_TAB,
+    META_PAGE_INFO, META_PRESS_KEY, META_PRINT_PDF, META_SCREENSHOT, META_SCROLL, META_SET_COOKIES,
+    META_SET_VIEWPORT, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+    PROTOCOL_VERSION,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -266,6 +268,50 @@ pub struct ClickRequest {
     pub clicks: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MouseMoveRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default = "default_mouse_buttons_idle")]
+    pub buttons: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MouseDownRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default = "default_click_button")]
+    pub button: String,
+    #[serde(default = "default_mouse_buttons_pressed")]
+    pub buttons: i64,
+    #[serde(default = "default_clicks")]
+    pub click_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MouseUpRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default = "default_click_button")]
+    pub button: String,
+    #[serde(default = "default_mouse_buttons_idle")]
+    pub buttons: i64,
+    #[serde(default = "default_clicks")]
+    pub click_count: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeTextRequest {
     #[serde(default = "default_daemon_name")]
@@ -309,6 +355,28 @@ pub struct ScrollRequest {
     pub dy: f64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetViewportRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default = "default_viewport_width")]
+    pub width: u32,
+    #[serde(default = "default_viewport_height")]
+    pub height: u32,
+    #[serde(default = "default_device_scale_factor")]
+    pub device_scale_factor: f64,
+    #[serde(default)]
+    pub mobile: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrintPdfRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub landscape: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScreenshotRequest {
     #[serde(default = "default_daemon_name")]
@@ -336,6 +404,67 @@ pub struct UploadFileRequest {
     pub files: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetCookiesRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub urls: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CookieParam {
+    pub name: String,
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secure: Option<bool>,
+    #[serde(rename = "httpOnly", default, skip_serializing_if = "Option::is_none")]
+    pub http_only: Option<bool>,
+    #[serde(rename = "sameSite", default, skip_serializing_if = "Option::is_none")]
+    pub same_site: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CookieRecord {
+    pub name: String,
+    pub value: String,
+    pub domain: String,
+    pub path: String,
+    #[serde(default)]
+    pub secure: bool,
+    #[serde(rename = "httpOnly", default)]
+    pub http_only: bool,
+    #[serde(default)]
+    pub session: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires: Option<f64>,
+    #[serde(rename = "sameSite", default, skip_serializing_if = "Option::is_none")]
+    pub same_site: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetCookiesRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub cookies: Vec<CookieParam>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfigureDownloadsRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub download_path: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -415,6 +544,35 @@ pub struct WaitForLoadEventRequest {
     pub daemon_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(default = "default_wait_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitForDownloadRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default = "default_wait_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitForRequestRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
     #[serde(default = "default_wait_timeout_ms")]
     pub timeout_ms: u64,
     #[serde(default = "default_poll_interval_ms")]
@@ -613,6 +771,43 @@ impl Default for ClickRequest {
     }
 }
 
+impl Default for MouseMoveRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            x: 0.0,
+            y: 0.0,
+            buttons: default_mouse_buttons_idle(),
+        }
+    }
+}
+
+impl Default for MouseDownRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            x: 0.0,
+            y: 0.0,
+            button: default_click_button(),
+            buttons: default_mouse_buttons_pressed(),
+            click_count: default_clicks(),
+        }
+    }
+}
+
+impl Default for MouseUpRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            x: 0.0,
+            y: 0.0,
+            button: default_click_button(),
+            buttons: default_mouse_buttons_idle(),
+            click_count: default_clicks(),
+        }
+    }
+}
+
 impl Default for TypeTextRequest {
     fn default() -> Self {
         Self {
@@ -655,6 +850,27 @@ impl Default for ScrollRequest {
     }
 }
 
+impl Default for SetViewportRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            width: default_viewport_width(),
+            height: default_viewport_height(),
+            device_scale_factor: default_device_scale_factor(),
+            mobile: false,
+        }
+    }
+}
+
+impl Default for PrintPdfRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            landscape: false,
+        }
+    }
+}
+
 impl Default for ScreenshotRequest {
     fn default() -> Self {
         Self {
@@ -681,6 +897,33 @@ impl Default for UploadFileRequest {
             selector: String::new(),
             files: Vec::new(),
             target_id: None,
+        }
+    }
+}
+
+impl Default for GetCookiesRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            urls: None,
+        }
+    }
+}
+
+impl Default for SetCookiesRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            cookies: Vec::new(),
+        }
+    }
+}
+
+impl Default for ConfigureDownloadsRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            download_path: String::new(),
         }
     }
 }
@@ -839,6 +1082,63 @@ impl ClickRequest {
     }
 }
 
+impl MouseMoveRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            x: self.x,
+            y: self.y,
+            buttons: self.buttons.max(0),
+        }
+    }
+}
+
+impl MouseDownRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            x: self.x,
+            y: self.y,
+            button: if self.button.trim().is_empty() {
+                default_click_button()
+            } else {
+                self.button.clone()
+            },
+            buttons: self.buttons.max(0),
+            click_count: self.click_count.max(1),
+        }
+    }
+}
+
+impl MouseUpRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            x: self.x,
+            y: self.y,
+            button: if self.button.trim().is_empty() {
+                default_click_button()
+            } else {
+                self.button.clone()
+            },
+            buttons: self.buttons.max(0),
+            click_count: self.click_count.max(1),
+        }
+    }
+}
+
 impl TypeTextRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -905,6 +1205,49 @@ impl ScrollRequest {
     }
 }
 
+impl SetViewportRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            width: if self.width == 0 {
+                default_viewport_width()
+            } else {
+                self.width
+            },
+            height: if self.height == 0 {
+                default_viewport_height()
+            } else {
+                self.height
+            },
+            device_scale_factor: if self.device_scale_factor.is_finite()
+                && self.device_scale_factor > 0.0
+            {
+                self.device_scale_factor
+            } else {
+                default_device_scale_factor()
+            },
+            mobile: self.mobile,
+        }
+    }
+}
+
+impl PrintPdfRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            landscape: self.landscape,
+        }
+    }
+}
+
 impl ScreenshotRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -947,6 +1290,45 @@ impl UploadFileRequest {
             selector: self.selector.clone(),
             files: self.files.clone(),
             target_id: self.target_id.clone(),
+        }
+    }
+}
+
+impl GetCookiesRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            urls: self.urls.clone().filter(|urls| !urls.is_empty()),
+        }
+    }
+}
+
+impl SetCookiesRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            cookies: self.cookies.clone(),
+        }
+    }
+}
+
+impl ConfigureDownloadsRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            download_path: self.download_path.clone(),
         }
     }
 }
@@ -1116,6 +1498,111 @@ impl WaitForLoadEventRequest {
     }
 }
 
+impl Default for WaitForDownloadRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            filename: None,
+            url: None,
+            timeout_ms: default_wait_timeout_ms(),
+            poll_interval_ms: default_poll_interval_ms(),
+        }
+    }
+}
+
+impl WaitForDownloadRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            filename: self
+                .filename
+                .as_ref()
+                .map(|filename| filename.trim())
+                .filter(|filename| !filename.is_empty())
+                .map(str::to_string),
+            url: self
+                .url
+                .as_ref()
+                .map(|url| url.trim())
+                .filter(|url| !url.is_empty())
+                .map(str::to_string),
+            timeout_ms: self.timeout_ms,
+            poll_interval_ms: if self.poll_interval_ms == 0 {
+                default_poll_interval_ms()
+            } else {
+                self.poll_interval_ms
+            },
+        }
+    }
+
+    pub fn into_wait_for_event_request(self) -> WaitForEventRequest {
+        let request = self.normalized();
+        WaitForEventRequest {
+            daemon_name: request.daemon_name,
+            filter: download_will_begin_filter(request.url.as_deref(), request.filename.as_deref()),
+            timeout_ms: request.timeout_ms,
+            poll_interval_ms: request.poll_interval_ms,
+        }
+    }
+}
+
+impl Default for WaitForRequestRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            session_id: None,
+            url: String::new(),
+            method: None,
+            timeout_ms: default_wait_timeout_ms(),
+            poll_interval_ms: default_poll_interval_ms(),
+        }
+    }
+}
+
+impl WaitForRequestRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            session_id: self.session_id.clone(),
+            url: self.url.clone(),
+            method: self
+                .method
+                .as_ref()
+                .map(|method| method.trim())
+                .filter(|method| !method.is_empty())
+                .map(str::to_string),
+            timeout_ms: self.timeout_ms,
+            poll_interval_ms: if self.poll_interval_ms == 0 {
+                default_poll_interval_ms()
+            } else {
+                self.poll_interval_ms
+            },
+        }
+    }
+
+    pub fn into_wait_for_event_request(self) -> WaitForEventRequest {
+        let request = self.normalized();
+        WaitForEventRequest {
+            daemon_name: request.daemon_name,
+            filter: request_will_be_sent_filter(
+                request.session_id.as_deref(),
+                &request.url,
+                request.method.as_deref(),
+            ),
+            timeout_ms: request.timeout_ms,
+            poll_interval_ms: request.poll_interval_ms,
+        }
+    }
+}
+
 impl WaitForResponseRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -1275,6 +1762,18 @@ pub fn default_operations() -> Vec<HostOperation> {
         ),
         compatibility_helper(META_CLICK, "Dispatch a browser-level pointer click."),
         compatibility_helper(
+            META_MOUSE_MOVE,
+            "Dispatch a low-level browser mouse move event with an explicit buttons bitfield.",
+        ),
+        compatibility_helper(
+            META_MOUSE_DOWN,
+            "Dispatch a low-level browser mouse press event for drag-style flows.",
+        ),
+        compatibility_helper(
+            META_MOUSE_UP,
+            "Dispatch a low-level browser mouse release event for drag-style flows.",
+        ),
+        compatibility_helper(
             META_TYPE_TEXT,
             "Insert text using browser input primitives.",
         ),
@@ -1287,6 +1786,18 @@ pub fn default_operations() -> Vec<HostOperation> {
             "Dispatch a DOM KeyboardEvent on a matched element.",
         ),
         compatibility_helper(META_SCROLL, "Dispatch browser-level mouse wheel scrolling."),
+        compatibility_helper(
+            META_SET_VIEWPORT,
+            "Override page viewport/device metrics for layout-sensitive automation.",
+        ),
+        compatibility_helper(
+            META_PRINT_PDF,
+            "Render the current page to a base64 PDF artifact.",
+        ),
+        compatibility_helper(
+            META_CONFIGURE_DOWNLOADS,
+            "Configure the browser download directory and enable download events.",
+        ),
         compatibility_helper(META_SCREENSHOT, "Capture the current page as an image."),
         compatibility_helper(
             META_HANDLE_DIALOG,
@@ -1295,6 +1806,14 @@ pub fn default_operations() -> Vec<HostOperation> {
         compatibility_helper(
             META_UPLOAD_FILE,
             "Assign files to an input element in the current page or iframe target.",
+        ),
+        compatibility_helper(
+            META_GET_COOKIES,
+            "Read browser cookies for the current page or explicit URLs.",
+        ),
+        compatibility_helper(
+            META_SET_COOKIES,
+            "Write browser cookies through the active page session.",
         ),
         HostOperation {
             name: "current_session",
@@ -1328,6 +1847,20 @@ pub fn default_operations() -> Vec<HostOperation> {
             stability: Stability::Preview,
             description:
                 "Wait for Page.loadEventFired, optionally scoped to a specific attached session.",
+        },
+        HostOperation {
+            name: "wait_for_download",
+            kind: ProtocolFamilyKind::HostUtility,
+            stability: Stability::Preview,
+            description:
+                "Wait for Browser.downloadWillBegin matching an optional URL or suggested filename.",
+        },
+        HostOperation {
+            name: "wait_for_request",
+            kind: ProtocolFamilyKind::HostUtility,
+            stability: Stability::Preview,
+            description:
+                "Wait for Network.requestWillBeSent matching a URL and optional HTTP method.",
         },
         HostOperation {
             name: "wait_for_response",
@@ -1420,6 +1953,25 @@ pub fn load_event_filter(session_id: Option<&str>) -> EventFilter {
     }
 }
 
+pub fn download_will_begin_filter(url: Option<&str>, filename: Option<&str>) -> EventFilter {
+    let mut params = serde_json::Map::new();
+    if let Some(url) = url {
+        params.insert("url".to_string(), Value::String(url.to_string()));
+    }
+    if let Some(filename) = filename {
+        params.insert(
+            "suggestedFilename".to_string(),
+            Value::String(filename.to_string()),
+        );
+    }
+
+    EventFilter {
+        method: Some("Browser.downloadWillBegin".to_string()),
+        session_id: None,
+        params_subset: (!params.is_empty()).then_some(Value::Object(params)),
+    }
+}
+
 pub fn response_received_filter(
     session_id: Option<&str>,
     url: &str,
@@ -1436,6 +1988,27 @@ pub fn response_received_filter(
 
     EventFilter {
         method: Some("Network.responseReceived".to_string()),
+        session_id: session_id.map(str::to_string),
+        params_subset: Some(Value::Object(params)),
+    }
+}
+
+pub fn request_will_be_sent_filter(
+    session_id: Option<&str>,
+    url: &str,
+    method: Option<&str>,
+) -> EventFilter {
+    let mut request = serde_json::Map::new();
+    request.insert("url".to_string(), Value::String(url.to_string()));
+    if let Some(method) = method {
+        request.insert("method".to_string(), Value::String(method.to_string()));
+    }
+
+    let mut params = serde_json::Map::new();
+    params.insert("request".to_string(), Value::Object(request));
+
+    EventFilter {
+        method: Some("Network.requestWillBeSent".to_string()),
         session_id: session_id.map(str::to_string),
         params_subset: Some(Value::Object(params)),
     }
@@ -1585,6 +2158,14 @@ fn default_clicks() -> i64 {
     1
 }
 
+fn default_mouse_buttons_idle() -> i64 {
+    0
+}
+
+fn default_mouse_buttons_pressed() -> i64 {
+    1
+}
+
 fn default_dispatch_key() -> String {
     "Enter".to_string()
 }
@@ -1613,6 +2194,18 @@ fn default_scroll_dy() -> f64 {
     -300.0
 }
 
+fn default_viewport_width() -> u32 {
+    1280
+}
+
+fn default_viewport_height() -> u32 {
+    800
+}
+
+fn default_device_scale_factor() -> f64 {
+    1.0
+}
+
 fn json_contains_subset(actual: &Value, expected: &Value) -> bool {
     match (actual, expected) {
         (Value::Object(actual), Value::Object(expected)) => expected.iter().all(|(key, value)| {
@@ -1639,14 +2232,16 @@ mod tests {
     use super::{
         console_event_filter, console_event_matches, default_manifest, default_runner_config,
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
-        response_received_filter, CdpRawRequest, ClickRequest, CurrentSessionRequest,
-        CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest, EventFilter, ExecutionModel,
-        GotoRequest, GuestTransport, HandleDialogRequest, HttpGetRequest, IframeTargetRequest,
-        JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest, PressKeyRequest,
-        ProtocolFamilyKind, ScreenshotRequest, ScrollRequest, Stability, SwitchTabRequest,
+        request_will_be_sent_filter, response_received_filter, CdpRawRequest, ClickRequest,
+        ConfigureDownloadsRequest, CurrentSessionRequest, CurrentTabRequest, DispatchKeyRequest,
+        EnsureRealTabRequest, EventFilter, ExecutionModel, GetCookiesRequest, GotoRequest,
+        GuestTransport, HandleDialogRequest, HttpGetRequest, IframeTargetRequest, JsRequest,
+        ListTabsRequest, MouseDownRequest, MouseMoveRequest, MouseUpRequest, NewTabRequest,
+        PageInfoRequest, PressKeyRequest, PrintPdfRequest, ProtocolFamilyKind, ScreenshotRequest,
+        ScrollRequest, SetCookiesRequest, SetViewportRequest, Stability, SwitchTabRequest,
         TypeTextRequest, UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest,
-        WaitForEventRequest, WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest,
-        WatchEventsLine, WatchEventsRequest,
+        WaitForDownloadRequest, WaitForEventRequest, WaitForLoadEventRequest, WaitForLoadRequest,
+        WaitForRequestRequest, WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
     };
     use std::collections::BTreeMap;
 
@@ -1690,13 +2285,23 @@ mod tests {
         assert!(names.contains(&"wait_for_event"));
         assert!(names.contains(&"watch_events"));
         assert!(names.contains(&"wait_for_load_event"));
+        assert!(names.contains(&"configure_downloads"));
+        assert!(names.contains(&"wait_for_download"));
+        assert!(names.contains(&"wait_for_request"));
         assert!(names.contains(&"wait_for_response"));
         assert!(names.contains(&"wait_for_console"));
         assert!(names.contains(&"wait_for_dialog"));
+        assert!(names.contains(&"set_viewport"));
+        assert!(names.contains(&"print_pdf"));
         assert!(names.contains(&"screenshot"));
         assert!(names.contains(&"handle_dialog"));
+        assert!(names.contains(&"mouse_move"));
+        assert!(names.contains(&"mouse_down"));
+        assert!(names.contains(&"mouse_up"));
         assert!(names.contains(&"dispatch_key"));
         assert!(names.contains(&"upload_file"));
+        assert!(names.contains(&"get_cookies"));
+        assert!(names.contains(&"set_cookies"));
         assert!(names.contains(&"http_get"));
         assert!(names.contains(&"cdp_raw"));
     }
@@ -1807,6 +2412,76 @@ mod tests {
         assert_eq!(built.filter.method.as_deref(), Some("Page.loadEventFired"));
         assert_eq!(built.filter.session_id.as_deref(), Some("session-9"));
         assert_eq!(built.filter.params_subset, None);
+    }
+
+    #[test]
+    fn configure_downloads_request_normalizes_blank_name() {
+        let request = ConfigureDownloadsRequest {
+            daemon_name: "   ".to_string(),
+            download_path: "/tmp/downloads".to_string(),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.download_path, "/tmp/downloads");
+    }
+
+    #[test]
+    fn wait_for_download_request_builds_filename_and_url_filter() {
+        let request = WaitForDownloadRequest {
+            daemon_name: "runner".to_string(),
+            filename: Some("report.txt".to_string()),
+            url: Some("blob:https://example.com/token".to_string()),
+            timeout_ms: 3210,
+            poll_interval_ms: 25,
+        };
+        let built = request.into_wait_for_event_request();
+
+        assert_eq!(built.daemon_name, "runner");
+        assert_eq!(built.timeout_ms, 3210);
+        assert_eq!(built.poll_interval_ms, 25);
+        assert_eq!(
+            built.filter.method.as_deref(),
+            Some("Browser.downloadWillBegin")
+        );
+        assert_eq!(
+            built.filter.params_subset,
+            Some(json!({
+                "url": "blob:https://example.com/token",
+                "suggestedFilename": "report.txt"
+            }))
+        );
+    }
+
+    #[test]
+    fn wait_for_request_request_builds_scoped_wait_for_event_request() {
+        let request = WaitForRequestRequest {
+            daemon_name: "runner".to_string(),
+            session_id: Some("session-5".to_string()),
+            url: "https://example.com/api".to_string(),
+            method: Some("POST".to_string()),
+            timeout_ms: 3210,
+            poll_interval_ms: 25,
+        };
+        let built = request.into_wait_for_event_request();
+
+        assert_eq!(built.daemon_name, "runner");
+        assert_eq!(built.timeout_ms, 3210);
+        assert_eq!(built.poll_interval_ms, 25);
+        assert_eq!(
+            built.filter.method.as_deref(),
+            Some("Network.requestWillBeSent")
+        );
+        assert_eq!(built.filter.session_id.as_deref(), Some("session-5"));
+        assert_eq!(
+            built.filter.params_subset,
+            Some(json!({
+                "request": {
+                    "url": "https://example.com/api",
+                    "method": "POST"
+                }
+            }))
+        );
     }
 
     #[test]
@@ -1938,6 +2613,52 @@ mod tests {
     }
 
     #[test]
+    fn mouse_move_request_normalizes_blank_name_and_negative_buttons() {
+        let request = MouseMoveRequest {
+            daemon_name: "   ".to_string(),
+            x: 10.0,
+            y: 20.0,
+            buttons: -2,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.x, 10.0);
+        assert_eq!(normalized.buttons, 0);
+    }
+
+    #[test]
+    fn mouse_button_requests_normalize_defaults_and_click_count() {
+        let down = MouseDownRequest {
+            daemon_name: "   ".to_string(),
+            x: 10.0,
+            y: 20.0,
+            button: "   ".to_string(),
+            buttons: -1,
+            click_count: 0,
+        }
+        .normalized();
+        assert_eq!(down.daemon_name, "default");
+        assert_eq!(down.button, "left");
+        assert_eq!(down.buttons, 0);
+        assert_eq!(down.click_count, 1);
+
+        let up = MouseUpRequest {
+            daemon_name: "   ".to_string(),
+            x: 30.0,
+            y: 40.0,
+            button: "   ".to_string(),
+            buttons: -3,
+            click_count: 0,
+        }
+        .normalized();
+        assert_eq!(up.daemon_name, "default");
+        assert_eq!(up.button, "left");
+        assert_eq!(up.buttons, 0);
+        assert_eq!(up.click_count, 1);
+    }
+
+    #[test]
     fn type_text_request_normalizes_blank_name() {
         let request = TypeTextRequest {
             daemon_name: "   ".to_string(),
@@ -1996,6 +2717,36 @@ mod tests {
     }
 
     #[test]
+    fn set_viewport_request_normalizes_blank_name_and_invalid_dimensions() {
+        let request = SetViewportRequest {
+            daemon_name: "   ".to_string(),
+            width: 0,
+            height: 0,
+            device_scale_factor: 0.0,
+            mobile: true,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.width, 1280);
+        assert_eq!(normalized.height, 800);
+        assert_eq!(normalized.device_scale_factor, 1.0);
+        assert!(normalized.mobile);
+    }
+
+    #[test]
+    fn print_pdf_request_normalizes_blank_name() {
+        let request = PrintPdfRequest {
+            daemon_name: "   ".to_string(),
+            landscape: true,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert!(normalized.landscape);
+    }
+
+    #[test]
     fn screenshot_request_normalizes_blank_name() {
         let request = ScreenshotRequest {
             daemon_name: "   ".to_string(),
@@ -2035,6 +2786,30 @@ mod tests {
         assert_eq!(normalized.selector, "#file");
         assert_eq!(normalized.files, vec!["/tmp/example.txt".to_string()]);
         assert_eq!(normalized.target_id.as_deref(), Some("iframe-1"));
+    }
+
+    #[test]
+    fn get_cookies_request_normalizes_blank_name_and_empty_urls() {
+        let request = GetCookiesRequest {
+            daemon_name: "   ".to_string(),
+            urls: Some(Vec::new()),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.urls, None);
+    }
+
+    #[test]
+    fn set_cookies_request_normalizes_blank_name() {
+        let request = SetCookiesRequest {
+            daemon_name: "   ".to_string(),
+            cookies: vec![],
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert!(normalized.cookies.is_empty());
     }
 
     #[test]
@@ -2110,6 +2885,41 @@ mod tests {
         assert!(!event_matches_filter(
             &event,
             &response_received_filter(Some("session-2"), "https://example.com/api", Some(404))
+        ));
+    }
+
+    #[test]
+    fn request_will_be_sent_filter_scopes_url_method_and_session() {
+        let event = json!({
+            "method": "Network.requestWillBeSent",
+            "session_id": "session-2",
+            "params": {
+                "request": {
+                    "url": "https://example.com/api",
+                    "method": "POST"
+                }
+            }
+        });
+
+        assert!(event_matches_filter(
+            &event,
+            &request_will_be_sent_filter(
+                Some("session-2"),
+                "https://example.com/api",
+                Some("POST")
+            )
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &request_will_be_sent_filter(
+                Some("session-1"),
+                "https://example.com/api",
+                Some("POST")
+            )
+        ));
+        assert!(!event_matches_filter(
+            &event,
+            &request_will_be_sent_filter(Some("session-2"), "https://example.com/api", Some("GET"))
         ));
     }
 

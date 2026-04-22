@@ -5,23 +5,26 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use bh_protocol::{
-    DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY,
-    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
-    META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT,
-    META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
-    META_WAIT_FOR_LOAD,
+    DaemonRequest, DaemonResponse, META_CLICK, META_CONFIGURE_DOWNLOADS, META_CURRENT_TAB,
+    META_DISPATCH_KEY, META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GET_COOKIES, META_GOTO,
+    META_HANDLE_DIALOG, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_MOUSE_DOWN,
+    META_MOUSE_MOVE, META_MOUSE_UP, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_PRINT_PDF,
+    META_SCREENSHOT, META_SCROLL, META_SESSION, META_SET_COOKIES, META_SET_VIEWPORT,
+    META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
 };
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
-    operation_names, CdpRawRequest, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
-    CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest, GotoRequest, GuestCallRecord,
+    operation_names, CdpRawRequest, ClickRequest, ConfigureDownloadsRequest, CookieParam,
+    CookieRecord, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
+    DispatchKeyRequest, EnsureRealTabRequest, GetCookiesRequest, GotoRequest, GuestCallRecord,
     GuestRunResult, GuestServeRequest, GuestServeResponse, HandleDialogRequest, HttpGetRequest,
-    IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest,
-    PressKeyRequest, RunnerConfig, ScreenshotRequest, ScrollRequest, SwitchTabRequest,
-    SwitchTabResult, TabSummary, TypeTextRequest, UploadFileRequest, WaitForConsoleRequest,
-    WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
-    WaitForLoadRequest, WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine,
-    WatchEventsRequest,
+    IframeTargetRequest, JsRequest, ListTabsRequest, MouseDownRequest, MouseMoveRequest,
+    MouseUpRequest, NewTabRequest, NewTabResult, PageInfoRequest, PressKeyRequest, PrintPdfRequest,
+    RunnerConfig, ScreenshotRequest, ScrollRequest, SetCookiesRequest, SetViewportRequest,
+    SwitchTabRequest, SwitchTabResult, TabSummary, TypeTextRequest, UploadFileRequest,
+    WaitForConsoleRequest, WaitForDialogRequest, WaitForDownloadRequest, WaitForEventRequest,
+    WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest, WaitForRequestRequest,
+    WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine, WatchEventsRequest,
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde_json::{json, Value};
@@ -33,7 +36,7 @@ const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|handle-dialog|upload-file|wait|http-get|current-session|drain-events|cdp-raw|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|mouse-move|mouse-down|mouse-up|type-text|press-key|dispatch-key|scroll|set-viewport|print-pdf|screenshot|handle-dialog|upload-file|get-cookies|set-cookies|configure-downloads|wait|http-get|current-session|drain-events|cdp-raw|wait-for-event|watch-events|wait-for-load-event|wait-for-download|wait-for-request|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
@@ -68,7 +71,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live dispatch_key=live scroll=live screenshot=live handle_dialog=live upload_file=live wait=live http_get=live current_session=live cdp_raw=experimental wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live mouse_move=live mouse_down=live mouse_up=live type_text=live press_key=live dispatch_key=live scroll=live set_viewport=live print_pdf=live screenshot=live handle_dialog=live upload_file=live get_cookies=live set_cookies=live configure_downloads=live wait=live http_get=live current_session=live cdp_raw=experimental wait_for_event=live watch_events=live wait_for_download=live wait_for_request=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -147,6 +150,23 @@ where
             let result = click(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("mouse-move") => {
+            let request =
+                read_optional_json::<MouseMoveRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = mouse_move(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("mouse-down") => {
+            let request =
+                read_optional_json::<MouseDownRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = mouse_down(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("mouse-up") => {
+            let request = read_optional_json::<MouseUpRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = mouse_up(request)?;
+            write_json(&mut stdout, &result)
+        }
         Some("type-text") => {
             let request = read_optional_json::<TypeTextRequest, _>(&mut stdin)?.unwrap_or_default();
             let result = type_text(request)?;
@@ -167,6 +187,17 @@ where
             let result = scroll(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("set-viewport") => {
+            let request =
+                read_optional_json::<SetViewportRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = set_viewport(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("print-pdf") => {
+            let request = read_optional_json::<PrintPdfRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = print_pdf(request)?;
+            write_json(&mut stdout, &result)
+        }
         Some("screenshot") => {
             let request =
                 read_optional_json::<ScreenshotRequest, _>(&mut stdin)?.unwrap_or_default();
@@ -182,6 +213,22 @@ where
         Some("upload-file") => {
             let request = read_json::<UploadFileRequest, _>(&mut stdin)?;
             let result = upload_file(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("get-cookies") => {
+            let request =
+                read_optional_json::<GetCookiesRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = get_cookies(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("set-cookies") => {
+            let request = read_json::<SetCookiesRequest, _>(&mut stdin)?;
+            let result = set_cookies(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("configure-downloads") => {
+            let request = read_json::<ConfigureDownloadsRequest, _>(&mut stdin)?;
+            let result = configure_downloads(request)?;
             write_json(&mut stdout, &result)
         }
         Some("wait") => {
@@ -223,6 +270,16 @@ where
         Some("wait-for-load-event") => {
             let request = read_json::<WaitForLoadEventRequest, _>(&mut stdin)?;
             let result = wait_for_load_event(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("wait-for-download") => {
+            let request = read_json::<WaitForDownloadRequest, _>(&mut stdin)?;
+            let result = wait_for_download(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("wait-for-request") => {
+            let request = read_json::<WaitForRequestRequest, _>(&mut stdin)?;
+            let result = wait_for_request(request)?;
             write_json(&mut stdout, &result)
         }
         Some("wait-for-response") => {
@@ -303,6 +360,18 @@ fn click(request: ClickRequest) -> Result<(), String> {
     click_with_sender(request, send_daemon_request)
 }
 
+fn mouse_move(request: MouseMoveRequest) -> Result<(), String> {
+    mouse_move_with_sender(request, send_daemon_request)
+}
+
+fn mouse_down(request: MouseDownRequest) -> Result<(), String> {
+    mouse_down_with_sender(request, send_daemon_request)
+}
+
+fn mouse_up(request: MouseUpRequest) -> Result<(), String> {
+    mouse_up_with_sender(request, send_daemon_request)
+}
+
 fn type_text(request: TypeTextRequest) -> Result<(), String> {
     type_text_with_sender(request, send_daemon_request)
 }
@@ -319,6 +388,14 @@ fn scroll(request: ScrollRequest) -> Result<(), String> {
     scroll_with_sender(request, send_daemon_request)
 }
 
+fn set_viewport(request: SetViewportRequest) -> Result<(), String> {
+    set_viewport_with_sender(request, send_daemon_request)
+}
+
+fn print_pdf(request: PrintPdfRequest) -> Result<String, String> {
+    print_pdf_with_sender(request, send_daemon_request)
+}
+
 fn screenshot(request: ScreenshotRequest) -> Result<String, String> {
     screenshot_with_sender(request, send_daemon_request)
 }
@@ -329,6 +406,18 @@ fn handle_dialog(request: HandleDialogRequest) -> Result<(), String> {
 
 fn upload_file(request: UploadFileRequest) -> Result<(), String> {
     upload_file_with_sender(request, send_daemon_request)
+}
+
+fn get_cookies(request: GetCookiesRequest) -> Result<Vec<CookieRecord>, String> {
+    get_cookies_with_sender(request, send_daemon_request)
+}
+
+fn set_cookies(request: SetCookiesRequest) -> Result<(), String> {
+    set_cookies_with_sender(request, send_daemon_request)
+}
+
+fn configure_downloads(request: ConfigureDownloadsRequest) -> Result<(), String> {
+    configure_downloads_with_sender(request, send_daemon_request)
 }
 
 fn wait(request: WaitRequest) -> WaitResult {
@@ -795,6 +884,57 @@ where
     )
 }
 
+fn mouse_move_with_sender<F>(request: MouseMoveRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_MOUSE_MOVE,
+        Some(json!({"x": request.x, "y": request.y, "buttons": request.buttons})),
+        &mut sender,
+    )
+}
+
+fn mouse_down_with_sender<F>(request: MouseDownRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_MOUSE_DOWN,
+        Some(json!({
+            "x": request.x,
+            "y": request.y,
+            "button": request.button,
+            "buttons": request.buttons,
+            "click_count": request.click_count,
+        })),
+        &mut sender,
+    )
+}
+
+fn mouse_up_with_sender<F>(request: MouseUpRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_MOUSE_UP,
+        Some(json!({
+            "x": request.x,
+            "y": request.y,
+            "button": request.button,
+            "buttons": request.buttons,
+            "click_count": request.click_count,
+        })),
+        &mut sender,
+    )
+}
+
 fn type_text_with_sender<F>(request: TypeTextRequest, mut sender: F) -> Result<(), String>
 where
     F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
@@ -847,6 +987,39 @@ where
         &request.daemon_name,
         META_SCROLL,
         Some(json!({"x": request.x, "y": request.y, "dx": request.dx, "dy": request.dy})),
+        &mut sender,
+    )
+}
+
+fn set_viewport_with_sender<F>(request: SetViewportRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_SET_VIEWPORT,
+        Some(json!({
+            "width": request.width,
+            "height": request.height,
+            "device_scale_factor": request.device_scale_factor,
+            "mobile": request.mobile,
+        })),
+        &mut sender,
+    )
+}
+
+fn print_pdf_with_sender<F>(request: PrintPdfRequest, mut sender: F) -> Result<String, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_PRINT_PDF,
+        Some(json!({
+            "landscape": request.landscape,
+        })),
         &mut sender,
     )
 }
@@ -905,11 +1078,69 @@ where
     )
 }
 
+fn get_cookies_with_sender<F>(
+    request: GetCookiesRequest,
+    mut sender: F,
+) -> Result<Vec<CookieRecord>, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let params = request.urls.map(|urls| json!({ "urls": urls }));
+    typed_meta_result_with_sender(&request.daemon_name, META_GET_COOKIES, params, &mut sender)
+}
+
+fn set_cookies_with_sender<F>(request: SetCookiesRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let cookies = request
+        .cookies
+        .into_iter()
+        .map(cookie_param_to_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_SET_COOKIES,
+        Some(json!({ "cookies": cookies })),
+        &mut sender,
+    )
+}
+
+fn configure_downloads_with_sender<F>(
+    request: ConfigureDownloadsRequest,
+    mut sender: F,
+) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_CONFIGURE_DOWNLOADS,
+        Some(json!({ "download_path": request.download_path })),
+        &mut sender,
+    )
+}
+
+fn cookie_param_to_value(cookie: CookieParam) -> Result<Value, String> {
+    serde_json::to_value(cookie).map_err(|err| format!("serialize cookie param: {err}"))
+}
+
 fn wait_for_event(request: WaitForEventRequest) -> Result<WaitForEventResult, String> {
     wait_for_event_with_drain(request, drain_events)
 }
 
 fn wait_for_load_event(request: WaitForLoadEventRequest) -> Result<WaitForEventResult, String> {
+    wait_for_event(request.into_wait_for_event_request())
+}
+
+fn wait_for_download(request: WaitForDownloadRequest) -> Result<WaitForEventResult, String> {
+    wait_for_event(request.into_wait_for_event_request())
+}
+
+fn wait_for_request(request: WaitForRequestRequest) -> Result<WaitForEventResult, String> {
     wait_for_event(request.into_wait_for_event_request())
 }
 
@@ -1256,6 +1487,13 @@ fn dispatch_guest_operation(
         )?,
         "js" => js(parse_request_value(&request)?)?,
         "click" => serialize_guest_result(click(parse_request_value(&request)?), "click")?,
+        "mouse_move" => {
+            serialize_guest_result(mouse_move(parse_request_value(&request)?), "mouse_move")?
+        }
+        "mouse_down" => {
+            serialize_guest_result(mouse_down(parse_request_value(&request)?), "mouse_down")?
+        }
+        "mouse_up" => serialize_guest_result(mouse_up(parse_request_value(&request)?), "mouse_up")?,
         "type_text" => {
             serialize_guest_result(type_text(parse_request_value(&request)?), "type_text")?
         }
@@ -1266,6 +1504,12 @@ fn dispatch_guest_operation(
             serialize_guest_result(dispatch_key(parse_request_value(&request)?), "dispatch_key")?
         }
         "scroll" => serialize_guest_result(scroll(parse_request_value(&request)?), "scroll")?,
+        "set_viewport" => {
+            serialize_guest_result(set_viewport(parse_request_value(&request)?), "set_viewport")?
+        }
+        "print_pdf" => {
+            serialize_guest_result(print_pdf(parse_request_value(&request)?), "print_pdf")?
+        }
         "screenshot" => {
             serialize_guest_result(screenshot(parse_request_value(&request)?), "screenshot")?
         }
@@ -1276,6 +1520,16 @@ fn dispatch_guest_operation(
         "upload_file" => {
             serialize_guest_result(upload_file(parse_request_value(&request)?), "upload_file")?
         }
+        "get_cookies" => {
+            serialize_guest_result(get_cookies(parse_request_value(&request)?), "get_cookies")?
+        }
+        "set_cookies" => {
+            serialize_guest_result(set_cookies(parse_request_value(&request)?), "set_cookies")?
+        }
+        "configure_downloads" => serialize_guest_result(
+            configure_downloads(parse_request_value(&request)?),
+            "configure_downloads",
+        )?,
         "wait" => serialize_guest_result(Ok(wait(parse_request_value(&request)?)), "wait")?,
         "http_get" => serialize_guest_result(http_get(parse_request_value(&request)?), "http_get")?,
         "wait_for_event" => serialize_guest_result(
@@ -1289,6 +1543,14 @@ fn dispatch_guest_operation(
         "wait_for_load_event" => serialize_guest_result(
             wait_for_load_event(parse_request_value(&request)?),
             "wait_for_load_event",
+        )?,
+        "wait_for_download" => serialize_guest_result(
+            wait_for_download(parse_request_value(&request)?),
+            "wait_for_download",
+        )?,
+        "wait_for_request" => serialize_guest_result(
+            wait_for_request(parse_request_value(&request)?),
+            "wait_for_request",
         )?,
         "wait_for_response" => serialize_guest_result(
             wait_for_response(parse_request_value(&request)?),
@@ -1471,20 +1733,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        cdp_raw_with_sender, click_with_sender, current_session_with_sender,
-        current_tab_with_sender, daemon_read_timeout, dispatch_guest_operation,
-        dispatch_key_with_sender, drain_events_with_sender, ensure_real_tab_with_sender,
-        goto_with_sender, handle_dialog_with_sender, http_get, iframe_target_with_sender,
-        inject_daemon_name, js_with_sender, list_tabs_with_sender, new_tab_with_sender,
-        page_info_with_sender, press_key_with_sender, run_cli, screenshot_with_sender,
-        scroll_with_sender, serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
-        upload_file_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
-        wait_for_load_with_sender, watch_events_collect_with_drain, watch_events_with_drain,
-        DaemonResponse, GuestHostState, GuestRuntime, META_CLICK, META_CURRENT_TAB,
-        META_DISPATCH_KEY, META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG,
-        META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
-        META_SCREENSHOT, META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT,
-        META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+        cdp_raw_with_sender, click_with_sender, configure_downloads_with_sender,
+        current_session_with_sender, current_tab_with_sender, daemon_read_timeout,
+        dispatch_guest_operation, dispatch_key_with_sender, drain_events_with_sender,
+        ensure_real_tab_with_sender, get_cookies_with_sender, goto_with_sender,
+        handle_dialog_with_sender, http_get, iframe_target_with_sender, inject_daemon_name,
+        js_with_sender, list_tabs_with_sender, mouse_down_with_sender, mouse_move_with_sender,
+        mouse_up_with_sender, new_tab_with_sender, page_info_with_sender, press_key_with_sender,
+        print_pdf_with_sender, run_cli, screenshot_with_sender, scroll_with_sender,
+        serialize_guest_result, set_cookies_with_sender, set_viewport_with_sender,
+        switch_tab_with_sender, type_text_with_sender, upload_file_with_sender, wait,
+        wait_for_console_with_drain, wait_for_event_with_drain, wait_for_load_with_sender,
+        watch_events_collect_with_drain, watch_events_with_drain, DaemonResponse, GuestHostState,
+        GuestRuntime, META_CLICK, META_CONFIGURE_DOWNLOADS, META_CURRENT_TAB, META_DISPATCH_KEY,
+        META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GET_COOKIES, META_GOTO, META_HANDLE_DIALOG,
+        META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_MOUSE_DOWN, META_MOUSE_MOVE,
+        META_MOUSE_UP, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_PRINT_PDF,
+        META_SCREENSHOT, META_SCROLL, META_SESSION, META_SET_COOKIES, META_SET_VIEWPORT,
+        META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
     };
     use std::collections::BTreeMap;
     use std::collections::VecDeque;
@@ -1495,13 +1761,15 @@ mod tests {
 
     use bh_protocol::DaemonRequest;
     use bh_wasm_host::{
-        default_runner_config, CdpRawRequest, ClickRequest, CurrentSessionRequest,
-        CurrentSessionResult, CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest,
-        EventFilter, GotoRequest, GuestServeResponse, HandleDialogRequest, HttpGetRequest,
-        IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest,
-        PressKeyRequest, RunnerConfig, ScreenshotRequest, ScrollRequest, SwitchTabRequest,
-        TypeTextRequest, UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest,
-        WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest,
+        default_runner_config, CdpRawRequest, ClickRequest, ConfigureDownloadsRequest, CookieParam,
+        CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest, DispatchKeyRequest,
+        EnsureRealTabRequest, EventFilter, GetCookiesRequest, GotoRequest, GuestServeResponse,
+        HandleDialogRequest, HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest,
+        MouseDownRequest, MouseMoveRequest, MouseUpRequest, NewTabRequest, PageInfoRequest,
+        PressKeyRequest, PrintPdfRequest, RunnerConfig, ScreenshotRequest, ScrollRequest,
+        SetCookiesRequest, SetViewportRequest, SwitchTabRequest, TypeTextRequest,
+        UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
+        WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest, WaitForRequestRequest,
         WaitForResponseRequest, WaitRequest, WatchEventsLine, WatchEventsRequest,
     };
     use serde_json::{json, Value};
@@ -2095,6 +2363,118 @@ mod tests {
     }
 
     #[test]
+    fn mouse_move_uses_meta_request_payload() {
+        mouse_move_with_sender(
+            MouseMoveRequest {
+                daemon_name: "runner".to_string(),
+                x: 12.0,
+                y: 34.0,
+                buttons: 1,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_MOUSE_MOVE));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("x"))
+                        .and_then(Value::as_f64),
+                    Some(12.0)
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("buttons"))
+                        .and_then(Value::as_i64),
+                    Some(1)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("mouse move result");
+    }
+
+    #[test]
+    fn mouse_button_commands_use_meta_request_payload() {
+        mouse_down_with_sender(
+            MouseDownRequest {
+                daemon_name: "runner".to_string(),
+                x: 12.0,
+                y: 34.0,
+                button: "left".to_string(),
+                buttons: 1,
+                click_count: 1,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_MOUSE_DOWN));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("button"))
+                        .and_then(Value::as_str),
+                    Some("left")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("buttons"))
+                        .and_then(Value::as_i64),
+                    Some(1)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("mouse down result");
+
+        mouse_up_with_sender(
+            MouseUpRequest {
+                daemon_name: "runner".to_string(),
+                x: 56.0,
+                y: 78.0,
+                button: "left".to_string(),
+                buttons: 0,
+                click_count: 1,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_MOUSE_UP));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("x"))
+                        .and_then(Value::as_f64),
+                    Some(56.0)
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("buttons"))
+                        .and_then(Value::as_i64),
+                    Some(0)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("mouse up result");
+    }
+
+    #[test]
     fn type_text_uses_meta_request_payload() {
         type_text_with_sender(
             TypeTextRequest {
@@ -2262,6 +2642,89 @@ mod tests {
     }
 
     #[test]
+    fn set_viewport_uses_meta_request_payload() {
+        set_viewport_with_sender(
+            SetViewportRequest {
+                daemon_name: "runner".to_string(),
+                width: 900,
+                height: 700,
+                device_scale_factor: 2.0,
+                mobile: true,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_SET_VIEWPORT));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("width"))
+                        .and_then(Value::as_u64),
+                    Some(900)
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("height"))
+                        .and_then(Value::as_u64),
+                    Some(700)
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("device_scale_factor"))
+                        .and_then(Value::as_f64),
+                    Some(2.0)
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("mobile"))
+                        .and_then(Value::as_bool),
+                    Some(true)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("set viewport result");
+    }
+
+    #[test]
+    fn print_pdf_uses_meta_request_payload() {
+        let result = print_pdf_with_sender(
+            PrintPdfRequest {
+                daemon_name: "runner".to_string(),
+                landscape: true,
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_PRINT_PDF));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("landscape"))
+                        .and_then(Value::as_bool),
+                    Some(true)
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!("JVBERi0xLjQ=")),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("print pdf result");
+
+        assert_eq!(result, "JVBERi0xLjQ=");
+    }
+
+    #[test]
     fn handle_dialog_uses_meta_request_payload() {
         handle_dialog_with_sender(
             HandleDialogRequest {
@@ -2387,6 +2850,127 @@ mod tests {
     }
 
     #[test]
+    fn get_cookies_uses_meta_request_payload() {
+        let result = get_cookies_with_sender(
+            GetCookiesRequest {
+                daemon_name: "runner".to_string(),
+                urls: Some(vec!["https://example.com".to_string()]),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_GET_COOKIES));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.pointer("/urls/0"))
+                        .and_then(Value::as_str),
+                    Some("https://example.com")
+                );
+                Ok(DaemonResponse {
+                    result: Some(json!([
+                        {
+                            "name":"session",
+                            "value":"token",
+                            "domain":"example.com",
+                            "path":"/",
+                            "secure":true,
+                            "httpOnly":false,
+                            "session":false
+                        }
+                    ])),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("get cookies result");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "session");
+        assert_eq!(result[0].domain, "example.com");
+    }
+
+    #[test]
+    fn set_cookies_uses_meta_request_payload() {
+        set_cookies_with_sender(
+            SetCookiesRequest {
+                daemon_name: "runner".to_string(),
+                cookies: vec![CookieParam {
+                    name: "session".to_string(),
+                    value: "token".to_string(),
+                    url: Some("https://example.com".to_string()),
+                    domain: None,
+                    path: None,
+                    secure: Some(true),
+                    http_only: Some(false),
+                    same_site: Some("Lax".to_string()),
+                    expires: None,
+                }],
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_SET_COOKIES));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.pointer("/cookies/0/name"))
+                        .and_then(Value::as_str),
+                    Some("session")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.pointer("/cookies/0/url"))
+                        .and_then(Value::as_str),
+                    Some("https://example.com")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.pointer("/cookies/0/httpOnly"))
+                        .and_then(Value::as_bool),
+                    Some(false)
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("set cookies result");
+    }
+
+    #[test]
+    fn configure_downloads_uses_meta_request_payload() {
+        configure_downloads_with_sender(
+            ConfigureDownloadsRequest {
+                daemon_name: "runner".to_string(),
+                download_path: "/tmp/downloads".to_string(),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_CONFIGURE_DOWNLOADS));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("download_path"))
+                        .and_then(Value::as_str),
+                    Some("/tmp/downloads")
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("configure downloads result");
+    }
+
+    #[test]
     fn cli_summary_mentions_live_event_waiting() {
         let mut stdout = Vec::new();
 
@@ -2409,19 +2993,29 @@ mod tests {
         assert!(text.contains("wait_for_load=live"));
         assert!(text.contains("js=live"));
         assert!(text.contains("click=live"));
+        assert!(text.contains("mouse_move=live"));
+        assert!(text.contains("mouse_down=live"));
+        assert!(text.contains("mouse_up=live"));
         assert!(text.contains("type_text=live"));
         assert!(text.contains("press_key=live"));
         assert!(text.contains("dispatch_key=live"));
         assert!(text.contains("scroll=live"));
+        assert!(text.contains("set_viewport=live"));
+        assert!(text.contains("print_pdf=live"));
         assert!(text.contains("screenshot=live"));
         assert!(text.contains("handle_dialog=live"));
         assert!(text.contains("upload_file=live"));
+        assert!(text.contains("get_cookies=live"));
+        assert!(text.contains("set_cookies=live"));
+        assert!(text.contains("configure_downloads=live"));
         assert!(text.contains("wait=live"));
         assert!(text.contains("http_get=live"));
         assert!(text.contains("current_session=live"));
         assert!(text.contains("cdp_raw=experimental"));
         assert!(text.contains("wait_for_event=live"));
         assert!(text.contains("watch_events=live"));
+        assert!(text.contains("wait_for_download=live"));
+        assert!(text.contains("wait_for_request=live"));
         assert!(text.contains("wait_for_response=live"));
         assert!(text.contains("wait_for_console=live"));
         assert!(text.contains("wait_for_dialog=live"));
@@ -2755,6 +3349,92 @@ mod tests {
                 .and_then(|event| event.pointer("/params/response/url"))
                 .and_then(Value::as_str),
             Some("https://example.com/api")
+        );
+    }
+
+    #[test]
+    fn wait_for_request_ignores_other_urls_and_methods() {
+        let mut drains = VecDeque::from(vec![
+            Ok(vec![json!({
+                "method":"Network.requestWillBeSent",
+                "params":{"request":{"url":"https://example.com/other","method":"POST"}},
+                "session_id":"session-target"
+            })]),
+            Ok(vec![json!({
+                "method":"Network.requestWillBeSent",
+                "params":{"request":{"url":"https://example.com/api","method":"GET"}},
+                "session_id":"session-target"
+            })]),
+            Ok(vec![json!({
+                "method":"Network.requestWillBeSent",
+                "params":{"request":{"url":"https://example.com/api","method":"POST"}},
+                "session_id":"session-target"
+            })]),
+        ]);
+        let result = wait_for_event_with_drain(
+            WaitForRequestRequest {
+                daemon_name: "stub".to_string(),
+                session_id: Some("session-target".to_string()),
+                url: "https://example.com/api".to_string(),
+                method: Some("POST".to_string()),
+                timeout_ms: 500,
+                poll_interval_ms: 10,
+            }
+            .into_wait_for_event_request(),
+            |_| drains.pop_front().unwrap_or_else(|| Ok(vec![])),
+        )
+        .expect("request wait result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 3);
+        assert_eq!(
+            result
+                .event
+                .as_ref()
+                .and_then(|event| event.pointer("/params/request/url"))
+                .and_then(Value::as_str),
+            Some("https://example.com/api")
+        );
+        assert_eq!(
+            result
+                .event
+                .as_ref()
+                .and_then(|event| event.pointer("/params/request/method"))
+                .and_then(Value::as_str),
+            Some("POST")
+        );
+    }
+
+    #[test]
+    fn cli_wait_for_request_prints_json_result() {
+        let output = wait_for_request_with_stub(
+            r#"{"daemon_name":"stub","session_id":"session-2","url":"https://example.com/api","method":"POST","timeout_ms":100,"poll_interval_ms":10}"#,
+            |_| {
+                Ok(vec![json!({
+                    "method":"Network.requestWillBeSent",
+                    "params":{"request":{"url":"https://example.com/api","method":"POST"}},
+                    "session_id":"session-2"
+                })])
+            },
+        )
+        .expect("cli result");
+
+        assert_eq!(output.matched, true);
+        assert_eq!(
+            output
+                .event
+                .as_ref()
+                .and_then(|event| event.get("method"))
+                .and_then(Value::as_str),
+            Some("Network.requestWillBeSent")
+        );
+        assert_eq!(
+            output
+                .event
+                .as_ref()
+                .and_then(|event| event.pointer("/params/request/method"))
+                .and_then(Value::as_str),
+            Some("POST")
         );
     }
 
@@ -3180,6 +3860,15 @@ mod tests {
         F: FnMut(&str) -> Result<Vec<Value>, String>,
     {
         let request: WaitForLoadEventRequest =
+            serde_json::from_str(input).map_err(|err| format!("parse request: {err}"))?;
+        wait_for_event_with_drain(request.into_wait_for_event_request(), drain)
+    }
+
+    fn wait_for_request_with_stub<F>(input: &str, drain: F) -> Result<WaitForEventResult, String>
+    where
+        F: FnMut(&str) -> Result<Vec<Value>, String>,
+    {
+        let request: WaitForRequestRequest =
             serde_json::from_str(input).map_err(|err| format!("parse request: {err}"))?;
         wait_for_event_with_drain(request.into_wait_for_event_request(), drain)
     }

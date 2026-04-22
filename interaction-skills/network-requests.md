@@ -8,11 +8,13 @@ silently.
 
 1. Use `http_get()` when the data is public and does not depend on the live
    browser page.
-2. Use `wait_for_response` when a browser action should trigger one specific
-   request or response.
-3. Use `watch_events` when you do not yet know the exact URL or when you need
+2. Use `wait_for_request` when you need proof that the page actually issued a
+   request, even if the response may fail or does not matter yet.
+3. Use `wait_for_response` when backend success matters and you need to assert
+   status or the final response URL.
+4. Use `watch_events` when you do not yet know the exact URL or when you need
    to see the whole burst of activity around an action.
-4. Treat raw event draining as a discovery fallback, not the normal path.
+5. Treat raw event draining as a discovery fallback, not the normal path.
 
 ## Public HTTP First
 
@@ -52,25 +54,44 @@ The current Rust runner path already supports this:
 - `bhrun current-session`
 - `browser-harness current-session`
 - `bhrun wait-for-event`
+- `bhrun wait-for-request`
 - `bhrun wait-for-response`
 - `bhrun watch-events`
 - `bhrun wait-for-console`
+- `browser-harness wait-for-request`
 - `browser-harness wait-for-response`
 - `browser-harness watch-events`
 - `bh_guest_sdk::wait_for_event(...)`
 - `bh_guest_sdk::watch_events(...)`
+- `bh_guest_sdk::wait_for_request(...)` for Rust/Wasm guests
 - `bh_guest_sdk::wait_for_response(...)` for Rust/Wasm guests
 - `bh_guest_sdk::wait_for_console(...)` for Rust/Wasm guests
 
-The repository acceptance script that proves the full two-process pattern is:
+The repository acceptance scripts that prove the full two-process pattern are:
 
+- `scripts/bhrun_request_smoke.py`
 - `scripts/bhrun_response_smoke.py`
 
 Use local mode for reliable verification:
 
 ```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_request_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_response_smoke.py
 ```
+
+Use request waits when outbound intent is the real success signal:
+
+- fire-and-forget analytics or beacon calls
+- form submissions where the response is opaque or cross-origin
+- proving that a page action emitted one exact request before you tighten to
+  response assertions
+
+Use response waits when server success matters:
+
+- save/submit flows
+- searches
+- data refreshes
+- navigation or API calls where status must be checked
 
 ## Watching The Whole Burst
 
@@ -89,12 +110,14 @@ iframe does not satisfy the watch accidentally.
 
 The repository smoke for this path is:
 
+- `scripts/bhrun_request_smoke.py`
 - `scripts/bhrun_watch_events_smoke.py`
 - `scripts/bhrun_event_waits_guest_smoke.py` for the Rust/Wasm guest wrapper path
 
 Local verification:
 
 ```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_request_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_watch_events_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
 ```
@@ -130,6 +153,8 @@ preferred teaching surface.
 
 - Start the wait before the action. Starting after the click is how you miss
   the event and end up reading stale page state.
+- Use `wait_for_request` when you are proving that the browser sent something
+  at all; use `wait_for_response` when you are proving the backend answered.
 - Scope to the current session on multi-tab flows.
 - Prefer network truth over DOM heuristics for downloads, saves, and SPA
   submits.
