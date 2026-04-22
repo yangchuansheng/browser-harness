@@ -6,20 +6,22 @@ use std::time::{Duration, Instant};
 
 use bh_protocol::{
     DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY,
-    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
-    META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT, META_SCROLL,
-    META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
+    META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT,
+    META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
+    META_WAIT_FOR_LOAD,
 };
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
     operation_names, ClickRequest, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
     DispatchKeyRequest, EnsureRealTabRequest, GotoRequest, GuestCallRecord, GuestRunResult,
-    GuestServeRequest, GuestServeResponse, HttpGetRequest, IframeTargetRequest, JsRequest,
-    ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest, PressKeyRequest, RunnerConfig,
-    ScreenshotRequest, ScrollRequest, SwitchTabRequest, SwitchTabResult, TabSummary,
-    TypeTextRequest, UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest,
-    WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest,
-    WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine, WatchEventsRequest,
+    GuestServeRequest, GuestServeResponse, HandleDialogRequest, HttpGetRequest,
+    IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest,
+    PressKeyRequest, RunnerConfig, ScreenshotRequest, ScrollRequest, SwitchTabRequest,
+    SwitchTabResult, TabSummary, TypeTextRequest, UploadFileRequest, WaitForConsoleRequest,
+    WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
+    WaitForLoadRequest, WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine,
+    WatchEventsRequest,
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde_json::{json, Value};
@@ -31,7 +33,7 @@ const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|upload-file|wait|http-get|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|handle-dialog|upload-file|wait|http-get|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
@@ -66,7 +68,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live dispatch_key=live scroll=live screenshot=live upload_file=live wait=live http_get=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live dispatch_key=live scroll=live screenshot=live handle_dialog=live upload_file=live wait=live http_get=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -169,6 +171,12 @@ where
             let request =
                 read_optional_json::<ScreenshotRequest, _>(&mut stdin)?.unwrap_or_default();
             let result = screenshot(request)?;
+            write_json(&mut stdout, &result)
+        }
+        Some("handle-dialog") => {
+            let request =
+                read_optional_json::<HandleDialogRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = handle_dialog(request)?;
             write_json(&mut stdout, &result)
         }
         Some("upload-file") => {
@@ -294,6 +302,10 @@ fn scroll(request: ScrollRequest) -> Result<(), String> {
 
 fn screenshot(request: ScreenshotRequest) -> Result<String, String> {
     screenshot_with_sender(request, send_daemon_request)
+}
+
+fn handle_dialog(request: HandleDialogRequest) -> Result<(), String> {
+    handle_dialog_with_sender(request, send_daemon_request)
 }
 
 fn upload_file(request: UploadFileRequest) -> Result<(), String> {
@@ -814,6 +826,24 @@ where
     )
 }
 
+fn handle_dialog_with_sender<F>(request: HandleDialogRequest, mut sender: F) -> Result<(), String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let mut params =
+        serde_json::Map::from_iter([("action".to_string(), Value::String(request.action))]);
+    if let Some(prompt_text) = request.prompt_text {
+        params.insert("prompt_text".to_string(), Value::String(prompt_text));
+    }
+    typed_meta_result_with_sender(
+        &request.daemon_name,
+        META_HANDLE_DIALOG,
+        Some(Value::Object(params)),
+        &mut sender,
+    )
+}
+
 fn upload_file_with_sender<F>(request: UploadFileRequest, mut sender: F) -> Result<(), String>
 where
     F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
@@ -1184,6 +1214,10 @@ fn dispatch_guest_operation(
         "screenshot" => {
             serialize_guest_result(screenshot(parse_request_value(&request)?), "screenshot")?
         }
+        "handle_dialog" => serialize_guest_result(
+            handle_dialog(parse_request_value(&request)?),
+            "handle_dialog",
+        )?,
         "upload_file" => {
             serialize_guest_result(upload_file(parse_request_value(&request)?), "upload_file")?
         }
@@ -1384,16 +1418,17 @@ mod tests {
     use super::{
         click_with_sender, current_session_with_sender, current_tab_with_sender,
         daemon_read_timeout, dispatch_guest_operation, dispatch_key_with_sender,
-        ensure_real_tab_with_sender, goto_with_sender, http_get, iframe_target_with_sender,
-        inject_daemon_name, js_with_sender, list_tabs_with_sender, new_tab_with_sender,
-        page_info_with_sender, press_key_with_sender, run_cli, screenshot_with_sender,
-        scroll_with_sender, serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
-        upload_file_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
-        wait_for_load_with_sender, watch_events_collect_with_drain, watch_events_with_drain,
-        DaemonResponse, GuestHostState, GuestRuntime, META_CLICK, META_CURRENT_TAB,
-        META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
-        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT, META_SCROLL,
-        META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+        ensure_real_tab_with_sender, goto_with_sender, handle_dialog_with_sender, http_get,
+        iframe_target_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
+        new_tab_with_sender, page_info_with_sender, press_key_with_sender, run_cli,
+        screenshot_with_sender, scroll_with_sender, serialize_guest_result, switch_tab_with_sender,
+        type_text_with_sender, upload_file_with_sender, wait, wait_for_console_with_drain,
+        wait_for_event_with_drain, wait_for_load_with_sender, watch_events_collect_with_drain,
+        watch_events_with_drain, DaemonResponse, GuestHostState, GuestRuntime, META_CLICK,
+        META_CURRENT_TAB, META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG,
+        META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
+        META_SCREENSHOT, META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT,
+        META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
     };
     use std::collections::BTreeMap;
     use std::collections::VecDeque;
@@ -1406,12 +1441,12 @@ mod tests {
     use bh_wasm_host::{
         default_runner_config, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
         CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest, EventFilter, GotoRequest,
-        GuestServeResponse, HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest,
-        NewTabRequest, PageInfoRequest, PressKeyRequest, RunnerConfig, ScreenshotRequest,
-        ScrollRequest, SwitchTabRequest, TypeTextRequest, UploadFileRequest, WaitForConsoleRequest,
-        WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
-        WaitForLoadRequest, WaitForResponseRequest, WaitRequest, WatchEventsLine,
-        WatchEventsRequest,
+        GuestServeResponse, HandleDialogRequest, HttpGetRequest, IframeTargetRequest, JsRequest,
+        ListTabsRequest, NewTabRequest, PageInfoRequest, PressKeyRequest, RunnerConfig,
+        ScreenshotRequest, ScrollRequest, SwitchTabRequest, TypeTextRequest, UploadFileRequest,
+        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
+        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WaitRequest,
+        WatchEventsLine, WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -2171,6 +2206,42 @@ mod tests {
     }
 
     #[test]
+    fn handle_dialog_uses_meta_request_payload() {
+        handle_dialog_with_sender(
+            HandleDialogRequest {
+                daemon_name: "runner".to_string(),
+                action: "dismiss".to_string(),
+                prompt_text: Some("typed value".to_string()),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta.as_deref(), Some(META_HANDLE_DIALOG));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("action"))
+                        .and_then(Value::as_str),
+                    Some("dismiss")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("prompt_text"))
+                        .and_then(Value::as_str),
+                    Some("typed value")
+                );
+                Ok(DaemonResponse {
+                    result: Some(Value::Null),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("handle dialog result");
+    }
+
+    #[test]
     fn upload_file_uses_meta_request_payload() {
         upload_file_with_sender(
             UploadFileRequest {
@@ -2251,6 +2322,7 @@ mod tests {
         assert!(text.contains("dispatch_key=live"));
         assert!(text.contains("scroll=live"));
         assert!(text.contains("screenshot=live"));
+        assert!(text.contains("handle_dialog=live"));
         assert!(text.contains("upload_file=live"));
         assert!(text.contains("wait=live"));
         assert!(text.contains("http_get=live"));

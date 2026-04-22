@@ -19,6 +19,7 @@ pub const META_WAIT_FOR_LOAD: &str = "wait_for_load";
 pub const META_JS: &str = "js";
 pub const META_GOTO: &str = "goto";
 pub const META_SCREENSHOT: &str = "screenshot";
+pub const META_HANDLE_DIALOG: &str = "handle_dialog";
 pub const META_CLICK: &str = "click";
 pub const META_TYPE_TEXT: &str = "type_text";
 pub const META_PRESS_KEY: &str = "press_key";

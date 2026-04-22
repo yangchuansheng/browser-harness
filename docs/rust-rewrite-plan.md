@@ -295,6 +295,7 @@ Compatibility helpers kept for ergonomics while the product transitions:
 - `dispatch_key(selector, key, event)`
 - `scroll(x, y, dx, dy)`
 - `screenshot(full)`
+- `handle_dialog(action, prompt_text)`
 - `wait_for_load(timeout)`
 - `list_tabs()`
 - `switch_tab(target_id)`

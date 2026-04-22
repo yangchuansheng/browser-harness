@@ -11,8 +11,8 @@ use bh_cdp::{is_browser_level_method, CdpClient, CdpEvent};
 use bh_discovery::{get_ws_url, is_internal_url, runtime_paths, RuntimePaths};
 use bh_protocol::{
     DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY,
-    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
-    META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PENDING_DIALOG, META_PRESS_KEY,
+    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
+    META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PENDING_DIALOG, META_PRESS_KEY,
     META_SCREENSHOT, META_SCROLL, META_SESSION, META_SET_SESSION, META_SHUTDOWN, META_SWITCH_TAB,
     META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
 };
@@ -619,6 +619,32 @@ impl Daemon {
         Ok(Value::String(data.to_string()))
     }
 
+    async fn handle_dialog_result(
+        &self,
+        accept: bool,
+        prompt_text: Option<&str>,
+    ) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        let mut params = serde_json::Map::new();
+        params.insert("accept".to_string(), Value::Bool(accept));
+        if let Some(prompt_text) = prompt_text {
+            params.insert(
+                "promptText".to_string(),
+                Value::String(prompt_text.to_string()),
+            );
+        }
+        let result = self
+            .send_with_retry(
+                "Page.handleJavaScriptDialog",
+                Value::Object(params),
+                Some(session_id),
+            )
+            .await?;
+        self.state.lock().await.dialog = None;
+        let _ = result;
+        Ok(Value::Null)
+    }
+
     async fn type_text_result(&self, text: &str) -> Result<Value, String> {
         let session_id = self.ensure_session().await?;
         self.send_with_retry(
@@ -1028,6 +1054,38 @@ impl Daemon {
                     .and_then(Value::as_bool)
                     .unwrap_or(false);
                 match self.screenshot_result(full).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_HANDLE_DIALOG) => {
+                let params = request.params.as_ref();
+                let action = params
+                    .and_then(|params| params.get("action"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("accept");
+                let prompt_text = params
+                    .and_then(|params| params.get("prompt_text"))
+                    .and_then(Value::as_str);
+                let accept = match action {
+                    "accept" => true,
+                    "dismiss" => false,
+                    other => {
+                        return DaemonResponse {
+                            error: Some(format!(
+                                "handle_dialog action must be 'accept' or 'dismiss', got {other:?}"
+                            )),
+                            ..DaemonResponse::default()
+                        };
+                    }
+                };
+                match self.handle_dialog_result(accept, prompt_text).await {
                     Ok(result) => DaemonResponse {
                         result: Some(result),
                         ..DaemonResponse::default()
