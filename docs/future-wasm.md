@@ -1,7 +1,10 @@
 # Future WASM Direction
 
-Browser Harness already supports Rust/WASM guests. This document captures the
-longer-term direction for that layer.
+Browser Harness already supports Rust/WASM guests. For the current guest model,
+build flow, and capability surface, start with
+[wasm-guests.md](wasm-guests.md).
+
+This document captures the longer-term direction for that layer.
 
 ## Goal
 
