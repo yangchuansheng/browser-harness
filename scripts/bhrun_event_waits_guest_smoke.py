@@ -27,7 +27,6 @@ sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "bhrun-event-waits-guest-smoke")
 
 from admin import _browser_use, ensure_daemon, restart_daemon, start_remote_daemon  # noqa: E402
-from helpers import cdp, page_info  # noqa: E402
 
 WAIT_EVENT_TOKEN = "bhrun-event-wait"
 WATCH_TOKEN_ONE = "bhrun-event-watch-1"
@@ -57,17 +56,16 @@ def daemon_process_spec():
     if custom := os.environ.get("BU_RUST_DAEMON_BIN"):
         return [custom], str(REPO)
     binary = REPO / "rust" / "target" / "debug" / "bhd"
-    if not binary.is_file():
-        proc = subprocess.run(
-            ["cargo", "build", "--quiet", "--bin", "bhd"],
-            cwd=REPO / "rust",
-            env=os.environ.copy(),
-            text=True,
-            capture_output=True,
-        )
-        if proc.returncode != 0:
-            detail = (proc.stderr or proc.stdout or "daemon build failed").strip()
-            raise RuntimeError(f"failed to build bhd for local attach\n{detail}")
+    proc = subprocess.run(
+        ["cargo", "build", "--quiet", "--bin", "bhd"],
+        cwd=REPO / "rust",
+        env=os.environ.copy(),
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "daemon build failed").strip()
+        raise RuntimeError(f"failed to build bhd for local attach\n{detail}")
     return [str(binary)], str(REPO)
 
 
@@ -118,17 +116,31 @@ def run_runner_command(subcommand, payload=None, timeout_seconds=10, extra_args=
     return json.loads(stdout), payload
 
 
-def dismiss_dialog_best_effort():
+def cleanup_dialog_best_effort(name):
     try:
-        result = cdp("Page.handleJavaScriptDialog", accept=True)
+        result, request = run_runner_command(
+            "handle-dialog",
+            {"daemon_name": name, "action": "accept"},
+            timeout_seconds=5,
+        )
     except Exception:
         return None
     time.sleep(0.2)
     try:
-        page = page_info()
+        page, page_request = run_runner_command(
+            "page-info",
+            {"daemon_name": name},
+            timeout_seconds=5,
+        )
     except Exception:
         page = None
-    return {"dismiss_result": result, "page_info": page}
+        page_request = None
+    return {
+        "handle_dialog_result": result,
+        "handle_dialog_request": request,
+        "page_info": page,
+        "page_info_request": page_request,
+    }
 
 
 def wait_for_daemon_ready(name, timeout_seconds):
@@ -231,6 +243,7 @@ def main():
             "watch_events",
             "wait_for_console",
             "wait_for_dialog",
+            "handle_dialog",
             "js",
         ]
         result["guest_config"] = sample_config
@@ -260,6 +273,7 @@ def main():
             "wait_for_console",
             "js",
             "wait_for_dialog",
+            "handle_dialog",
         ]
         if operations != expected_operations:
             raise RuntimeError(f"unexpected guest operation sequence: {operations!r}")
@@ -339,17 +353,18 @@ def main():
         if dialog_event.get("params", {}).get("message") != DIALOG_TOKEN:
             raise RuntimeError("guest wait_for_dialog message mismatch")
 
-        result["post_dialog_cleanup"] = dismiss_dialog_best_effort()
-        if (
-            result["post_dialog_cleanup"]
-            and isinstance(result["post_dialog_cleanup"].get("page_info"), dict)
-            and "dialog" in result["post_dialog_cleanup"]["page_info"]
-        ):
-            raise RuntimeError("dialog was still pending after best-effort dismissal")
+        result["handle_dialog_response"] = calls[9].get("response")
+        result["post_run_page_info"], result["post_run_page_info_request"] = run_runner_command(
+            "page-info",
+            {"daemon_name": name},
+            timeout_seconds=5,
+        )
+        if "dialog" in result["post_run_page_info"]:
+            raise RuntimeError("dialog was still pending after guest handle_dialog")
     finally:
         try:
-            if "post_dialog_cleanup" not in result:
-                result["page_after_cleanup_attempt"] = dismiss_dialog_best_effort()
+            if "post_run_page_info" not in result:
+                result["page_after_cleanup_attempt"] = cleanup_dialog_best_effort(name)
         except Exception as err:
             result["cleanup_error"] = str(err)
         restart_daemon(name)

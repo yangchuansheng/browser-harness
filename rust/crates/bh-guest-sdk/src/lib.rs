@@ -197,6 +197,16 @@ pub fn screenshot(full: bool) -> Result<String, GuestError> {
     )
 }
 
+pub fn handle_dialog(action: &str, prompt_text: Option<&str>) -> Result<(), GuestError> {
+    call_json(
+        "handle_dialog",
+        &json!({
+            "action": action,
+            "prompt_text": prompt_text,
+        }),
+    )
+}
+
 pub fn upload_file<I, S>(
     selector: &str,
     files: I,
@@ -384,10 +394,10 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 mod tests {
     use super::{
         call_json_with, click, current_session, current_tab, dispatch_key, ensure_real_tab, goto,
-        http_get, iframe_target, js, list_tabs, new_tab, page_info, press_key, screenshot, scroll,
-        switch_tab, type_text, upload_file, wait, wait_for_console, wait_for_dialog,
-        wait_for_event, wait_for_load, wait_for_load_event, wait_for_response, watch_events,
-        CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary,
+        handle_dialog, http_get, iframe_target, js, list_tabs, new_tab, page_info, press_key,
+        screenshot, scroll, switch_tab, type_text, upload_file, wait, wait_for_console,
+        wait_for_dialog, wait_for_event, wait_for_load, wait_for_load_event, wait_for_response,
+        watch_events, CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary,
         WaitResult, WatchEventsLine,
     };
     use bh_wasm_host::WaitForEventResult;
@@ -1051,6 +1061,33 @@ mod tests {
     }
 
     #[test]
+    fn handle_dialog_serializes_action_and_prompt_text() {
+        call_json_with::<_, _, ()>(
+            |operation, request, output| {
+                assert_eq!(operation, b"handle_dialog");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("action").and_then(Value::as_str),
+                    Some("accept")
+                );
+                assert_eq!(
+                    request.get("prompt_text").and_then(Value::as_str),
+                    Some("typed value")
+                );
+                let response = serde_json::to_vec(&Value::Null).expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "handle_dialog",
+            &json!({
+                "action":"accept",
+                "prompt_text":"typed value"
+            }),
+        )
+        .expect("handle dialog result");
+    }
+
+    #[test]
     fn helper_functions_use_expected_operations() {
         let _ = wait;
         let _ = http_get;
@@ -1070,6 +1107,7 @@ mod tests {
         let _ = dispatch_key;
         let _ = scroll;
         let _ = screenshot;
+        let _ = handle_dialog;
         let _ = upload_file::<Vec<&str>, &str>;
         let _ = wait_for_event;
         let _ = watch_events;

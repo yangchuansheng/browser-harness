@@ -1,6 +1,6 @@
 use bh_guest_sdk::{
-    current_session, js, wait_for_console, wait_for_dialog, wait_for_event, watch_events,
-    EventFilter, WatchEventsLine,
+    current_session, handle_dialog, js, wait_for_console, wait_for_dialog, wait_for_event,
+    watch_events, EventFilter, WatchEventsLine,
 };
 use serde_json::{json, Value};
 
@@ -159,6 +159,7 @@ fn run_inner() -> Result<(), i32> {
     {
         return Err(31);
     }
+    handle_dialog("accept", None).map_err(|_| 32)?;
 
     Ok(())
 }
