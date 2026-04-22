@@ -1,7 +1,8 @@
 # Rust Compatibility Contract
 
 This document defines the Python-facing contract that the in-repo Rust rewrite
-must preserve while `admin.py` and `helpers.py` remain the compatibility shell.
+must preserve while `admin_cli.py` and `helpers.py` remain the compatibility
+shell. `admin.py` is only a compatibility alias for `admin_cli.py`.
 
 ## Runtime Files
 
@@ -10,7 +11,7 @@ must preserve while `admin.py` and `helpers.py` remain the compatibility shell.
 - PID file: `/tmp/bu-<name>.pid`
 - Log file: `/tmp/bu-<name>.log`
 
-`admin.py`, `helpers.py`, `bhd`, and `bhctl` must agree on these paths.
+`admin_cli.py`, `helpers.py`, `bhd`, and `bhctl` must agree on these paths.
 
 ## Daemon Socket Protocol
 
@@ -99,7 +100,7 @@ All non-meta requests are daemon-forwarded CDP calls and return either
 
 ## `bhctl` Commands Used By Python
 
-Rust mode in `admin.py` currently relies on these commands and JSON shapes.
+Rust mode in `admin_cli.py` currently relies on these commands and JSON shapes.
 
 ### `bhctl daemon-alive [name]`
 

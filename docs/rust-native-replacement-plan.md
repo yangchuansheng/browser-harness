@@ -21,9 +21,9 @@ As of the current rewrite stage:
 - `bhrun` owns typed helper operations, event waits, and guest execution
 - the new top-level Rust-native facade is `browser-harness` in
   `rust/bins/browser-harness-cli`
-- `run.py`, `admin_cli.py`, and `helpers.py` remain the legacy compatibility
-  shell surface
-- `admin.py` remains only for explicit compatibility coverage
+- `run.py`, `admin_cli.py`, `runner_cli.py`, and `helpers.py` remain the
+  legacy compatibility shell surface
+- `admin.py` is only a compatibility alias to `admin_cli.py`
 - the installed default `browser-harness` command is now the Rust-native CLI,
   while the Python shell is explicitly `browser-harness-py`
 - repo-owned smoke/verification scripts now call `browser-harness` / `bhrun`
@@ -110,8 +110,10 @@ keeps browser ownership in the host.
 These remain legacy compatibility only for now:
 
 - `run.py`
+- `runner_cli.py`
 - `helpers.py`
-- `admin.py`
+- `admin_cli.py`
+- `admin.py` as a thin alias only
 - Python convenience wrappers that still sit above the socket contract
 - direct ad hoc Python snippets that depend on helper pre-imports
 

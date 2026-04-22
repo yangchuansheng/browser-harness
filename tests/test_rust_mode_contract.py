@@ -42,7 +42,7 @@ class RustModeContractTests(unittest.TestCase):
         os.environ["BU_NAME"] = self.name
         os.environ["BU_RUST_ADMIN_BIN"] = str(self.bhctl_bin)
         os.environ["BU_RUST_DAEMON_BIN"] = str(self.stub_daemon)
-        self.admin, self.helpers = self.reload_modules()
+        self.admin, self.admin_alias, self.helpers = self.reload_modules()
 
     def tearDown(self):
         try:
@@ -64,9 +64,19 @@ class RustModeContractTests(unittest.TestCase):
                 os.environ[key] = value
 
     def reload_modules(self):
-        admin = importlib.import_module("admin")
+        admin = importlib.import_module("admin_cli")
+        admin_alias = importlib.import_module("admin")
         helpers = importlib.import_module("helpers")
-        return importlib.reload(admin), importlib.reload(helpers)
+        return (
+            importlib.reload(admin),
+            importlib.reload(admin_alias),
+            importlib.reload(helpers),
+        )
+
+    def test_admin_module_is_now_a_compatibility_alias(self):
+        self.assertIs(self.admin.daemon_alive, self.admin_alias.daemon_alive)
+        self.assertIs(self.admin.ensure_daemon, self.admin_alias.ensure_daemon)
+        self.assertIs(self.admin.restart_daemon, self.admin_alias.restart_daemon)
 
     def test_rust_mode_daemon_lifecycle_contract(self):
         self.assertFalse(self.admin.daemon_alive(self.name))

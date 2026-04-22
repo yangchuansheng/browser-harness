@@ -90,7 +90,7 @@ only in the legacy shell.
 Use this only when you intentionally need the old helper-loaded shell:
 
 - `browser-harness-py`
-- `helpers.py`
+- `helpers.py` and `runner_cli.py`
 - Python admin helpers like `start_remote_daemon(...)`
 
 ## Search first
@@ -172,7 +172,7 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 - **Connect to the user's running Chrome.** Don't launch your own browser.
 - **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
 - **The Rust CLI stays thin.** `browser-harness` is only a facade over `bhctl` and `bhrun`.
-- **Legacy helpers stay compatibility-only.** Browser primitives in `helpers.py`; daemon/bootstrap and remote session admin in `admin.py` are no longer the primary product path.
+- **Legacy helpers stay compatibility-only.** Stable browser helper calls now route through `runner_cli.py`; `helpers.py` keeps the legacy names plus raw-CDP fallback behavior. Daemon/bootstrap and remote session admin live in `admin_cli.py`. `admin.py` is only a compatibility alias now.
 - **Don't add a manager layer.** No retries framework, session manager, daemon supervisor, config system, or logging framework.
 
 ## Architecture

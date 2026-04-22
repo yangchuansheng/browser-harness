@@ -5,7 +5,7 @@
 Rewrite the stable runtime parts of Browser Harness in Rust without breaking the current user-facing workflow:
 
 - keep `browser-harness-py <<'PY'` only as a short-term compatibility mode
-- keep `helpers.py` and `admin.py` thin while the Rust-native replacement lands
+- keep `helpers.py`, `runner_cli.py`, and `admin_cli.py` thin while the Rust-native replacement lands
 - replace the Python daemon/core with a Rust daemon
 - replace the Python-first interface with a Rust-native top-level CLI
 - later replace the remaining Python dynamic layer with Rust-hosted WASM modules
@@ -27,7 +27,8 @@ Recommended shape:
 
 ```text
 .
-├── admin.py
+├── admin.py               # compatibility alias to admin_cli.py
+├── admin_cli.py
 ├── daemon.py              # legacy until Rust daemon replaces it
 ├── helpers.py
 ├── run.py
@@ -70,7 +71,7 @@ That means the boundary freeze below has been reached:
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser lifecycle, and the common typed helper surface
 - Python remains only the legacy compatibility shell and keeps the intentional leftovers (`cdp()`, dynamic skills, and the legacy wrapper surface), while `wait()` and `http_get()` now also exist on the runner side
 - existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md`, `domain-skills/reddit/scraping.md`, `domain-skills/producthunt/scraping.md`, `domain-skills/letterboxd/scraping.md`, `domain-skills/spotify/scraping.md`, and `domain-skills/etsy/scraping.md`
-- the Python daemon path is sunset; `admin.py` now uses the Rust control plane only
+- the Python daemon path is sunset; `admin_cli.py` now uses the Rust control plane only and `admin.py` is only a compatibility alias
 
 ### Phase 2 target
 
@@ -137,7 +138,9 @@ These parts are stable, stateful, and worth compiling early:
 - daemon lifecycle and shutdown behavior
 - Browser Use cloud browser create/stop flow
 
-These correspond mainly to the current responsibilities in `daemon.py` and the lifecycle portions of `admin.py`.
+These correspond mainly to the current responsibilities in `daemon.py` and the
+lifecycle portions of `admin_cli.py` (`admin.py` is only the compatibility
+alias).
 
 ## What Stays Dynamic First
 
@@ -160,7 +163,7 @@ stable when:
 
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser
   lifecycle, and the common typed helper surface
-- `helpers.py` remains as a thin compatibility shell
+- `helpers.py` remains as a thin compatibility shell over `runner_cli.py`
 - `cdp()` is kept intentionally as the raw escape hatch
 - `wait()` and `http_get()` remain intentionally client/runner-side utilities
 - unsupported typed meta commands degrade through the explicit
@@ -210,14 +213,18 @@ Requirements:
 - preserve remote-browser shutdown behavior
 - preserve current log/pid cleanup behavior
 
-At this stage `run.py`, `helpers.py`, and most of `admin.py` should still work with minimal changes.
+At this stage `run.py`, `helpers.py`, `runner_cli.py`, and `admin_cli.py`
+should still work with minimal changes, and `admin.py` should only remain as a
+thin alias.
 
 ### 4. Make Python wrappers thin
 
 Keep the existing helper names but reduce Python logic where possible:
 
-- `helpers.py` becomes a compatibility facade over the daemon protocol
-- `admin.py` starts using `bhctl` or direct daemon IPC where appropriate
+- `helpers.py` becomes a compatibility facade over `runner_cli.py` plus raw fallback behavior
+- `runner_cli.py` becomes the stable legacy helper shim over `bhrun`
+- `admin_cli.py` starts using `bhctl` or direct daemon IPC where appropriate
+- `admin.py` stays only as a compatibility alias to `admin_cli.py`
 - avoid adding new stateful logic to Python once Rust equivalents exist
 
 The goal is to preserve ergonomics while moving ownership into Rust.
@@ -381,7 +388,8 @@ mostly interface/default-path migration rather than runtime ownership.
 1. Add compatibility tests around the current daemon protocol.
 2. Introduce the Rust workspace in this repository.
 3. Implement `bhd` and keep the current socket contract.
-4. Keep `run.py`, `helpers.py`, and most of `admin.py` as compatibility wrappers.
+4. Keep `run.py`, `helpers.py`, `runner_cli.py`, and `admin_cli.py` as
+   compatibility wrappers, with `admin.py` only as an alias.
 5. Move lifecycle and remote-browser operations into `bhctl`.
 6. Stabilize the host API based on actual use, not speculation.
 7. Add a separate WASM runner.
