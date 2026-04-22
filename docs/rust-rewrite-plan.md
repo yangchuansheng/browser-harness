@@ -32,7 +32,6 @@ Recommended shape:
 .
 ├── admin.py               # compatibility alias to admin_cli.py
 ├── admin_cli.py
-├── daemon.py              # legacy until Rust daemon replaces it
 ├── helpers.py
 ├── run.py
 ├── docs/
@@ -78,7 +77,7 @@ That means the boundary freeze below has been reached:
   Python surfaces by verifying that installed packages now omit the legacy
   Python shell and compatibility modules entirely
 - existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md`, `domain-skills/reddit/scraping.md`, `domain-skills/producthunt/scraping.md`, `domain-skills/letterboxd/scraping.md`, `domain-skills/spotify/scraping.md`, and `domain-skills/etsy/scraping.md`
-- the Python daemon path is sunset; `admin_cli.py` now uses the Rust control plane only and `admin.py` is only a compatibility alias
+- the Python daemon path is sunset and the old `daemon.py` implementation has been removed; `admin_cli.py` now uses the Rust control plane only and `admin.py` is only a compatibility alias
 
 ### Phase 2 target
 
@@ -145,9 +144,9 @@ These parts are stable, stateful, and worth compiling early:
 - daemon lifecycle and shutdown behavior
 - Browser Use cloud browser create/stop flow
 
-These correspond mainly to the current responsibilities in `daemon.py` and the
-lifecycle portions of `admin_cli.py` (`admin.py` is only the compatibility
-alias).
+These correspond mainly to the daemon/runtime responsibilities now owned by
+`bhd` and the lifecycle portions of `admin_cli.py` (`admin.py` is only the
+compatibility alias).
 
 ## What Stays Dynamic First
 
@@ -209,7 +208,7 @@ Initial binaries:
 - `bhd`: long-lived daemon
 - `bhctl`: admin/control helper for start/stop/health
 
-### 3. Replace `daemon.py` with `bhd`
+### 3. Replace the Python daemon with `bhd`
 
 Swap only the daemon first. Keep Python wrappers in place.
 
