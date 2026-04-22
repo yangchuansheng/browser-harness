@@ -15,6 +15,10 @@ const SCENARIOS: &[&str] = &[
     "remote",
     "actions",
     "tabs",
+    "guest-run",
+    "guest-serve",
+    "persistent-guest",
+    "persistent-guest-browser",
     "wait-for-load-event",
     "watch-events",
     "wait-for-request",
@@ -29,6 +33,11 @@ const SCENARIOS: &[&str] = &[
     "drag",
     "upload-file",
 ];
+
+const SAMPLE_GUEST_TARGET_URL: &str = "https://example.com/?via=bhrun-guest-sample";
+const PERSISTENT_BROWSER_GUEST_TARGET_URL: &str =
+    "https://example.com/?via=bhrun-serve-guest-remote-smoke";
+const PERSISTENT_BROWSER_GUEST_MARKER: &str = "phase-1";
 
 fn main() {
     match run() {
@@ -64,6 +73,10 @@ fn run() -> Result<Value, String> {
         "remote" => smoke_remote(),
         "actions" => smoke_actions(),
         "tabs" => smoke_tabs(),
+        "guest-run" => smoke_guest_run(),
+        "guest-serve" => smoke_guest_serve(),
+        "persistent-guest" => smoke_persistent_guest(),
+        "persistent-guest-browser" => smoke_persistent_guest_browser(),
         "wait-for-load-event" => smoke_wait_for_load_event(),
         "watch-events" => smoke_watch_events(),
         "wait-for-request" => smoke_wait_for_request(),
@@ -413,6 +426,722 @@ fn smoke_tabs() -> Result<Value, String> {
         Ok(())
     })();
     finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_guest_run() -> Result<Value, String> {
+    let options = load_options("bhrun-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_path = env_guest_path(default_navigate_guest_path());
+    result.insert("guest_mode".into(), Value::String("run-guest".to_string()));
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &["goto", "wait_for_load_event", "page_info", "js"],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(20),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        validate_sample_guest_run(&guest_run, &mut result)?;
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if page_after_guest.get("url").and_then(Value::as_str) != Some(SAMPLE_GUEST_TARGET_URL) {
+            return Err("runner page-info after guest did not match the expected URL".to_string());
+        }
+
+        let js_after_guest = js(options.name.as_str(), "location.href")?;
+        result.insert("js_after_guest".into(), js_after_guest.clone());
+        if js_after_guest.as_str() != Some(SAMPLE_GUEST_TARGET_URL) {
+            return Err("runner js after guest did not match the expected URL".to_string());
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_guest_serve() -> Result<Value, String> {
+    let options = load_options("bhrun-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_path = env_guest_path(default_navigate_guest_path());
+    result.insert(
+        "guest_mode".into(),
+        Value::String("serve-guest".to_string()),
+    );
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &["goto", "wait_for_load_event", "page_info", "js"],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let responses = runner_ndjson_with_args(
+            "serve-guest",
+            &serve_guest_input(&[
+                json!({"command":"start","config":config}),
+                json!({"command":"run"}),
+                json!({"command":"status"}),
+                json!({"command":"stop"}),
+            ])?,
+            &[guest_path.display().to_string()],
+            Duration::from_secs(20),
+        )?;
+        if responses.len() != 4 {
+            return Err(format!(
+                "serve-guest returned {} lines, expected 4",
+                responses.len()
+            ));
+        }
+        result.insert("guest_ready".into(), responses[0].clone());
+        result.insert("guest_run_response".into(), responses[1].clone());
+        result.insert("guest_status".into(), responses[2].clone());
+        result.insert("guest_stopped".into(), responses[3].clone());
+
+        expect_kind(&responses[0], "ready", "serve-guest ready response")?;
+        expect_kind(&responses[2], "status", "serve-guest status response")?;
+        expect_kind(&responses[3], "stopped", "serve-guest stop response")?;
+        if responses[0]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 0
+        {
+            return Err(format!(
+                "unexpected serve-guest ready invocation count: {:?}",
+                responses[0].get("invocation_count")
+            ));
+        }
+        if responses[2]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 1
+        {
+            return Err(format!(
+                "unexpected serve-guest status invocation count: {:?}",
+                responses[2].get("invocation_count")
+            ));
+        }
+        if responses[3]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 1
+        {
+            return Err(format!(
+                "unexpected serve-guest stop invocation count: {:?}",
+                responses[3].get("invocation_count")
+            ));
+        }
+
+        let guest_run = responses[1]
+            .get("result")
+            .cloned()
+            .ok_or_else(|| "serve-guest run response missing result".to_string())?;
+        result.insert("guest_run".into(), guest_run.clone());
+        validate_sample_guest_run(&guest_run, &mut result)?;
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if page_after_guest.get("url").and_then(Value::as_str) != Some(SAMPLE_GUEST_TARGET_URL) {
+            return Err("runner page-info after guest did not match the expected URL".to_string());
+        }
+
+        let js_after_guest = js(options.name.as_str(), "location.href")?;
+        result.insert("js_after_guest".into(), js_after_guest.clone());
+        if js_after_guest.as_str() != Some(SAMPLE_GUEST_TARGET_URL) {
+            return Err("runner js after guest did not match the expected URL".to_string());
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_persistent_guest() -> Result<Value, String> {
+    let guest_path = env_guest_path(default_persistent_counter_guest_path());
+    let mut result = Map::new();
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    let config = build_guest_config("default", &guest_path, &["wait"], true)?;
+    let responses = runner_ndjson_with_args(
+        "serve-guest",
+        &serve_guest_input(&[
+            json!({"command":"start","config":config}),
+            json!({"command":"status"}),
+            json!({"command":"run"}),
+            json!({"command":"run"}),
+            json!({"command":"stop"}),
+        ])?,
+        &[guest_path.display().to_string()],
+        Duration::from_secs(20),
+    )?;
+    if responses.len() != 5 {
+        return Err(format!(
+            "serve-guest returned {} lines, expected 5",
+            responses.len()
+        ));
+    }
+
+    result.insert("ready".into(), responses[0].clone());
+    result.insert("status".into(), responses[1].clone());
+    result.insert("first_run".into(), responses[2].clone());
+    result.insert("second_run".into(), responses[3].clone());
+    result.insert("stopped".into(), responses[4].clone());
+
+    expect_kind(&responses[0], "ready", "persistent guest ready response")?;
+    expect_kind(&responses[1], "status", "persistent guest status response")?;
+    expect_kind(
+        &responses[2],
+        "run_result",
+        "persistent guest first run response",
+    )?;
+    expect_kind(
+        &responses[3],
+        "run_result",
+        "persistent guest second run response",
+    )?;
+    expect_kind(&responses[4], "stopped", "persistent guest stop response")?;
+
+    if responses[2]
+        .get("invocation_count")
+        .and_then(Value::as_u64)
+        .unwrap_or(u64::MAX)
+        != 1
+    {
+        return Err(format!(
+            "unexpected first invocation count: {:?}",
+            responses[2].get("invocation_count")
+        ));
+    }
+    if responses[3]
+        .get("invocation_count")
+        .and_then(Value::as_u64)
+        .unwrap_or(u64::MAX)
+        != 2
+    {
+        return Err(format!(
+            "unexpected second invocation count: {:?}",
+            responses[3].get("invocation_count")
+        ));
+    }
+    if responses[4]
+        .get("invocation_count")
+        .and_then(Value::as_u64)
+        .unwrap_or(u64::MAX)
+        != 2
+    {
+        return Err(format!(
+            "unexpected stop invocation count: {:?}",
+            responses[4].get("invocation_count")
+        ));
+    }
+
+    let first_duration = responses[2]
+        .pointer("/result/calls/0/request/duration_ms")
+        .and_then(Value::as_u64);
+    let second_duration = responses[3]
+        .pointer("/result/calls/0/request/duration_ms")
+        .and_then(Value::as_u64);
+    if first_duration != Some(1) {
+        return Err(format!(
+            "unexpected first guest duration: {first_duration:?}"
+        ));
+    }
+    if second_duration != Some(2) {
+        return Err(format!(
+            "unexpected second guest duration: {second_duration:?}"
+        ));
+    }
+
+    Ok(Value::Object(result))
+}
+
+fn smoke_persistent_guest_browser() -> Result<Value, String> {
+    let options = load_options("bhrun-persistent-guest-remote-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_persistent_guest_manifest_path();
+    let default_guest_path = rust_persistent_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "target_url".into(),
+        Value::String(PERSISTENT_BROWSER_GUEST_TARGET_URL.to_string()),
+    );
+
+    if env::var("BU_SKIP_GUEST_BUILD").ok().as_deref() != Some("1")
+        && guest_path == default_guest_path
+    {
+        build_guest_module(&guest_manifest)?;
+        result.insert(
+            "guest_manifest".into(),
+            Value::String(guest_manifest.display().to_string()),
+        );
+        result.insert(
+            "guest_build_mode".into(),
+            Value::String("cargo+stable".to_string()),
+        );
+    }
+
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &["goto", "wait_for_load_event", "js", "page_info"],
+            true,
+        )?;
+        let responses = runner_ndjson_with_args(
+            "serve-guest",
+            &serve_guest_input(&[
+                json!({"command":"start","config":config}),
+                json!({"command":"status"}),
+                json!({"command":"run"}),
+                json!({"command":"run"}),
+                json!({"command":"status"}),
+                json!({"command":"stop"}),
+            ])?,
+            &[guest_path.display().to_string()],
+            Duration::from_secs(25),
+        )?;
+        if responses.len() != 6 {
+            return Err(format!(
+                "serve-guest returned {} lines, expected 6",
+                responses.len()
+            ));
+        }
+
+        result.insert("ready".into(), responses[0].clone());
+        result.insert("status_after_start".into(), responses[1].clone());
+        result.insert("first_run".into(), responses[2].clone());
+        result.insert("second_run".into(), responses[3].clone());
+        result.insert("status_after_runs".into(), responses[4].clone());
+        result.insert("stopped".into(), responses[5].clone());
+
+        expect_kind(
+            &responses[0],
+            "ready",
+            "persistent browser guest ready response",
+        )?;
+        expect_kind(
+            &responses[1],
+            "status",
+            "persistent browser guest status-after-start response",
+        )?;
+        expect_kind(
+            &responses[2],
+            "run_result",
+            "persistent browser guest first run response",
+        )?;
+        expect_kind(
+            &responses[3],
+            "run_result",
+            "persistent browser guest second run response",
+        )?;
+        expect_kind(
+            &responses[4],
+            "status",
+            "persistent browser guest status-after-runs response",
+        )?;
+        expect_kind(
+            &responses[5],
+            "stopped",
+            "persistent browser guest stop response",
+        )?;
+
+        if responses[0]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 0
+        {
+            return Err(format!(
+                "unexpected ready invocation count: {:?}",
+                responses[0].get("invocation_count")
+            ));
+        }
+        if responses[1]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 0
+        {
+            return Err(format!(
+                "unexpected initial status invocation count: {:?}",
+                responses[1].get("invocation_count")
+            ));
+        }
+        if responses[2]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 1
+        {
+            return Err(format!(
+                "unexpected first invocation count: {:?}",
+                responses[2].get("invocation_count")
+            ));
+        }
+        if responses[3]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 2
+        {
+            return Err(format!(
+                "unexpected second invocation count: {:?}",
+                responses[3].get("invocation_count")
+            ));
+        }
+        if responses[4]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 2
+        {
+            return Err(format!(
+                "unexpected post-run status invocation count: {:?}",
+                responses[4].get("invocation_count")
+            ));
+        }
+        if responses[5]
+            .get("invocation_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX)
+            != 2
+        {
+            return Err(format!(
+                "unexpected stop invocation count: {:?}",
+                responses[5].get("invocation_count")
+            ));
+        }
+
+        let first_result = responses[2]
+            .get("result")
+            .cloned()
+            .ok_or_else(|| "first guest run missing result".to_string())?;
+        let second_result = responses[3]
+            .get("result")
+            .cloned()
+            .ok_or_else(|| "second guest run missing result".to_string())?;
+        validate_guest_result_success(&first_result, "first guest run")?;
+        validate_guest_result_success(&second_result, "second guest run")?;
+
+        let first_ops = collect_guest_operations(&first_result)?;
+        let second_ops = collect_guest_operations(&second_result)?;
+        result.insert(
+            "first_run_operations".into(),
+            Value::Array(first_ops.iter().cloned().map(Value::String).collect()),
+        );
+        result.insert(
+            "second_run_operations".into(),
+            Value::Array(second_ops.iter().cloned().map(Value::String).collect()),
+        );
+        if first_ops != ["goto", "wait_for_load_event", "js", "page_info"] {
+            return Err(format!(
+                "unexpected first guest operation sequence: {first_ops:?}"
+            ));
+        }
+        if second_ops != ["js", "page_info"] {
+            return Err(format!(
+                "unexpected second guest operation sequence: {second_ops:?}"
+            ));
+        }
+
+        let first_js_response = first_result
+            .pointer("/calls/2/response")
+            .and_then(Value::as_str);
+        if first_js_response != Some(PERSISTENT_BROWSER_GUEST_MARKER) {
+            return Err(format!(
+                "unexpected first guest js response: {first_js_response:?}"
+            ));
+        }
+
+        let first_page_info = first_result
+            .pointer("/calls/3/response")
+            .ok_or_else(|| "first guest page_info response missing".to_string())?;
+        if first_page_info.get("url").and_then(Value::as_str)
+            != Some(PERSISTENT_BROWSER_GUEST_TARGET_URL)
+        {
+            return Err("first guest page_info did not report the target URL".to_string());
+        }
+
+        let second_js_response = second_result
+            .pointer("/calls/0/response")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "second guest js response missing".to_string())?;
+        let second_js_state: Value = serde_json::from_str(second_js_response)
+            .map_err(|err| format!("second guest js response was not JSON: {err}"))?;
+        result.insert("second_js_state".into(), second_js_state.clone());
+        if second_js_state.get("href").and_then(Value::as_str)
+            != Some(PERSISTENT_BROWSER_GUEST_TARGET_URL)
+        {
+            return Err("second guest js href did not match the target URL".to_string());
+        }
+        if second_js_state.get("marker").and_then(Value::as_str)
+            != Some(PERSISTENT_BROWSER_GUEST_MARKER)
+        {
+            return Err("second guest js marker did not preserve browser state".to_string());
+        }
+
+        let second_page_info = second_result
+            .pointer("/calls/1/response")
+            .ok_or_else(|| "second guest page_info response missing".to_string())?;
+        if second_page_info.get("url").and_then(Value::as_str)
+            != Some(PERSISTENT_BROWSER_GUEST_TARGET_URL)
+        {
+            return Err("second guest page_info did not report the target URL".to_string());
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if page_after_guest.get("url").and_then(Value::as_str)
+            != Some(PERSISTENT_BROWSER_GUEST_TARGET_URL)
+        {
+            return Err("runner page-info after guest did not match the target URL".to_string());
+        }
+
+        let marker_after_guest = js(options.name.as_str(), "window.__bhrunPersistentMarker")?;
+        result.insert("marker_after_guest".into(), marker_after_guest.clone());
+        if marker_after_guest.as_str() != Some(PERSISTENT_BROWSER_GUEST_MARKER) {
+            return Err("runner js after guest did not preserve the marker".to_string());
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn env_guest_path(default_path: PathBuf) -> PathBuf {
+    match env::var("BU_GUEST_PATH") {
+        Ok(value) if !value.trim().is_empty() => PathBuf::from(value),
+        _ => default_path,
+    }
+}
+
+fn default_navigate_guest_path() -> PathBuf {
+    repo_root().join("rust/guests/navigate_and_read.wat")
+}
+
+fn default_persistent_counter_guest_path() -> PathBuf {
+    repo_root().join("rust/guests/persistent_counter.wat")
+}
+
+fn rust_persistent_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-persistent-browser-state/Cargo.toml")
+}
+
+fn rust_persistent_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-persistent-browser-state/target/wasm32-unknown-unknown/release/rust_persistent_browser_state_guest.wasm",
+    )
+}
+
+fn build_guest_module(guest_manifest: &Path) -> Result<(), String> {
+    let output = Command::new("cargo")
+        .args([
+            "+stable",
+            "build",
+            "--offline",
+            "--release",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--manifest-path",
+        ])
+        .arg(guest_manifest)
+        .current_dir(repo_root())
+        .output()
+        .map_err(|err| format!("spawn guest build: {err}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = stderr
+        .clone()
+        .if_empty_then(stdout)
+        .if_empty_then("guest build failed".to_string());
+    Err(format!(
+        "failed to build the Rust persistent guest; ensure the stable wasm target is installed via `rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown`\n{detail}"
+    ))
+}
+
+fn build_guest_config(
+    daemon_name: &str,
+    guest_path: &Path,
+    granted_operations: &[&str],
+    persistent_guest_state: bool,
+) -> Result<Value, String> {
+    let mut config = runner_json_with_args("sample-config", None, &[], Duration::from_secs(10))?;
+    let object = config
+        .as_object_mut()
+        .ok_or_else(|| "sample-config did not return a JSON object".to_string())?;
+    object.insert("daemon_name".into(), Value::String(daemon_name.to_string()));
+    object.insert(
+        "guest_module".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    object.insert(
+        "granted_operations".into(),
+        Value::Array(
+            granted_operations
+                .iter()
+                .map(|operation| Value::String((*operation).to_string()))
+                .collect(),
+        ),
+    );
+    object.insert("allow_http".into(), Value::Bool(false));
+    object.insert("allow_raw_cdp".into(), Value::Bool(false));
+    object.insert(
+        "persistent_guest_state".into(),
+        Value::Bool(persistent_guest_state),
+    );
+    Ok(config)
+}
+
+fn runner_json_with_args(
+    subcommand: &str,
+    payload: Option<Value>,
+    extra_args: &[String],
+    timeout: Duration,
+) -> Result<Value, String> {
+    finish_json(
+        start_command(ToolKind::Runner, subcommand, payload, extra_args)?,
+        timeout,
+    )
+}
+
+fn runner_ndjson_with_args(
+    subcommand: &str,
+    stdin_text: &str,
+    extra_args: &[String],
+    timeout: Duration,
+) -> Result<Vec<Value>, String> {
+    finish_ndjson(
+        start_command_with_stdin_text(
+            ToolKind::Runner,
+            subcommand,
+            if stdin_text.is_empty() {
+                None
+            } else {
+                Some(stdin_text)
+            },
+            extra_args,
+        )?,
+        timeout,
+    )
+}
+
+fn serve_guest_input(commands: &[Value]) -> Result<String, String> {
+    let mut lines = Vec::with_capacity(commands.len());
+    for command in commands {
+        lines.push(
+            serde_json::to_string(command)
+                .map_err(|err| format!("serialize serve-guest command: {err}"))?,
+        );
+    }
+    Ok(format!("{}\n", lines.join("\n")))
+}
+
+fn validate_sample_guest_run(
+    guest_run: &Value,
+    result: &mut Map<String, Value>,
+) -> Result<(), String> {
+    validate_guest_result_success(guest_run, "guest run")?;
+    let operations = collect_guest_operations(guest_run)?;
+    result.insert(
+        "guest_operations".into(),
+        Value::Array(operations.iter().cloned().map(Value::String).collect()),
+    );
+    if operations != ["goto", "wait_for_load_event", "page_info", "js"] {
+        return Err(format!(
+            "unexpected guest operation sequence: {operations:?}"
+        ));
+    }
+    let page_info_response = guest_run
+        .pointer("/calls/2/response")
+        .ok_or_else(|| "guest page_info response missing".to_string())?;
+    if page_info_response.get("url").and_then(Value::as_str) != Some(SAMPLE_GUEST_TARGET_URL) {
+        return Err("guest page_info response did not match the expected URL".to_string());
+    }
+
+    let js_response = guest_run
+        .pointer("/calls/3/response")
+        .ok_or_else(|| "guest js response missing".to_string())?;
+    let js_text = js_response
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| js_response.to_string());
+    if !js_text.contains("Example Domain") {
+        return Err(format!(
+            "guest js response did not match the page title: {js_response}"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_guest_result_success(result: &Value, label: &str) -> Result<(), String> {
+    if !result
+        .get("success")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return Err(format!("{label} failed: {result}"));
+    }
+    if result.get("exit_code").and_then(Value::as_i64) != Some(0) {
+        return Err(format!(
+            "{label} returned unexpected exit code: {:?}",
+            result.get("exit_code")
+        ));
+    }
+    Ok(())
+}
+
+fn collect_guest_operations(result: &Value) -> Result<Vec<String>, String> {
+    let calls = result
+        .get("calls")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "guest result missing calls array".to_string())?;
+    calls
+        .iter()
+        .map(|call| required_string_field(call, "operation"))
+        .collect()
+}
+
+fn expect_kind(value: &Value, expected: &str, label: &str) -> Result<(), String> {
+    if value.get("kind").and_then(Value::as_str) != Some(expected) {
+        return Err(format!("unexpected {label}: {value}"));
+    }
+    Ok(())
 }
 
 fn smoke_wait_for_load_event() -> Result<Value, String> {
@@ -1878,6 +2607,20 @@ fn start_command(
     payload: Option<Value>,
     extra_args: &[String],
 ) -> Result<Child, String> {
+    let stdin_text = payload
+        .map(|payload| {
+            serde_json::to_string(&payload).map_err(|err| format!("serialize stdin JSON: {err}"))
+        })
+        .transpose()?;
+    start_command_with_stdin_text(kind, subcommand, stdin_text.as_deref(), extra_args)
+}
+
+fn start_command_with_stdin_text(
+    kind: ToolKind,
+    subcommand: &str,
+    stdin_text: Option<&str>,
+    extra_args: &[String],
+) -> Result<Child, String> {
     let mut command = child_command(kind)?;
     command
         .arg(subcommand)
@@ -1889,9 +2632,7 @@ fn start_command(
         .spawn()
         .map_err(|err| format!("spawn {subcommand}: {err}"))?;
     if let Some(mut stdin) = child.stdin.take() {
-        if let Some(payload) = payload {
-            let input = serde_json::to_string(&payload)
-                .map_err(|err| format!("serialize stdin JSON: {err}"))?;
+        if let Some(input) = stdin_text {
             stdin
                 .write_all(input.as_bytes())
                 .map_err(|err| format!("write stdin for {subcommand}: {err}"))?;
