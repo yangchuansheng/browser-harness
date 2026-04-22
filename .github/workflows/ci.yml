@@ -52,5 +52,5 @@ jobs:
           bhctl daemon-alive
           bhrun summary
 
-      - name: Check Installed Python Compatibility Surface
-        run: python scripts/installed_package_compat_smoke.py
+      - name: Verify Installed Rust-Only Package Surface
+        run: browser-harness verify-install
