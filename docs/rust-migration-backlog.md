@@ -122,8 +122,8 @@ enough to be high-value early migration work.
   direct `helpers.py` usage is now limited to explicit compatibility coverage
   like `tests/test_rust_mode_contract.py`
 - [x] move repo-owned smoke/verification scripts off `admin.py`; remaining
-  direct `admin.py` usage is now limited to the legacy `run.py` shell and
-  explicit compatibility coverage
+  direct `admin.py` usage is now limited to explicit compatibility coverage;
+  the legacy `run.py` shell now imports the Rust-native `admin_cli.py` shim
 
 ## Secondary Track: Capability Pull List
 
