@@ -67,8 +67,8 @@ Phase 1 is complete for the in-repo hybrid rewrite.
 That means the boundary freeze below has been reached:
 
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser lifecycle, and the common typed helper surface
-- Python remains the compatibility shell and keeps the intentional leftovers (`cdp()`, `wait()`, `http_get()`, dynamic skills)
-- existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md` and `domain-skills/reddit/scraping.md`
+- Python remains the compatibility shell and keeps the intentional leftovers (`cdp()`, dynamic skills, and the legacy wrapper surface), while `wait()` and `http_get()` now also exist on the runner side
+- existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md`, `domain-skills/reddit/scraping.md`, `domain-skills/producthunt/scraping.md`, `domain-skills/letterboxd/scraping.md`, `domain-skills/spotify/scraping.md`, and `domain-skills/etsy/scraping.md`
 
 ### Phase 2 target
 
@@ -93,10 +93,19 @@ Current runner-owned preview surface:
 - the first stateful Rust Wasm guest now covers the persistent browser-state serve-guest path
 - the guest SDK now also covers typed tab/session control plus `wait_for_response`, with a compiled workflow guest and live remote smoke
 - the runner/guest boundary now also carries more of the old compatibility helper surface: `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, and `scroll`
-- the first real domain-skill browser slice is now ported as `rust/guests/rust-github-trending`, while pure network helpers such as `http_get` still remain in the dynamic layer
+- the runner/guest boundary now also carries runner-owned `http_get`, which is the first pure network utility available to Rust/Wasm guests
+- the first real domain-skill browser slice is now ported as `rust/guests/rust-github-trending`
 - a second real domain-skill browser slice is now ported as `rust/guests/rust-reddit-post-scrape`, showing that multi-step DOM extraction workflows can already live on the current guest boundary
-- real domain-skill guest acceptance is now primarily gated by local browser smokes, because Browser Use cloud verification for site-dependent targets is currently best-effort rather than a reliable gate
-- the next planned migration target should be another browser-first public workflow such as `domain-skills/producthunt/scraping.md`, not API-first skills like Hacker News or dev.to that would avoid exercising the guest boundary
+- a third real domain-skill browser slice is now ported as `rust/guests/rust-producthunt-homepage`, proving a `new_tab()`-first public workflow on the current guest boundary even after Product Hunt dropped the old `post-item-*` wrappers
+- a fourth real domain-skill browser slice is now ported as `rust/guests/rust-letterboxd-popular`
+- a fifth and sixth browser-first domain slice are now ported as `rust/guests/rust-spotify-search` and `rust/guests/rust-etsy-search`
+- the first HTTP-owned domain slices are now ported as `rust/guests/rust-metacritic-game-scores`, `rust/guests/rust-walmart-search`, and `rust/guests/rust-tradingview-symbol-search`
+- real domain-skill guest acceptance is now split cleanly: local browser smokes are the primary gate for site-dependent browser workflows, while runner-local `http_get` smokes gate the public HTTP-owned workflows
+- the current prioritized domain migration backlog is complete; the next phase should either extract reusable interaction-skill capabilities or tackle delayed anti-bot/login-heavy domains case by case
+
+See also:
+
+- `docs/rust-migration-backlog.md` for the current domain-skills-first migration backlog and the secondary interaction-skill support track
 
 More specifically, the target shape is:
 

@@ -152,8 +152,10 @@ version = "0.1.0"
 dependencies = [
  "bh-protocol",
  "bh-wasm-host",
+ "reqwest",
  "serde",
  "serde_json",
+ "tokio",
  "wasmtime",
 ]
 
