@@ -75,27 +75,17 @@ Tradeoffs:
 
 Fires when navigating away from a page with unsaved changes (forms, editors, upload pages). The page freezes until the user clicks Leave/Stay.
 
-```python
-import subprocess
+```bash
+bhrun goto <<'JSON'
+{"daemon_name":"default","url":"https://new-url.com"}
+JSON
 
-# Option A: dismiss after navigating (CDP-level, safe)
-goto("https://new-url.com")
-try:
-    subprocess.run(
-        ["browser-harness", "handle-dialog"],
-        input='{"daemon_name":"default","action":"accept"}',
-        text=True,
-        check=True,
-    )  # click "Leave"
-except:
-    pass  # no dialog — normal
-
-# Option B: prevent before navigating (JS injection, detectable)
-js("window.onbeforeunload=null")
-goto("https://new-url.com")
+bhrun handle-dialog <<'JSON'
+{"daemon_name":"default","action":"accept"}
+JSON
 ```
 
 Legacy fallback:
 
-- `helpers.py` / raw `cdp("Page.handleJavaScriptDialog", ...)` is now
+- `helpers.py` / raw `Page.handleJavaScriptDialog` calls are now
   compatibility-only, not the primary path.

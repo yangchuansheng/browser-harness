@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub use bh_wasm_host::{
-    CurrentSessionResult, EventFilter, HttpGetRequest, NewTabResult, SwitchTabResult, TabSummary,
-    WaitForEventResult, WaitResult, WatchEventsLine,
+    CookieParam, CookieRecord, CurrentSessionResult, EventFilter, HttpGetRequest, NewTabResult,
+    SwitchTabResult, TabSummary, WaitForEventResult, WaitResult, WatchEventsLine,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -161,6 +161,55 @@ pub fn click(x: f64, y: f64, button: &str, clicks: i64) -> Result<(), GuestError
     )
 }
 
+pub fn mouse_move(x: f64, y: f64, buttons: i64) -> Result<(), GuestError> {
+    call_json(
+        "mouse_move",
+        &json!({
+            "x": x,
+            "y": y,
+            "buttons": buttons,
+        }),
+    )
+}
+
+pub fn mouse_down(
+    x: f64,
+    y: f64,
+    button: &str,
+    buttons: i64,
+    click_count: i64,
+) -> Result<(), GuestError> {
+    call_json(
+        "mouse_down",
+        &json!({
+            "x": x,
+            "y": y,
+            "button": button,
+            "buttons": buttons,
+            "click_count": click_count,
+        }),
+    )
+}
+
+pub fn mouse_up(
+    x: f64,
+    y: f64,
+    button: &str,
+    buttons: i64,
+    click_count: i64,
+) -> Result<(), GuestError> {
+    call_json(
+        "mouse_up",
+        &json!({
+            "x": x,
+            "y": y,
+            "button": button,
+            "buttons": buttons,
+            "click_count": click_count,
+        }),
+    )
+}
+
 pub fn type_text(text: &str) -> Result<(), GuestError> {
     call_json(
         "type_text",
@@ -199,6 +248,32 @@ pub fn scroll(x: f64, y: f64, dy: f64, dx: f64) -> Result<(), GuestError> {
             "y": y,
             "dy": dy,
             "dx": dx,
+        }),
+    )
+}
+
+pub fn set_viewport(
+    width: u32,
+    height: u32,
+    device_scale_factor: Option<f64>,
+    mobile: bool,
+) -> Result<(), GuestError> {
+    call_json(
+        "set_viewport",
+        &json!({
+            "width": width,
+            "height": height,
+            "device_scale_factor": device_scale_factor,
+            "mobile": mobile,
+        }),
+    )
+}
+
+pub fn print_pdf(landscape: bool) -> Result<String, GuestError> {
+    call_json(
+        "print_pdf",
+        &json!({
+            "landscape": landscape,
         }),
     )
 }
@@ -245,6 +320,33 @@ where
     )
 }
 
+pub fn get_cookies(urls: Option<Vec<String>>) -> Result<Vec<CookieRecord>, GuestError> {
+    call_json(
+        "get_cookies",
+        &json!({
+            "urls": urls,
+        }),
+    )
+}
+
+pub fn set_cookies(cookies: &[CookieParam]) -> Result<(), GuestError> {
+    call_json(
+        "set_cookies",
+        &json!({
+            "cookies": cookies,
+        }),
+    )
+}
+
+pub fn configure_downloads(download_path: &str) -> Result<(), GuestError> {
+    call_json(
+        "configure_downloads",
+        &json!({
+            "download_path": download_path,
+        }),
+    )
+}
+
 pub fn wait_for_load_event(
     timeout_ms: u64,
     poll_interval_ms: u64,
@@ -252,6 +354,42 @@ pub fn wait_for_load_event(
     call_json(
         "wait_for_load_event",
         &json!({
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+        }),
+    )
+}
+
+pub fn wait_for_download(
+    filename: Option<&str>,
+    url: Option<&str>,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+) -> Result<WaitForEventResult, GuestError> {
+    call_json(
+        "wait_for_download",
+        &json!({
+            "filename": filename,
+            "url": url,
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+        }),
+    )
+}
+
+pub fn wait_for_request(
+    url: &str,
+    method: Option<&str>,
+    session_id: Option<&str>,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+) -> Result<WaitForEventResult, GuestError> {
+    call_json(
+        "wait_for_request",
+        &json!({
+            "url": url,
+            "method": method,
+            "session_id": session_id,
             "timeout_ms": timeout_ms,
             "poll_interval_ms": poll_interval_ms,
         }),
@@ -408,12 +546,14 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 #[cfg(test)]
 mod tests {
     use super::{
-        call_json_with, cdp_raw, click, current_session, current_tab, dispatch_key,
-        ensure_real_tab, goto, handle_dialog, http_get, iframe_target, js, list_tabs, new_tab,
-        page_info, press_key, screenshot, scroll, switch_tab, type_text, upload_file, wait,
-        wait_for_console, wait_for_dialog, wait_for_event, wait_for_load, wait_for_load_event,
-        wait_for_response, watch_events, CurrentSessionResult, GuestError, NewTabResult,
-        SwitchTabResult, TabSummary, WaitResult, WatchEventsLine,
+        call_json_with, cdp_raw, click, configure_downloads, current_session, current_tab,
+        dispatch_key, ensure_real_tab, get_cookies, goto, handle_dialog, http_get, iframe_target,
+        js, list_tabs, mouse_down, mouse_move, mouse_up, new_tab, page_info, press_key, print_pdf,
+        screenshot, scroll, set_cookies, set_viewport, switch_tab, type_text, upload_file, wait,
+        wait_for_console, wait_for_dialog, wait_for_download, wait_for_event, wait_for_load,
+        wait_for_load_event, wait_for_request, wait_for_response, watch_events,
+        CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary, WaitResult,
+        WatchEventsLine,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -673,6 +813,56 @@ mod tests {
         .expect("click result");
         assert_eq!(click_result, ());
 
+        let mouse_move_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"mouse_move");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("x").and_then(Value::as_f64), Some(11.0));
+                assert_eq!(request.get("buttons").and_then(Value::as_i64), Some(1));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "mouse_move",
+            &json!({"x":11.0,"y":22.0,"buttons":1}),
+        )
+        .expect("mouse move result");
+        assert_eq!(mouse_move_result, ());
+
+        let mouse_down_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"mouse_down");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("button").and_then(Value::as_str), Some("left"));
+                assert_eq!(request.get("buttons").and_then(Value::as_i64), Some(1));
+                assert_eq!(request.get("click_count").and_then(Value::as_i64), Some(1));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "mouse_down",
+            &json!({"x":11.0,"y":22.0,"button":"left","buttons":1,"click_count":1}),
+        )
+        .expect("mouse down result");
+        assert_eq!(mouse_down_result, ());
+
+        let mouse_up_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"mouse_up");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("button").and_then(Value::as_str), Some("left"));
+                assert_eq!(request.get("buttons").and_then(Value::as_i64), Some(0));
+                assert_eq!(request.get("click_count").and_then(Value::as_i64), Some(1));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "mouse_up",
+            &json!({"x":33.0,"y":44.0,"button":"left","buttons":0,"click_count":1}),
+        )
+        .expect("mouse up result");
+        assert_eq!(mouse_up_result, ());
+
         let type_result: () = call_json_with(
             |operation, request, output| {
                 assert_eq!(operation, b"type_text");
@@ -743,6 +933,45 @@ mod tests {
         .expect("scroll result");
         assert_eq!(scroll_result, ());
 
+        let viewport_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"set_viewport");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("width").and_then(Value::as_u64), Some(900));
+                assert_eq!(request.get("height").and_then(Value::as_u64), Some(700));
+                assert_eq!(
+                    request.get("device_scale_factor").and_then(Value::as_f64),
+                    Some(2.0)
+                );
+                assert_eq!(request.get("mobile").and_then(Value::as_bool), Some(true));
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "set_viewport",
+            &json!({"width":900,"height":700,"device_scale_factor":2.0,"mobile":true}),
+        )
+        .expect("set viewport result");
+        assert_eq!(viewport_result, ());
+
+        let pdf_result: String = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"print_pdf");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("landscape").and_then(Value::as_bool),
+                    Some(true)
+                );
+                let response = serde_json::to_vec("JVBERi0xLjQ=").expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "print_pdf",
+            &json!({"landscape":true}),
+        )
+        .expect("print pdf result");
+        assert_eq!(pdf_result, "JVBERi0xLjQ=");
+
         let screenshot_result: String = call_json_with(
             |operation, request, output| {
                 assert_eq!(operation, b"screenshot");
@@ -791,6 +1020,83 @@ mod tests {
         )
         .expect("upload file result");
         assert_eq!(upload_result, ());
+
+        let cookies_result: Vec<bh_wasm_host::CookieRecord> = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"get_cookies");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.pointer("/urls/0").and_then(Value::as_str),
+                    Some("https://example.com")
+                );
+                let response = serde_json::to_vec(&json!([
+                    {
+                        "name":"session",
+                        "value":"token",
+                        "domain":"example.com",
+                        "path":"/",
+                        "secure":true,
+                        "httpOnly":false,
+                        "session":false
+                    }
+                ]))
+                .expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "get_cookies",
+            &json!({"urls":["https://example.com"]}),
+        )
+        .expect("get cookies result");
+        assert_eq!(cookies_result.len(), 1);
+        assert_eq!(cookies_result[0].name, "session");
+
+        let set_cookies_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"set_cookies");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.pointer("/cookies/0/name").and_then(Value::as_str),
+                    Some("session")
+                );
+                assert_eq!(
+                    request.pointer("/cookies/0/url").and_then(Value::as_str),
+                    Some("https://example.com")
+                );
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "set_cookies",
+            &json!({
+                "cookies":[{
+                    "name":"session",
+                    "value":"token",
+                    "url":"https://example.com",
+                    "secure":true
+                }]
+            }),
+        )
+        .expect("set cookies result");
+        assert_eq!(set_cookies_result, ());
+
+        let configure_downloads_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"configure_downloads");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("download_path").and_then(Value::as_str),
+                    Some("/tmp/downloads")
+                );
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "configure_downloads",
+            &json!({"download_path":"/tmp/downloads"}),
+        )
+        .expect("configure downloads result");
+        assert_eq!(configure_downloads_result, ());
     }
 
     #[test]
@@ -846,6 +1152,48 @@ mod tests {
 
         assert!(result.matched);
         assert_eq!(result.polls, 3);
+    }
+
+    #[test]
+    fn wait_for_download_serializes_filename_and_url_filters() {
+        let result: WaitForEventResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_download");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("filename").and_then(Value::as_str),
+                    Some("report.txt")
+                );
+                assert_eq!(
+                    request.get("url").and_then(Value::as_str),
+                    Some("blob:https://example.com/token")
+                );
+                assert_eq!(
+                    request.get("timeout_ms").and_then(Value::as_u64),
+                    Some(5000)
+                );
+                let response = serde_json::to_vec(&json!({
+                    "matched": true,
+                    "event": {"method":"Browser.downloadWillBegin"},
+                    "polls": 2,
+                    "elapsed_ms": 120
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_download",
+            &json!({
+                "filename":"report.txt",
+                "url":"blob:https://example.com/token",
+                "timeout_ms":5000,
+                "poll_interval_ms":100
+            }),
+        )
+        .expect("wait for download result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 2);
     }
 
     #[test]
@@ -1078,6 +1426,50 @@ mod tests {
     }
 
     #[test]
+    fn wait_for_request_serializes_scope_and_method() {
+        let result: WaitForEventResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_request");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("url").and_then(Value::as_str),
+                    Some("https://example.com/data")
+                );
+                assert_eq!(request.get("method").and_then(Value::as_str), Some("POST"));
+                assert_eq!(
+                    request.get("session_id").and_then(Value::as_str),
+                    Some("session-1")
+                );
+                assert_eq!(
+                    request.get("timeout_ms").and_then(Value::as_u64),
+                    Some(5000)
+                );
+                let response = serde_json::to_vec(&json!({
+                    "matched": true,
+                    "event": {"method":"Network.requestWillBeSent","session_id":"session-1"},
+                    "polls": 2,
+                    "elapsed_ms": 111
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_request",
+            &json!({
+                "url":"https://example.com/data",
+                "method":"POST",
+                "session_id":"session-1",
+                "timeout_ms":5000,
+                "poll_interval_ms":100
+            }),
+        )
+        .expect("wait for request result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 2);
+    }
+
+    #[test]
     fn wait_for_dialog_serializes_dialog_filter() {
         let result: WaitForEventResult = call_json_with(
             |operation, request, output| {
@@ -1160,18 +1552,28 @@ mod tests {
         let _ = wait_for_load;
         let _ = page_info;
         let _ = click;
+        let _ = mouse_move;
+        let _ = mouse_down;
+        let _ = mouse_up;
         let _ = type_text;
         let _ = press_key;
         let _ = dispatch_key;
         let _ = scroll;
+        let _ = set_viewport;
+        let _ = print_pdf;
         let _ = screenshot;
         let _ = handle_dialog;
         let _ = upload_file::<Vec<&str>, &str>;
+        let _ = get_cookies;
+        let _ = set_cookies;
+        let _ = configure_downloads;
         let _ = wait_for_event;
         let _ = watch_events;
         let _ = wait_for_console;
         let _ = wait_for_dialog;
         let _ = wait_for_load_event;
+        let _ = wait_for_download;
+        let _ = wait_for_request;
         let _ = wait_for_response;
         let _ = js::<String>;
     }

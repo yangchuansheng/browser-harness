@@ -10,11 +10,13 @@ use std::time::Duration;
 use bh_cdp::{is_browser_level_method, CdpClient, CdpEvent};
 use bh_discovery::{get_ws_url, is_internal_url, runtime_paths, RuntimePaths};
 use bh_protocol::{
-    DaemonRequest, DaemonResponse, META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY,
-    META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
-    META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PENDING_DIALOG, META_PRESS_KEY,
-    META_SCREENSHOT, META_SCROLL, META_SESSION, META_SET_SESSION, META_SHUTDOWN, META_SWITCH_TAB,
-    META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+    DaemonRequest, DaemonResponse, META_CLICK, META_CONFIGURE_DOWNLOADS, META_CURRENT_TAB,
+    META_DISPATCH_KEY, META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GET_COOKIES, META_GOTO,
+    META_HANDLE_DIALOG, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_MOUSE_DOWN,
+    META_MOUSE_MOVE, META_MOUSE_UP, META_NEW_TAB, META_PAGE_INFO, META_PENDING_DIALOG,
+    META_PRESS_KEY, META_PRINT_PDF, META_SCREENSHOT, META_SCROLL, META_SESSION, META_SET_COOKIES,
+    META_SET_SESSION, META_SET_VIEWPORT, META_SHUTDOWN, META_SWITCH_TAB, META_TYPE_TEXT,
+    META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
 };
 use bh_remote::BrowserUseClient;
 use serde_json::{json, Value};
@@ -600,6 +602,73 @@ impl Daemon {
         Ok(Value::Null)
     }
 
+    async fn mouse_move_result(&self, x: f64, y: f64, buttons: i64) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        self.send_with_retry(
+            "Input.dispatchMouseEvent",
+            json!({
+                "type": "mouseMoved",
+                "x": x,
+                "y": y,
+                "button": "none",
+                "buttons": buttons
+            }),
+            Some(session_id),
+        )
+        .await?;
+        Ok(Value::Null)
+    }
+
+    async fn mouse_down_result(
+        &self,
+        x: f64,
+        y: f64,
+        button: &str,
+        buttons: i64,
+        click_count: i64,
+    ) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        self.send_with_retry(
+            "Input.dispatchMouseEvent",
+            json!({
+                "type": "mousePressed",
+                "x": x,
+                "y": y,
+                "button": button,
+                "buttons": buttons,
+                "clickCount": click_count
+            }),
+            Some(session_id),
+        )
+        .await?;
+        Ok(Value::Null)
+    }
+
+    async fn mouse_up_result(
+        &self,
+        x: f64,
+        y: f64,
+        button: &str,
+        buttons: i64,
+        click_count: i64,
+    ) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        self.send_with_retry(
+            "Input.dispatchMouseEvent",
+            json!({
+                "type": "mouseReleased",
+                "x": x,
+                "y": y,
+                "button": button,
+                "buttons": buttons,
+                "clickCount": click_count
+            }),
+            Some(session_id),
+        )
+        .await?;
+        Ok(Value::Null)
+    }
+
     async fn screenshot_result(&self, full: bool) -> Result<Value, String> {
         let session_id = self.ensure_session().await?;
         let result = self
@@ -617,6 +686,63 @@ impl Daemon {
             .and_then(Value::as_str)
             .ok_or_else(|| "Page.captureScreenshot missing data".to_string())?;
         Ok(Value::String(data.to_string()))
+    }
+
+    async fn set_viewport_result(
+        &self,
+        width: u32,
+        height: u32,
+        device_scale_factor: f64,
+        mobile: bool,
+    ) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        self.send_with_retry(
+            "Emulation.setDeviceMetricsOverride",
+            json!({
+                "width": width,
+                "height": height,
+                "deviceScaleFactor": device_scale_factor,
+                "mobile": mobile
+            }),
+            Some(session_id),
+        )
+        .await?;
+        Ok(Value::Null)
+    }
+
+    async fn print_pdf_result(&self, landscape: bool) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        let result = self
+            .send_with_retry(
+                "Page.printToPDF",
+                json!({
+                    "landscape": landscape,
+                    "printBackground": true,
+                    "preferCSSPageSize": true
+                }),
+                Some(session_id),
+            )
+            .await?;
+        let data = result
+            .get("data")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Page.printToPDF missing data".to_string())?;
+        Ok(Value::String(data.to_string()))
+    }
+
+    async fn configure_downloads_result(&self, download_path: &str) -> Result<Value, String> {
+        self.cdp
+            .send_raw(
+                "Browser.setDownloadBehavior",
+                json!({
+                    "behavior": "allow",
+                    "downloadPath": download_path,
+                    "eventsEnabled": true
+                }),
+                None,
+            )
+            .await?;
+        Ok(Value::Null)
     }
 
     async fn handle_dialog_result(
@@ -833,6 +959,32 @@ impl Daemon {
             self.detach_transient_target(&session_id).await;
         }
         result
+    }
+
+    async fn get_cookies_result(&self, urls: Option<&[String]>) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        let params = urls
+            .filter(|urls| !urls.is_empty())
+            .map(|urls| json!({ "urls": urls }))
+            .unwrap_or_else(|| json!({}));
+        let result = self
+            .send_with_retry("Network.getCookies", params, Some(session_id))
+            .await?;
+        Ok(result
+            .get("cookies")
+            .cloned()
+            .unwrap_or_else(|| Value::Array(Vec::new())))
+    }
+
+    async fn set_cookies_result(&self, cookies: &[Value]) -> Result<Value, String> {
+        let session_id = self.ensure_session().await?;
+        self.send_with_retry(
+            "Network.setCookies",
+            json!({ "cookies": cookies }),
+            Some(session_id),
+        )
+        .await?;
+        Ok(Value::Null)
     }
 
     async fn handle_request(&self, request: DaemonRequest) -> DaemonResponse {
@@ -1064,6 +1216,86 @@ impl Daemon {
                     },
                 }
             }
+            Some(META_SET_VIEWPORT) => {
+                let params = request.params.as_ref();
+                let width = params
+                    .and_then(|params| params.get("width"))
+                    .and_then(Value::as_u64)
+                    .and_then(|width| u32::try_from(width).ok())
+                    .unwrap_or(1280);
+                let height = params
+                    .and_then(|params| params.get("height"))
+                    .and_then(Value::as_u64)
+                    .and_then(|height| u32::try_from(height).ok())
+                    .unwrap_or(800);
+                let device_scale_factor = params
+                    .and_then(|params| params.get("device_scale_factor"))
+                    .and_then(Value::as_f64)
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)
+                    .unwrap_or(1.0);
+                let mobile = params
+                    .and_then(|params| params.get("mobile"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                match self
+                    .set_viewport_result(width, height, device_scale_factor, mobile)
+                    .await
+                {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_PRINT_PDF) => {
+                let landscape = request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("landscape"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                match self.print_pdf_result(landscape).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_CONFIGURE_DOWNLOADS) => {
+                let download_path = request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("download_path"))
+                    .and_then(Value::as_str);
+                match download_path {
+                    Some(download_path) if !download_path.is_empty() => {
+                        match self.configure_downloads_result(download_path).await {
+                            Ok(result) => DaemonResponse {
+                                result: Some(result),
+                                ..DaemonResponse::default()
+                            },
+                            Err(err) => DaemonResponse {
+                                error: Some(err),
+                                ..DaemonResponse::default()
+                            },
+                        }
+                    }
+                    _ => DaemonResponse {
+                        error: Some(
+                            "configure_downloads requires params.download_path".to_string(),
+                        ),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
             Some(META_HANDLE_DIALOG) => {
                 let params = request.params.as_ref();
                 let action = params
@@ -1115,6 +1347,103 @@ impl Daemon {
                     .and_then(Value::as_i64)
                     .unwrap_or(1);
                 match self.click_result(x, y, button, clicks).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_MOUSE_MOVE) => {
+                let params = request.params.as_ref();
+                let x = params
+                    .and_then(|params| params.get("x"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let y = params
+                    .and_then(|params| params.get("y"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let buttons = params
+                    .and_then(|params| params.get("buttons"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0);
+                match self.mouse_move_result(x, y, buttons).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_MOUSE_DOWN) => {
+                let params = request.params.as_ref();
+                let x = params
+                    .and_then(|params| params.get("x"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let y = params
+                    .and_then(|params| params.get("y"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let button = params
+                    .and_then(|params| params.get("button"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("left");
+                let buttons = params
+                    .and_then(|params| params.get("buttons"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(1);
+                let click_count = params
+                    .and_then(|params| params.get("click_count"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(1);
+                match self
+                    .mouse_down_result(x, y, button, buttons, click_count)
+                    .await
+                {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_MOUSE_UP) => {
+                let params = request.params.as_ref();
+                let x = params
+                    .and_then(|params| params.get("x"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let y = params
+                    .and_then(|params| params.get("y"))
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0);
+                let button = params
+                    .and_then(|params| params.get("button"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("left");
+                let buttons = params
+                    .and_then(|params| params.get("buttons"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0);
+                let click_count = params
+                    .and_then(|params| params.get("click_count"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(1);
+                match self
+                    .mouse_up_result(x, y, button, buttons, click_count)
+                    .await
+                {
                     Ok(result) => DaemonResponse {
                         result: Some(result),
                         ..DaemonResponse::default()
@@ -1261,6 +1590,54 @@ impl Daemon {
                     },
                     None => DaemonResponse {
                         error: Some("upload_file requires params.selector".to_string()),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_GET_COOKIES) => {
+                let urls = request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("urls"))
+                    .and_then(Value::as_array)
+                    .map(|urls| {
+                        urls.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect::<Vec<_>>()
+                    });
+                match self.get_cookies_result(urls.as_deref()).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
+                        ..DaemonResponse::default()
+                    },
+                }
+            }
+            Some(META_SET_COOKIES) => {
+                let cookies = request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("cookies"))
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                if cookies.is_empty() {
+                    return DaemonResponse {
+                        error: Some("set_cookies requires params.cookies".to_string()),
+                        ..DaemonResponse::default()
+                    };
+                }
+                match self.set_cookies_result(&cookies).await {
+                    Ok(result) => DaemonResponse {
+                        result: Some(result),
+                        ..DaemonResponse::default()
+                    },
+                    Err(err) => DaemonResponse {
+                        error: Some(err),
                         ..DaemonResponse::default()
                     },
                 }

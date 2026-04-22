@@ -9,7 +9,7 @@ Current status:
 
 - Phase 1 hybrid rewrite is complete: Rust owns the daemon/runtime core and Python remains the compatibility shell
 - Rust daemon connects to local or remote CDP and serves the existing Unix socket contract
-- first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, low-level input primitives, DOM key dispatch, and file upload
+- first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, viewport control, PDF export, cookie read/write, download configuration, low-level input primitives, drag primitives, DOM key dispatch, and file upload
 - remote-browser shutdown parity is implemented in the Rust daemon
 - local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
 - site-dependent domain-skill acceptance now has passing local browser smokes via `DevToolsActivePort`, including the GitHub trending, Reddit post, Product Hunt homepage, Letterboxd popular, Spotify search, and Etsy search guest slices
@@ -20,7 +20,7 @@ Current status:
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
 - `bh-guest-sdk` now also covers typed tab/session control and the event-wait family, with compiled workflow samples in `guests/rust-tab-response-workflow` and `guests/rust-event-waits-sdk`
-- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, `dispatch_key`, `scroll`, `screenshot`, `handle_dialog`, `upload_file`, runner-owned `http_get`, and the capability-gated raw CDP escape hatch `cdp_raw`
+- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `mouse_move`, `mouse_down`, `mouse_up`, `type_text`, `press_key`, `dispatch_key`, `scroll`, `set_viewport`, `print_pdf`, `screenshot`, `handle_dialog`, `upload_file`, `get_cookies`, `set_cookies`, `configure_downloads`, `wait_for_download`, runner-owned `http_get`, request-side `wait_for_request`, and the capability-gated raw CDP escape hatch `cdp_raw`
 - the first skill-shaped Rust/Wasm guest now exists via `guests/rust-github-trending`, which ports the browser-trending slice of `domain-skills/github/scraping.md`
 - a second skill-shaped Rust/Wasm guest now exists via `guests/rust-reddit-post-scrape`, which ports the browser DOM extraction slice of `domain-skills/reddit/scraping.md`
 - a third skill-shaped Rust/Wasm guest now exists via `guests/rust-producthunt-homepage`, which ports the homepage feed slice of `domain-skills/producthunt/scraping.md` with a `new_tab()`-first flow and a fallback extractor for the current homepage DOM
@@ -130,6 +130,9 @@ JSON
 cargo run --quiet --bin bhrun -- scroll <<'JSON'
 {"daemon_name":"default","x":100,"y":200,"dy":-300,"dx":0}
 JSON
+cargo run --quiet --bin bhrun -- set-viewport <<'JSON'
+{"daemon_name":"default","width":1280,"height":800,"device_scale_factor":1.0,"mobile":false}
+JSON
 cargo run --quiet --bin bhrun -- upload-file <<'JSON'
 {"daemon_name":"default","selector":"#file1","files":["/abs/path/file.txt"]}
 JSON
@@ -144,6 +147,9 @@ cargo run --quiet --bin bhrun -- watch-events <<'JSON'
 JSON
 cargo run --quiet --bin bhrun -- wait-for-load-event <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-request <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","method":"POST"}
 JSON
 cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","status":200}
@@ -186,6 +192,18 @@ Live `bhrun wait-for-response` smoke:
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_response_smoke.py
 ```
 
+Live `bhrun wait-for-request` smoke:
+
+```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_request_smoke.py
+```
+
+Live `bhrun set-viewport` smoke:
+
+```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_viewport_smoke.py
+```
+
 Live `bhrun wait-for-console` smoke:
 
 ```bash
@@ -202,6 +220,17 @@ Live `bhrun screenshot` smoke:
 
 ```bash
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_screenshot_smoke.py
+```
+
+Local `bhrun` runner-helper smokes:
+
+```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_screenshot_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_print_pdf_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_cookies_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_download_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_drag_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_upload_smoke.py
 ```
 
 Live `bhrun` action smoke:
@@ -231,7 +260,6 @@ BROWSER_USE_API_KEY=... python3 scripts/bhrun_reddit_guest_smoke.py
 Local `bhrun` domain-skill guest smokes:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_screenshot_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_github_trending_guest_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_reddit_guest_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_producthunt_guest_smoke.py
