@@ -1,5 +1,9 @@
 # Rust-Native Replacement Plan
 
+Status: complete. This file now documents the replacement outcome and the
+remaining repo-local compatibility boundary, rather than an in-progress
+transition.
+
 ## Purpose
 
 This document defines the path from the current legacy Python compatibility

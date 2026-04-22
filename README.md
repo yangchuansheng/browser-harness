@@ -12,7 +12,7 @@ The agent writes what's missing, mid-task. No framework, no recipes, no rails. O
   ● browser-harness / bhrun already exposes upload-file
   │
   ● if a capability is missing, the agent extends the harness mid-task
-  │   in Rust or the legacy shell, depending on the migration stage
+  │   in Rust
   ✓ task completed
 ```
 
@@ -26,6 +26,7 @@ Browser Harness is now Rust-native:
 - installed packages are now Rust-only
 - the default installed command is `browser-harness`
 - the repo-local fallback is `cargo run --quiet --bin browser-harness -- ...`
+- the rewrite/migration work is complete; remaining work is normal product work
 
 ## Quick Start
 
