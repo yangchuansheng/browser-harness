@@ -19,7 +19,7 @@ Current status:
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
 - `bh-guest-sdk` now also covers typed tab/session control and response waits, with a compiled workflow sample in `guests/rust-tab-response-workflow`
-- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, `scroll`, and runner-owned `http_get`
+- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, `scroll`, `screenshot`, and runner-owned `http_get`
 - the first skill-shaped Rust/Wasm guest now exists via `guests/rust-github-trending`, which ports the browser-trending slice of `domain-skills/github/scraping.md`
 - a second skill-shaped Rust/Wasm guest now exists via `guests/rust-reddit-post-scrape`, which ports the browser DOM extraction slice of `domain-skills/reddit/scraping.md`
 - a third skill-shaped Rust/Wasm guest now exists via `guests/rust-producthunt-homepage`, which ports the homepage feed slice of `domain-skills/producthunt/scraping.md` with a `new_tab()`-first flow and a fallback extractor for the current homepage DOM
@@ -190,6 +190,12 @@ Live `bhrun wait-for-dialog` smoke:
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_dialog_smoke.py
 ```
 
+Live `bhrun screenshot` smoke:
+
+```bash
+BROWSER_USE_API_KEY=... python3 scripts/bhrun_screenshot_smoke.py
+```
+
 Live `bhrun` action smoke:
 
 ```bash
@@ -216,6 +222,7 @@ BROWSER_USE_API_KEY=... python3 scripts/bhrun_reddit_guest_smoke.py
 Local `bhrun` domain-skill guest smokes:
 
 ```bash
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_screenshot_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_github_trending_guest_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_reddit_guest_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_producthunt_guest_smoke.py

@@ -105,7 +105,7 @@ enough to be high-value early migration work.
 Do these only when a domain skill proves the need.
 
 - [ ] typed dialog handling (`accept` / `dismiss` / optional prompt text)
-- [ ] typed screenshot support
+- [x] typed screenshot support
 - [ ] typed file upload support
 - [ ] typed `dispatch_key` support
 - [ ] viewport control helpers (`set_viewport` or equivalent emulation wrapper)
@@ -129,13 +129,18 @@ domain migrations make the guidance concrete enough to stabilize.
 - [ ] `interaction-skills/iframes.md`
 - [ ] `interaction-skills/dropdowns.md`
 - [ ] `interaction-skills/shadow-dom.md`
+- [x] `interaction-skills/network-requests.md`
+  Refreshed around runner-owned `http_get`, `wait_for_response`, and `watch_events`,
+  with local acceptance via `scripts/bhrun_response_smoke.py` and
+  `scripts/bhrun_watch_events_smoke.py`
+- [x] `interaction-skills/screenshots.md`
+  Refreshed around `bhrun screenshot`, `bh_guest_sdk::screenshot(full)`, and
+  local acceptance via `scripts/bhrun_screenshot_smoke.py`
 
 ### Interaction Skills Waiting On New Typed Host Work
 
 - [ ] `interaction-skills/dialogs.md`
-- [ ] `interaction-skills/screenshots.md`
 - [ ] `interaction-skills/uploads.md`
-- [ ] `interaction-skills/network-requests.md`
 - [ ] `interaction-skills/viewport.md`
 - [ ] `interaction-skills/print-as-pdf.md`
 - [ ] `interaction-skills/downloads.md`

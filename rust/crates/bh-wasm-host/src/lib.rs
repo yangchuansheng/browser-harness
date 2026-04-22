@@ -1,8 +1,8 @@
 use bh_protocol::{
     META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO,
     META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
-    META_SCROLL, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
-    PROTOCOL_VERSION,
+    META_SCREENSHOT, META_SCROLL, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
+    META_WAIT_FOR_LOAD, PROTOCOL_VERSION,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -285,6 +285,14 @@ pub struct ScrollRequest {
     pub dx: f64,
     #[serde(default = "default_scroll_dy")]
     pub dy: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScreenshotRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default)]
+    pub full: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -582,6 +590,15 @@ impl Default for ScrollRequest {
     }
 }
 
+impl Default for ScreenshotRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            full: false,
+        }
+    }
+}
+
 impl CurrentSessionRequest {
     pub fn normalized(&self) -> Self {
         Self {
@@ -775,6 +792,19 @@ impl ScrollRequest {
             y: self.y,
             dx: self.dx,
             dy: self.dy,
+        }
+    }
+}
+
+impl ScreenshotRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            full: self.full,
         }
     }
 }
@@ -1100,7 +1130,7 @@ pub fn default_operations() -> Vec<HostOperation> {
             "Dispatch a DOM KeyboardEvent on a matched element.",
         ),
         compatibility_helper(META_SCROLL, "Dispatch browser-level mouse wheel scrolling."),
-        compatibility_helper("screenshot", "Capture the current page as an image."),
+        compatibility_helper(META_SCREENSHOT, "Capture the current page as an image."),
         compatibility_helper(
             META_UPLOAD_FILE,
             "Assign files to an input element in the current page or iframe target.",
@@ -1439,8 +1469,8 @@ mod tests {
         response_received_filter, ClickRequest, CurrentSessionRequest, CurrentTabRequest,
         EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest, GuestTransport,
         HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest,
-        PageInfoRequest, PressKeyRequest, ProtocolFamilyKind, ScrollRequest, Stability,
-        SwitchTabRequest, TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest,
+        PageInfoRequest, PressKeyRequest, ProtocolFamilyKind, ScreenshotRequest, ScrollRequest,
+        Stability, SwitchTabRequest, TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest,
         WaitForEventRequest, WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest,
         WatchEventsLine, WatchEventsRequest,
     };
@@ -1489,6 +1519,7 @@ mod tests {
         assert!(names.contains(&"wait_for_response"));
         assert!(names.contains(&"wait_for_console"));
         assert!(names.contains(&"wait_for_dialog"));
+        assert!(names.contains(&"screenshot"));
         assert!(names.contains(&"http_get"));
         assert!(names.contains(&"cdp_raw"));
     }
@@ -1769,6 +1800,18 @@ mod tests {
         assert_eq!(normalized.daemon_name, "default");
         assert_eq!(normalized.x, 1.0);
         assert_eq!(normalized.dy, 4.0);
+    }
+
+    #[test]
+    fn screenshot_request_normalizes_blank_name() {
+        let request = ScreenshotRequest {
+            daemon_name: "   ".to_string(),
+            full: true,
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert!(normalized.full);
     }
 
     #[test]
