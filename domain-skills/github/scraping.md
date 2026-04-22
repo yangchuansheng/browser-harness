@@ -6,6 +6,12 @@
 
 **Use the REST API for repo/user/release data — it's one call, no browser, fully parsed JSON.**
 
+Repo-local Python snippets below assume the Rust-backed runner shim:
+
+```python
+from scripts._runner_cli import goto, http_get, js, wait, wait_for_load
+```
+
 ```python
 import json
 data = json.loads(http_get("https://api.github.com/repos/{owner}/{repo}"))
@@ -169,7 +175,7 @@ with ThreadPoolExecutor(max_workers=3) as ex:
 
 - **Code search requires auth** — `GET /search/code` returns HTTP 401 without a token. Repo/user/issues search works unauthenticated.
 
-- **Trending page selectors only work if navigation is in the same script run** — Each `uv run browser-harness` exec is fresh. Selectors that returned 0 results were run in a separate invocation after the page had navigated away. Always include `goto()` + `wait_for_load()` + `wait(2)` in the same script.
+- **Trending page selectors only work if navigation is in the same script run** — each repo-local Python script or guest invocation is fresh. Selectors that returned 0 results were run in a separate invocation after the page had navigated away. Always include `goto()` + `wait_for_load()` + `wait(2)` in the same script.
 
 - **wait(2) after wait_for_load() on trending** — `document.readyState == 'complete'` fires before React finishes painting repo cards. Without the extra 2s sleep, `article.Box-row` count was 0 even though the DOM technically loaded.
 
