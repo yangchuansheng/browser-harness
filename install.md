@@ -144,7 +144,8 @@ compatibility shell. New setup, verification, and onboarding should teach
 Current deprecation behavior:
 
 - `browser-harness-py` warns when invoked
-- `helpers.py` warns on import; use `runner_cli.py` instead
-- `admin.py` warns on import; use `admin_cli.py` instead
+- installed packages no longer ship `helpers.py` or `admin.py`
+- repo-local `helpers.py` warns on import; use `runner_cli.py` instead
+- repo-local `admin.py` warns on import; use `admin_cli.py` instead
 - set `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` only when a legacy script
   needs to suppress those warnings
