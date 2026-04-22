@@ -1,6 +1,6 @@
 # eBay — Scraping & Data Extraction
 
-Field-tested against ebay.com on 2026-04-18 using `uv run python` with `http_get`.
+Field-tested against ebay.com on 2026-04-18 using Rust CLI-equivalent helper calls with `http_get`.
 Chrome is NOT required — `http_get` returns full HTML on first access.
 
 ## Critical: Bot Detection ("Pardon Our Interruption")
@@ -9,7 +9,7 @@ eBay's bot detection fires after roughly **5–10 requests per IP in a short win
 The block page is ~13 KB, title `"Pardon Our Interruption..."`, and contains no listing data.
 
 **Always check before parsing:**
-```python
+```text
 def is_blocked(html):
     return 'Pardon Our Interruption' in html or len(html) < 20_000
 
@@ -22,7 +22,7 @@ if is_blocked(html):
 not a hard IP ban; it clears after inactivity.
 
 **Headers required (minimal UA gets blocked faster, full browser UA lasts longer):**
-```python
+```text
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept-Language": "en-US,en;q=0.9",
@@ -40,7 +40,7 @@ https://www.ebay.com/sch/i.html?_nkw={query}&{filters}
 ```
 
 Confirmed working URL examples:
-```python
+```text
 # Buy It Now only, sorted by lowest price
 "https://www.ebay.com/sch/i.html?_nkw=mechanical+keyboard&LH_BIN=1&_sop=15"
 
@@ -117,7 +117,7 @@ Each result is an `<li>` element with `data-listingid=<id>`. Key elements within
 
 ### Confirmed Extractor (field-tested, 60 items from a single search)
 
-```python
+```text
 import re
 
 def extract_search_results(html):
@@ -181,8 +181,8 @@ def extract_search_results(html):
 ```
 
 **Usage:**
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import re
 
 HEADERS = {
@@ -206,7 +206,7 @@ for item in items[:5]:
 Item detail pages at `/itm/{id}` serve **two JSON-LD blocks**: `BreadcrumbList` and `Product`.
 The `Product` schema is the most useful — it contains price, condition, availability, brand, images, and return policy.
 
-```python
+```text
 import re, json
 
 def extract_item_detail(html):
@@ -291,7 +291,7 @@ def extract_item_detail(html):
 ```
 
 **Field-tested on item 167040158614:**
-```python
+```text
 html = http_get("https://www.ebay.com/itm/167040158614", headers=HEADERS)
 detail = extract_item_detail(html)
 # {
@@ -318,7 +318,7 @@ detail = extract_item_detail(html)
 The `ux-textspans` elements in item pages contain additional data not in JSON-LD,
 including seller name, feedback %, items sold, detailed condition text, and all item specifics.
 
-```python
+```text
 import re
 
 def extract_ux_textspans(html):
@@ -341,7 +341,7 @@ def extract_ux_textspans(html):
 ## Pagination
 
 Use `_pgn=N` (confirmed working, returns ~65–88 items per page):
-```python
+```text
 for page in range(1, 4):
     url = f"https://www.ebay.com/sch/i.html?_nkw=laptop&LH_BIN=1&_sop=15&_pgn={page}"
     html = http_get(url, headers=HEADERS)
@@ -371,9 +371,9 @@ in a session, eBay returns "Pardon Our Interruption" for all subsequent requests
 
 ### Scrape a search and follow top items
 
-```python
+```text
 import re, json, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",

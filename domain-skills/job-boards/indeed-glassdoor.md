@@ -8,7 +8,7 @@ Covers: `indeed.com`, `glassdoor.com`, `stepstone.de`
 
 Never type into the search box on the homepage — bot detection triggers immediately. Build search URLs directly and navigate straight to results.
 
-```python
+```text
 from urllib.parse import quote_plus
 
 # Indeed — English (US)
@@ -75,7 +75,7 @@ wait(2)
 | Full-time | `/jobs/{keyword}/in-{city}.html?of=1` |
 
 For Stepstone, keyword and city go directly in the path — encode spaces as `-`:
-```python
+```text
 kw_path = keyword.replace(" ", "-")
 city_path = city.replace(" ", "-")
 goto(f"https://www.stepstone.de/jobs/{kw_path}/in-{city_path}.html")
@@ -87,7 +87,7 @@ goto(f"https://www.stepstone.de/jobs/{kw_path}/in-{city_path}.html")
 
 Indeed (EU/UK) and Glassdoor show GDPR consent overlays. Dismiss before extraction.
 
-```python
+```text
 def dismiss_cookie_banner():
     """Try common consent button patterns. Safe to call even if no banner is present."""
     dismissed = js("""
@@ -121,7 +121,7 @@ def dismiss_cookie_banner():
 
 Call immediately after `wait_for_load()` on `.co.uk`, `.de`, or `glassdoor.com`:
 
-```python
+```text
 goto("https://www.indeed.co.uk/jobs?q=Python+developer&l=London")
 wait_for_load()
 wait(2)
@@ -135,7 +135,7 @@ wait(1)
 
 Each result card on Indeed carries a `data-jk` attribute (the job key). Use it to construct direct URLs.
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 
@@ -198,7 +198,7 @@ for r in results:
 
 Indeed paginates using `&start=N` where N increments by 10 per page.
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 
@@ -253,7 +253,7 @@ print(f"Collected {len(all_jobs)} jobs across {page+1} pages")
 ```
 
 **For `fromage` (date filter) + pagination**: keep the `fromage` param in the base URL:
-```python
+```text
 base_url = f"https://www.indeed.com/jobs?q={quote_plus(query)}&l={quote_plus(location)}&fromage=1"
 ```
 
@@ -263,7 +263,7 @@ base_url = f"https://www.indeed.com/jobs?q={quote_plus(query)}&l={quote_plus(loc
 
 Fetch the full job description from the detail page. The `viewjob?jk=` URL is canonical and stable.
 
-```python
+```text
 import json, re
 
 def get_indeed_job_detail(jk: str) -> dict:
@@ -319,7 +319,7 @@ print(detail["description"][:500])  # first 500 chars
 
 Glassdoor shows a login modal after a few scrolls. Extract cards from the first visible load before triggering that wall.
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 
@@ -384,7 +384,7 @@ for r in results:
 
 **If `jobs` returns an empty list**, Glassdoor has changed its DOM structure. Take a screenshot and inspect:
 
-```python
+```text
 screenshot()
 # Look for the actual card selector, then update the querySelectorAll above
 ```
@@ -395,7 +395,7 @@ screenshot()
 
 Glassdoor increasingly shows a login modal after viewing a few listings. Detect and dismiss it.
 
-```python
+```text
 def dismiss_glassdoor_login_modal():
     """Close the Glassdoor sign-in / register modal if it appears."""
     closed = js("""
@@ -437,7 +437,7 @@ If the modal is persistent and cannot be closed, switch to Indeed for the same s
 
 Stepstone is server-rendered. Most data can be extracted with `http_get` for speed, or via `goto` + `js()` for dynamic content.
 
-```python
+```text
 import json, re
 from urllib.parse import quote_plus
 
@@ -493,7 +493,7 @@ for r in results:
 
 ### Stepstone pagination
 
-```python
+```text
 import json
 
 all_jobs = []
@@ -546,7 +546,7 @@ print(f"Stepstone: {len(all_jobs)} jobs collected")
 
 Indeed search result links go through a tracking redirect. **Do not use those redirect URLs.** Instead, extract the `data-jk` attribute directly for the stable canonical URL.
 
-```python
+```text
 # Correct approach: extract data-jk from the card
 job_keys = js("""
 JSON.stringify(
@@ -567,7 +567,7 @@ for jk in jks:
 
 If you already have a redirect URL and need to extract the `jk` from it:
 
-```python
+```text
 import re
 def extract_jk(url: str) -> str | None:
     m = re.search(r'[?&]jk=([a-f0-9]+)', url)
@@ -582,7 +582,7 @@ Salary appears in different places and formats depending on the job and site.
 
 ### Indeed salary patterns
 
-```python
+```text
 import re
 
 def parse_indeed_salary(raw: str) -> dict:
@@ -651,7 +651,7 @@ If the salary is absent in the search result card, it is only available on the j
 
 All three sites use relative timestamps. Convert to absolute dates when needed.
 
-```python
+```text
 import re
 from datetime import datetime, timedelta
 
@@ -702,7 +702,7 @@ parse_relative_date("30+ days ago") # datetime 30 days ago
 
 For Indeed, the raw HTML of search results contains structured JSON in a `window.mosaic.providerData` script tag. This is faster and more reliable than DOM extraction.
 
-```python
+```text
 import json, re
 from urllib.parse import quote_plus
 
@@ -776,7 +776,7 @@ If `http_get` returns 0 results (CAPTCHA or structure change), fall back to the 
 
 Some Indeed listings apply on Indeed directly ("Easy Apply") while others redirect to the company site. Detect which type before deciding what to do.
 
-```python
+```text
 def get_application_type(jk: str) -> dict:
     """Returns {type: 'easy_apply'|'external'|'unknown', external_url: str|None}"""
     goto(f"https://www.indeed.com/viewjob?jk={jk}")
@@ -816,7 +816,7 @@ Indeed and Glassdoor have active bot detection. Violating these limits leads to 
 
 ### Safe request cadence
 
-```python
+```text
 # Minimum wait between page loads
 INTER_PAGE_WAIT = 2.5   # seconds — don't go below 2
 
@@ -829,7 +829,7 @@ MAX_HTTP_CONCURRENT = 2  # never more than 2 at once for Indeed/Glassdoor
 
 ### CAPTCHA detection
 
-```python
+```text
 def is_captcha_page() -> bool:
     """Check if the current page is a CAPTCHA or block page."""
     url = page_info()["url"]
@@ -875,7 +875,7 @@ Glassdoor's bot detection is more fingerprint-based. If results stop loading:
 
 ### Indeed URL filter parameters
 
-```python
+```text
 from urllib.parse import quote_plus
 
 def build_indeed_url(
@@ -906,7 +906,7 @@ url = build_indeed_url("data analyst", remote=True, fromage=1)
 
 ## Collecting N results across pages
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 

@@ -8,9 +8,9 @@ Field-tested against howlongtobeat.com on 2026-04-18. All code blocks validated 
 
 HLTB runs a token-gated POST endpoint at `/api/find`. You must first fetch a session token from `/api/find/init`, then include it in the search request. Both steps are plain HTTP — no browser required.
 
-```python
+```text
 import json, re, urllib.request, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = "Mozilla/5.0"
 
@@ -88,9 +88,9 @@ Token is reusable — fetch it once and pass it to multiple `search_hltb()` call
 
 ## Fastest approach: search + parse in one helper
 
-```python
+```text
 import json, re, urllib.request, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = "Mozilla/5.0"
 
@@ -161,9 +161,9 @@ print(hltb_search("gone home")[0])
 
 When you have a `game_id`, fetch the game page and extract `__NEXT_DATA__` for the complete dataset — includes median/avg/low/high times, speedrun data, co-op/multiplayer times, and per-platform breakdowns.
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_game_detail(game_id):
     """
@@ -243,9 +243,9 @@ for rel in data['relationships'][:3]:
 
 ### Quick lookup: name → completion times
 
-```python
+```text
 import json, re, urllib.request, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = "Mozilla/5.0"
 
@@ -298,7 +298,7 @@ print(get_times("hades"))
 
 `count` = total matches, `pageTotal` = total pages with current `size`. The same token works across all pages.
 
-```python
+```text
 def search_all_pages(title, size=20):
     """Yield every search result for a query across all pages."""
     tok_url = f"https://howlongtobeat.com/api/find/init?t={int(time.time()*1000)}"
@@ -341,10 +341,10 @@ print(len(mario_games))   # 308
 
 ### Batch lookup by game ID (parallel)
 
-```python
+```text
 import json, re, urllib.request
 from concurrent.futures import ThreadPoolExecutor
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def fetch_game(game_id):
     html = http_get(f"https://howlongtobeat.com/game/{game_id}")

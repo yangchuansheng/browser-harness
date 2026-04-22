@@ -6,7 +6,7 @@
 
 **Use the API directly with `http_get` — no browser, no parsing, fully structured JSON.**
 
-```python
+```text
 import json
 data = json.loads(http_get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"))
 print(data['bitcoin']['usd'])   # 76286
@@ -21,7 +21,7 @@ print(data['bitcoin']['usd'])   # 76286
 - **Coin ID lookup** (`/coins/list`) counts against the limit — call it once and cache
 - **`/ping`** still counts — don't use it as a keep-alive
 
-```python
+```text
 import time, urllib.error, json
 
 def safe_get(url, retries=2):
@@ -50,7 +50,7 @@ def safe_get(url, retries=2):
 - Symbols are not unique: 17+ coins share the symbol `sol` (bridged versions, wrapped, etc.)
 - Use `/coins/list` to resolve symbol → id, or just know the canonical id
 
-```python
+```text
 # Resolve symbol to id
 coins_list = json.loads(http_get("https://api.coingecko.com/api/v3/coins/list"))
 # 17,564 entries as of April 2026
@@ -63,7 +63,7 @@ sol_coins = [c for c in coins_list if c['symbol'].lower() == 'sol']
 
 ### Simple price (one or many coins)
 
-```python
+```text
 import json
 data = json.loads(http_get(
     "https://api.coingecko.com/api/v3/simple/price"
@@ -84,7 +84,7 @@ Response keys for each coin (when all flags enabled):
 
 ### Top coins by market cap (paginated)
 
-```python
+```text
 import json
 data = json.loads(http_get(
     "https://api.coingecko.com/api/v3/coins/markets"
@@ -109,7 +109,7 @@ Pagination: use `page=2`, `page=3`, etc. with `per_page` up to 250. Results are 
 
 ### Coin detail (full metadata)
 
-```python
+```text
 import json
 data = json.loads(http_get(
     "https://api.coingecko.com/api/v3/coins/bitcoin"
@@ -137,7 +137,7 @@ All price/market fields are objects keyed by currency code: `data['market_data']
 
 ### Historical OHLCV
 
-```python
+```text
 import json
 # OHLCV candles: granularity auto-determined by `days`
 # 1d = 30-min candles, 7d = 4-hr candles, 14d+ = daily candles
@@ -158,7 +158,7 @@ dt = datetime.datetime.fromtimestamp(ts_ms / 1000, tz=datetime.timezone.utc)
 
 ### Market chart (price + volume + market cap time series)
 
-```python
+```text
 import json
 # interval='daily' gives one point per day; omit for auto (hourly for <=90 days)
 chart = json.loads(http_get(
@@ -174,7 +174,7 @@ print(chart['total_volumes'][-1])     # [1776508393000, 80459560788.47...]
 
 ### Market chart by date range
 
-```python
+```text
 import json, time
 now = int(time.time())
 thirty_days_ago = now - 30 * 86400
@@ -188,7 +188,7 @@ print(len(chart['prices']))    # 174 points for 7-day range (hourly)
 
 ### Search
 
-```python
+```text
 import json
 results = json.loads(http_get("https://api.coingecko.com/api/v3/search?query=solana"))
 # Top-level keys: 'coins', 'exchanges', 'icos', 'categories', 'nfts'
@@ -202,7 +202,7 @@ Search returns coins ordered by relevance, not market cap. First result is usual
 
 ### Trending (top 7 searched in last 24h)
 
-```python
+```text
 import json
 trending = json.loads(http_get("https://api.coingecko.com/api/v3/search/trending"))
 # Top-level keys: 'coins', 'nfts', 'categories'
@@ -217,7 +217,7 @@ for item in trending['coins']:
 
 ### Global market overview
 
-```python
+```text
 import json
 global_data = json.loads(http_get("https://api.coingecko.com/api/v3/global"))
 gd = global_data['data']
@@ -230,7 +230,7 @@ print(f"Active exchanges: {gd['markets']}")                               # 1,47
 
 ### Coin categories (market cap by sector)
 
-```python
+```text
 import json
 cats = json.loads(http_get(
     "https://api.coingecko.com/api/v3/coins/categories?order=market_cap_desc"
@@ -247,7 +247,7 @@ for cat in cats[:5]:
 
 ### Token price by contract address (ERC-20 and other chains)
 
-```python
+```text
 import json
 # Platform IDs: ethereum, binance-smart-chain, polygon-pos, avalanche, solana, etc.
 token = json.loads(http_get(
@@ -271,7 +271,7 @@ print(token)
 **Commodities**: `xag` (silver), `xau` (gold)
 
 Get the full list:
-```python
+```text
 currencies = json.loads(http_get("https://api.coingecko.com/api/v3/simple/supported_vs_currencies"))
 # Returns list of 63 strings
 ```
@@ -288,7 +288,7 @@ Free tier alternatives:
 
 ## Ping / health check
 
-```python
+```text
 import json
 ping = json.loads(http_get("https://api.coingecko.com/api/v3/ping"))
 print(ping)   # {'gecko_says': '(V3) To the Moon!'}

@@ -19,7 +19,7 @@ All work with `http_get` — no browser needed.
 
 ## Fastest approach: wttr.in one-call current + 3-day forecast
 
-```python
+```text
 import json
 data = json.loads(http_get("https://wttr.in/San+Francisco?format=j1"))
 
@@ -67,7 +67,7 @@ print(na['region'][0]['value'])      # 'California'
 
 ### Step 1: city name → coordinates (geocoding)
 
-```python
+```text
 import json
 geo = json.loads(http_get("https://geocoding-api.open-meteo.com/v1/search?name=Chicago&count=1"))
 city = geo['results'][0]
@@ -82,7 +82,7 @@ Always use `count=1` and take `results[0]` for unambiguous city names. For "San 
 
 ### Current conditions (extended — preferred over current_weather)
 
-```python
+```text
 data = json.loads(http_get(
     f"https://api.open-meteo.com/v1/forecast"
     f"?latitude={lat}&longitude={lon}"
@@ -118,7 +118,7 @@ The older `&current_weather=true` param works too — returns `data['current_wea
 
 ### Hourly forecast
 
-```python
+```text
 data = json.loads(http_get(
     f"https://api.open-meteo.com/v1/forecast"
     f"?latitude={lat}&longitude={lon}"
@@ -156,7 +156,7 @@ for i, t in enumerate(hourly['time'][:5]):
 
 ### Daily forecast
 
-```python
+```text
 data = json.loads(http_get(
     f"https://api.open-meteo.com/v1/forecast"
     f"?latitude={lat}&longitude={lon}"
@@ -186,7 +186,7 @@ for i, date in enumerate(daily['time']):
 
 Different subdomain — `archive-api.open-meteo.com`:
 
-```python
+```text
 data = json.loads(http_get(
     "https://archive-api.open-meteo.com/v1/archive"
     "?latitude=37.7749&longitude=-122.4194"
@@ -215,7 +215,7 @@ All unit conversions are server-side — just add params:
 
 Required for official NWS text forecasts with probability-of-precipitation text and storm warnings.
 
-```python
+```text
 import json, urllib.request, gzip
 
 def nws_get(url):
@@ -272,7 +272,7 @@ for p in fch['properties']['periods'][:5]:
 
 ## WMO weather code table (Open-Meteo `weathercode`)
 
-```python
+```text
 WMO_CODES = {
     0: "Clear sky",
     1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
@@ -295,7 +295,7 @@ def wmo_desc(code):
 
 ## Complete end-to-end pattern: city name → rich forecast
 
-```python
+```text
 import json
 
 def get_weather(city: str) -> dict:
@@ -346,7 +346,7 @@ Neither is parseable as JSON.
 **wttr.in text formats require a non-browser User-Agent.**
 `http_get()` sends `Mozilla/5.0` — wttr.in responds with an HTML page for `?format=%t`, `?format=3`, `?format=4`.
 Use `Wget/1.21` (or any non-browser UA) for text format endpoints:
-```python
+```text
 import urllib.request, gzip
 
 def http_get_wttr(url):

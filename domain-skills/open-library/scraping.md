@@ -6,9 +6,9 @@
 
 **Every task is a direct HTTP call — never open the browser.**
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Search by title
 results = json.loads(http_get("https://openlibrary.org/search.json?q=dune&limit=5"))
@@ -25,9 +25,9 @@ The search API is your entry point for everything. It returns work-level records
 
 ### Search by query, author, title, or ISBN
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Free-text search
 r = json.loads(http_get("https://openlibrary.org/search.json?q=dune+frank+herbert&limit=5"))
@@ -81,7 +81,7 @@ r = json.loads(http_get("https://openlibrary.org/search.json?isbn=9780743273565"
 
 #### Extra fields with `&fields=*`
 
-```python
+```text
 # With fields=* you also get:
 # 'isbn'                   list[str]   All ISBNs across editions
 # 'publisher'              list[str]   All publishers ever
@@ -111,9 +111,9 @@ r = json.loads(http_get("https://openlibrary.org/search.json?isbn=9780743273565"
 
 ### Bulk ISBN lookups (parallel)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 from concurrent.futures import ThreadPoolExecutor
 
 isbns = ['9780743273565', '9780451524935', '9780618346257']
@@ -141,9 +141,9 @@ with ThreadPoolExecutor(max_workers=5) as ex:
 
 Returns all metadata for a work (all editions combined). Get the work ID from `key` in search results.
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 work_id = 'OL893415W'  # from search doc['key'] = '/works/OL893415W'
 work = json.loads(http_get(f"https://openlibrary.org/works/{work_id}.json"))
@@ -163,7 +163,7 @@ work = json.loads(http_get(f"https://openlibrary.org/works/{work_id}.json"))
 
 Helper for the description field (which has two possible shapes):
 
-```python
+```text
 def get_description(work: dict) -> str:
     desc = work.get('description', '')
     if isinstance(desc, dict):
@@ -173,7 +173,7 @@ def get_description(work: dict) -> str:
 
 #### Works editions (paginated list of all editions)
 
-```python
+```text
 editions_resp = json.loads(http_get(
     f"https://openlibrary.org/works/{work_id}/editions.json?limit=10&offset=0"
 ))
@@ -204,9 +204,9 @@ Two sub-APIs: direct JSON for raw data, or `api/books` for enriched data.
 
 #### Direct edition JSON
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 edition_id = 'OL7353617M'  # from editions list e['key'] or cover_edition_key in search
 edition = json.loads(http_get(f"https://openlibrary.org/books/{edition_id}.json"))
@@ -228,7 +228,7 @@ edition = json.loads(http_get(f"https://openlibrary.org/books/{edition_id}.json"
 
 #### Bibkeys API (enriched, multiple books at once)
 
-```python
+```text
 # jscmd=data: cleaned up dict with cover URLs pre-built
 r = json.loads(http_get(
     "https://openlibrary.org/api/books"
@@ -270,9 +270,9 @@ item = r2['ISBN:9780743273565']
 
 ### Authors API
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Lookup by known author key
 author = json.loads(http_get("https://openlibrary.org/authors/OL26320A.json"))
@@ -300,7 +300,7 @@ works = json.loads(http_get("https://openlibrary.org/authors/OL26320A/works.json
 
 #### Author search
 
-```python
+```text
 r = json.loads(http_get("https://openlibrary.org/search/authors.json?q=tolkien"))
 # r['numFound'] == 40
 # r['docs'][0]:
@@ -336,7 +336,7 @@ https://covers.openlibrary.org/a/id/{photo_id}-{size}.jpg
 # Sizes: S (small), M (medium), L (large)
 ```
 
-```python
+```text
 import urllib.request
 
 def get_cover_bytes(cover_id: int, size: str = 'M') -> bytes | None:
@@ -352,7 +352,7 @@ def cover_url(cover_id: int, size: str = 'M') -> str:
     return f"https://covers.openlibrary.org/b/id/{cover_id}-{size}.jpg"
 
 # Usage:
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 work = json.loads(http_get("https://openlibrary.org/works/OL893415W.json"))
 if work.get('covers'):
@@ -361,7 +361,7 @@ if work.get('covers'):
 ```
 
 To get cover by ISBN directly (e.g. for UI without a full book lookup):
-```python
+```text
 # Medium-size cover by ISBN:
 url = f"https://covers.openlibrary.org/b/isbn/{isbn}-M.jpg"
 # Redirects to Internet Archive CDN, content-type: image/jpeg
@@ -373,9 +373,9 @@ url_safe = f"https://covers.openlibrary.org/b/isbn/{isbn}-M.jpg?default=false"
 
 ### Subjects API
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Subject slugs: lowercase, underscores for spaces
 r = json.loads(http_get("https://openlibrary.org/subjects/science_fiction.json?limit=5"))
@@ -414,9 +414,9 @@ r3 = json.loads(http_get("https://openlibrary.org/subjects/science_fiction.json?
 
 ### Trending books
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 for period in ['daily', 'weekly', 'monthly']:
     r = json.loads(http_get(f"https://openlibrary.org/trending/{period}.json?limit=10"))
@@ -442,7 +442,7 @@ Observed in testing: 5 requests completed in ~1 second with no throttling, no 42
 ## Gotchas
 
 **`description` field has two shapes.** Both are real — check at runtime:
-```python
+```text
 desc = work.get('description', '')
 text = desc.get('value', '') if isinstance(desc, dict) else (desc or '')
 ```
@@ -460,7 +460,7 @@ text = desc.get('value', '') if isinstance(desc, dict) else (desc or '')
 **`publish_date` is a raw string.** Values like `'October 1, 1988'`, `'19/08/2017'`, `'2021'`, and `'1965-01-01'` all appear. Don't parse without normalization.
 
 **`/works/.../editions.json` pagination uses `links.next`.** Unlike search (which uses `offset=`), check `links['next']` in the response to know if more pages exist:
-```python
+```text
 resp = json.loads(http_get("https://openlibrary.org/works/OL893415W/editions.json?limit=50"))
 while 'next' in resp.get('links', {}):
     resp = json.loads(http_get("https://openlibrary.org" + resp['links']['next']))

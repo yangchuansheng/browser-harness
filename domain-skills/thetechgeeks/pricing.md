@@ -6,7 +6,7 @@
 
 **Hit the `.js` endpoint, not the DOM.** Shopify exposes canonical product JSON — no scraping, no screenshots.
 
-```python
+```text
 import json
 d = json.loads(http_get(f"https://thetechgeeks.com/products/{handle}.js"))
 # {'title', 'price' (AUD cents — divide by 100), 'available', 'variants', 'compare_at_price', ...}

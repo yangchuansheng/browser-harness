@@ -90,7 +90,7 @@ Confirmed working cities (exact subdomain names):
 | `s=`          | Pagination offset — **ignored in static HTML** |
 
 ### Example URLs
-```python
+```text
 # For-sale keyword search
 "https://sfbay.craigslist.org/search/sss?query=macbook&sort=rel"
 
@@ -134,9 +134,9 @@ URL pattern: `https://{city}.craigslist.org/{area}/{category_code}/d/{slug}/{pos
 
 ## Parsing search results (field-tested)
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def search_craigslist(city, category, query, min_price=None, max_price=None):
     params = f"query={query.replace(' ', '+')}&sort=rel"
@@ -177,7 +177,7 @@ for r in results[:5]:
 Listings without a price have no `<div class="price">` element. The regex above returns an empty string
 for `price`; the example converts that to `None`. A more robust extraction:
 
-```python
+```text
 def parse_listings(html):
     results = []
     for block in re.findall(r'<li class="cl-static-search-result"(.*?)</li>', html, re.DOTALL):
@@ -202,7 +202,7 @@ def parse_listings(html):
 
 Listing pages are also fully server-rendered. All fields are present in the raw HTML.
 
-```python
+```text
 def get_listing(url):
     headers = {"User-Agent": "Mozilla/5.0"}
     html = http_get(url, headers=headers)
@@ -249,7 +249,7 @@ def get_listing(url):
 ```
 
 ### Sample output — for-sale listing
-```python
+```text
 {
     "post_id":  "7917381408",
     "title":    "Brand new iphone 15 case and screen protector",
@@ -267,7 +267,7 @@ def get_listing(url):
 Housing listings have `<span class="attr important">` blocks for bedrooms/bathrooms and square footage,
 separate from the `<div class="attr">` attribute grid:
 
-```python
+```text
 # BR/BA
 br_ba  = re.search(r'(\d+)BR\s*/\s*(\d+(?:\.\d+)?)Ba', html)
 # Square footage
@@ -282,9 +282,9 @@ if sqft:  sqft_val = sqft.group(1)
 Each search page includes an `ItemList` JSON-LD block with up to 330 items. Useful when you want
 structured data (price as float, geo coordinates) without regex parsing of HTML:
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 html = http_get("https://sfbay.craigslist.org/search/sss?query=laptop", headers={"User-Agent": "Mozilla/5.0"})
 ld_blocks = re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL)
@@ -322,7 +322,7 @@ s=300 → same 342 listings
 
 **Recommendation**: Do not attempt pagination via `http_get`. Use search filters to narrow results:
 
-```python
+```text
 # Instead of paginating, narrow by price range
 under_500 = search_craigslist("sfbay", "sss", "macbook", max_price=500)
 over_500  = search_craigslist("sfbay", "sss", "macbook", min_price=501)
@@ -341,7 +341,7 @@ None observed. Craigslist does not block `http_get` requests. During testing:
 
 Defensive check (in case behavior changes):
 
-```python
+```text
 def is_blocked(html):
     return (
         len(html) < 5000 or
@@ -384,7 +384,7 @@ def is_blocked(html):
   (shown in the extractor above).
 
 - **HTML-escaped body text**: Description bodies may contain `&amp;`, `&lt;`, etc. Unescape if needed:
-  ```python
+  ```text
   import html as html_lib
   body_clean = html_lib.unescape(body_text)
   ```

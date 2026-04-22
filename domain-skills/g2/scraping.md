@@ -31,7 +31,7 @@ Pages **not** behind DataDome (safe to `http_get`): `help.g2.com`, `research.g2.
 
 G2 provides a public REST API at `https://data.g2.com/api/v1` documented at `https://data.g2.com/api/docs`. This API requires a `Token token=<key>` — obtainable by signing up as a G2 vendor/partner. If you have a key, it is faster and more reliable than browser scraping.
 
-```python
+```text
 import json, urllib.request
 
 API_KEY = "your_token_here"
@@ -141,7 +141,7 @@ slug              URL slug for the individual review
 
 ### Setup: open in new tab, wait for DataDome to clear
 
-```python
+```text
 new_tab("https://www.g2.com/products/slack/reviews")
 wait_for_load()
 wait(5)  # DataDome JS fingerprinting runs 2-4s after readyState=complete
@@ -151,7 +151,7 @@ wait(5)  # DataDome JS fingerprinting runs 2-4s after readyState=complete
 
 Verify you are on the real page, not the DataDome challenge page:
 
-```python
+```text
 title = js("document.title")
 url_now = page_info()["url"]
 if "g2.com" not in url_now or "captcha-delivery.com" in url_now:
@@ -183,7 +183,7 @@ Product slug is the lowercase hyphenated name from the URL: `slack`, `microsoft-
 
 G2 is a **Rails app** (not Next.js) — there is no `__NEXT_DATA__`. Use schema.org microdata attributes.
 
-```python
+```text
 import json
 
 goto("https://www.g2.com/products/slack/reviews")
@@ -226,7 +226,7 @@ print("Reviews:", data["review_count"] or data["count_fb"])
 
 The rating distribution histogram (5-star, 4-star, …) is rendered server-side with a progress bar or percentage spans.
 
-```python
+```text
 import json
 
 goto("https://www.g2.com/products/slack/reviews")
@@ -276,7 +276,7 @@ for star in ["5", "4", "3", "2", "1"]:
 
 If the distribution returns empty, take a screenshot and inspect the actual element structure:
 
-```python
+```text
 screenshot("/tmp/g2_reviews.png")
 # Inspect the image, then adjust selectors above
 ```
@@ -287,7 +287,7 @@ screenshot("/tmp/g2_reviews.png")
 
 G2 renders reviews server-side as schema.org `Review` microdata items. Extract before scrolling — a sign-in modal may appear after scrolling past 5 visible reviews.
 
-```python
+```text
 import json
 
 goto("https://www.g2.com/products/slack/reviews")
@@ -376,7 +376,7 @@ for r in results:
 
 **If `results` is empty:** G2 may have re-skinned. Take a screenshot and inspect the DOM:
 
-```python
+```text
 screenshot("/tmp/g2_page.png")
 # Check element structure with:
 structure = js("""
@@ -397,7 +397,7 @@ print(structure)
 
 G2 paginates reviews via `?page=N` query parameter (Rails standard).
 
-```python
+```text
 import json
 
 slug = "slack"
@@ -450,7 +450,7 @@ print(f"Total: {len(all_reviews)} reviews")
 
 ## Workflow 5: Category product listing
 
-```python
+```text
 import json
 
 goto("https://www.g2.com/categories/team-collaboration")
@@ -492,7 +492,7 @@ for p in listing:
 
 ## Detecting DataDome challenge vs. real page
 
-```python
+```text
 def g2_is_datadome_blocked() -> bool:
     """True if DataDome challenge is still running (not on the real G2 page)."""
     url_now = page_info()["url"]
@@ -521,7 +521,7 @@ if g2_is_datadome_blocked():
 
 A login modal appears after scrolling past ~5 reviews (triggered by scroll, not on load). Extract all visible review cards **before scrolling**. If you need to scroll:
 
-```python
+```text
 def dismiss_g2_login_modal():
     """Close G2's sign-in overlay. Safe to call if no modal is present."""
     closed = js("""

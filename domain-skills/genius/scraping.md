@@ -9,8 +9,8 @@ No authentication required for any approach documented here.
 
 `http_get` uses `User-Agent: Mozilla/5.0` (bare string). Genius returns HTTP 403 for that UA on both HTML pages and internal API endpoints. Adding any OS token (e.g. `(Macintosh; Intel Mac OS X 10_15_7)`) immediately lifts the block — no cookies, no session, no JavaScript required.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def genius_get(url, extra_headers=None):
     """Drop-in replacement for http_get on genius.com endpoints."""
@@ -41,9 +41,9 @@ a browser-like User-Agent. They return rich structured JSON in ~0.13s.
 
 ### Song metadata
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def genius_get(url, extra_headers=None):
     headers = {
@@ -103,7 +103,7 @@ primary_album = song["albums"][0]["name"]   # "A Night at the Opera"
 
 ### Search
 
-```python
+```text
 def genius_search(query, per_page=5):
     """Search Genius. Returns sections: top_hit, song, lyric, artist, album, video, article, user."""
     url = f"https://genius.com/api/search/multi?per_page={per_page}&q={urllib.parse.quote(query)}"
@@ -135,7 +135,7 @@ def genius_search_songs(query, per_page=5):
 
 ### Artist songs (paginated)
 
-```python
+```text
 def genius_artist_songs(artist_id, per_page=20, sort="popularity"):
     """Fetch paginated list of songs for an artist. sort: 'popularity' or 'title'."""
     page = 1
@@ -170,9 +170,9 @@ lyrics page. There are usually 3–5 such divs (the song is split across section
 Each div can contain nested child divs for annotation highlights — including a
 `data-exclude-from-selection="true"` header div that must be stripped first.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def genius_get(url, extra_headers=None):
     headers = {
@@ -296,9 +296,9 @@ No rate limiting observed across 10 rapid sequential requests.
 The fastest complete extraction pattern: one API call for all metadata,
 one HTML call for lyrics. Song ID can be derived several ways.
 
-```python
+```text
 import json, re, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def genius_get(url, extra_headers=None):
     headers = {
@@ -405,7 +405,7 @@ result = genius_full("Queen Bohemian Rhapsody")
 
 **Extracting song ID from a known lyrics URL:**
 
-```python
+```text
 # The slug alone cannot be decoded to an ID. Must fetch HTML or search.
 # From lyrics page HTML (fastest — one line):
 song_id = re.search(r'content="genius://songs/(\d+)"', html).group(1)
@@ -446,11 +446,11 @@ The following are **not available** via `genius_get` / HTTP:
 
 If you have a token (free registration at genius.com/developers):
 
-```python
+```text
 def genius_api(path, token):
     """Call the official public API. path example: '/songs/1063'"""
     import json
-    # setup: see docs/python-integration.md for direct browser-harness wrappers
+    # helper-style example: map these calls to browser-harness / bhrun or a guest
     url = f"https://api.genius.com{path}"
     return json.loads(http_get(url, headers={"Authorization": f"Bearer {token}"}))
 

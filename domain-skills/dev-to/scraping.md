@@ -6,7 +6,7 @@
 
 **Use the REST API — it returns clean JSON in ~150–250ms with no browser, no login, no JS rendering.**
 
-```python
+```text
 import json
 articles = json.loads(http_get("https://dev.to/api/articles?per_page=10&tag=python"))
 # Each article: id, title, description, url, cover_image, tag_list, tags,
@@ -19,7 +19,7 @@ articles = json.loads(http_get("https://dev.to/api/articles?per_page=10&tag=pyth
 
 The API serves **V0 (beta) by default** and emits a `Warning: 299` header on every response. Suppress it silently with the V1 `Accept` header (same data, no deprecated warning):
 
-```python
+```text
 import json
 import urllib.request, gzip
 
@@ -46,7 +46,7 @@ Or just use `http_get` directly if you don't care about the warning header noise
 
 ### Articles by tag
 
-```python
+```text
 import json
 articles = json.loads(http_get("https://dev.to/api/articles?per_page=10&tag=python"))
 # Paginate with &page=2, &page=3 etc. (1-indexed)
@@ -58,7 +58,7 @@ Confirmed working tags: `python`, `javascript`, `typescript`, `rust`, `go`, `web
 
 ### Top articles by time window
 
-```python
+```text
 import json
 # top=N means "top articles from the last N days"
 top_day   = json.loads(http_get("https://dev.to/api/articles?per_page=10&top=1"))
@@ -69,7 +69,7 @@ top_year  = json.loads(http_get("https://dev.to/api/articles?per_page=10&top=365
 
 ### Articles by username
 
-```python
+```text
 import json
 articles = json.loads(http_get("https://dev.to/api/articles?per_page=10&username=ben"))
 # Paginates cleanly: page=1, page=2 etc. Return distinct IDs, no overlap.
@@ -77,7 +77,7 @@ articles = json.loads(http_get("https://dev.to/api/articles?per_page=10&username
 
 ### New and rising articles
 
-```python
+```text
 import json
 fresh  = json.loads(http_get("https://dev.to/api/articles?per_page=10&state=fresh"))   # very new
 rising = json.loads(http_get("https://dev.to/api/articles?per_page=10&state=rising"))  # gaining traction
@@ -86,7 +86,7 @@ rising = json.loads(http_get("https://dev.to/api/articles?per_page=10&state=risi
 
 ### Single article by ID (adds body_html and body_markdown)
 
-```python
+```text
 import json
 article = json.loads(http_get("https://dev.to/api/articles/3442047"))
 # Full article adds two fields not in list response:
@@ -97,7 +97,7 @@ print(len(article['body_html']), len(article['body_markdown']))
 
 ### Single article by username/slug
 
-```python
+```text
 import json
 # path field from list response is "/username/slug"
 article = json.loads(http_get("https://dev.to/api/articles/ben/some-article-slug"))
@@ -105,7 +105,7 @@ article = json.loads(http_get("https://dev.to/api/articles/ben/some-article-slug
 
 ### Tags — popular list with colors
 
-```python
+```text
 import json
 tags = json.loads(http_get("https://dev.to/api/tags?per_page=10"))
 # Fields: id, name, bg_color_hex, text_color_hex, short_summary
@@ -119,7 +119,7 @@ for t in tags:
 
 ### User profile
 
-```python
+```text
 import json
 user = json.loads(http_get("https://dev.to/api/users/by_username?url=ben"))
 # Fields: type_of, id, username, name, twitter_username, github_username,
@@ -132,7 +132,7 @@ print(user['id'], user['username'], user['summary'])
 
 ### Comments on an article
 
-```python
+```text
 import json
 comments = json.loads(http_get("https://dev.to/api/comments?a_id=3442047"))
 # Returns top-level comments only (replies nested under children key)
@@ -146,7 +146,7 @@ for c in comments:
 
 ### Single comment by id_code
 
-```python
+```text
 import json
 comment = json.loads(http_get("https://dev.to/api/comments/36lnc"))
 # Same fields as above: id_code, body_html, created_at, user, children
@@ -154,7 +154,7 @@ comment = json.loads(http_get("https://dev.to/api/comments/36lnc"))
 
 ### Bulk tag fetch (parallel)
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -193,7 +193,7 @@ with ThreadPoolExecutor(max_workers=3) as ex:
 
 All list endpoints paginate with `page=` (1-indexed) and `per_page=`:
 
-```python
+```text
 import json
 
 def get_all_articles_by_tag(tag, max_pages=5):
@@ -265,7 +265,7 @@ type_of                 str    — always "article"
 
 Safe pattern for bulk fetching:
 
-```python
+```text
 import json, time
 from concurrent.futures import ThreadPoolExecutor
 

@@ -4,7 +4,7 @@
 
 ## Do this first
 
-```python
+```text
 # Precondition: user is logged in
 if not js('!!document.querySelector("meta[name=user-login]")'):
     raise RuntimeError("not logged in to GitHub")
@@ -40,7 +40,7 @@ The visible Star button looks like `button[aria-label^="Star "]`, but that selec
 
 The subscription form uses a shared endpoint with a `_method` override:
 
-```python
+```text
 # Watch (all activity)
 js("""
 (()=>{

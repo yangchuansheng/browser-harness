@@ -22,9 +22,9 @@ https://oaipmh.arxiv.org/oai
 
 ### Harvest all cs papers from a date window
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 OAI_NS = {
     'oai': 'http://www.openarchives.org/OAI/2.0/',
@@ -135,9 +135,9 @@ Subset sets use `topic:topic:SUBCATEGORY` notation, e.g. `cs:cs:LG` for Machine 
 
 ### GetRecord + arXivRaw (version history)
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 RAW_NS = {
     'oai': 'http://www.openarchives.org/OAI/2.0/',
@@ -176,9 +176,9 @@ Base URL: `https://api.semanticscholar.org/graph/v1/`
 
 ### Single paper lookup by arXiv ID
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 paper = json.loads(http_get(
     "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
@@ -199,9 +199,9 @@ The ID format `arXiv:NNNN.NNNNN` is accepted directly — no conversion needed.
 
 ### Batch lookup (up to 500 IDs per POST)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import urllib.request
 
 ids = ["arXiv:1706.03762", "arXiv:1810.04805", "arXiv:2005.14165"]
@@ -230,9 +230,9 @@ Note: `browser-harness http-get` only does GET. For POST use
 
 ### Paper search
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 results = json.loads(http_get(
     "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -271,7 +271,7 @@ for p in results['data']:
 
 Direct PDF download — no auth, no redirect for versionless URLs (returns 200 + PDF body directly).
 
-```python
+```text
 import urllib.request
 
 def download_pdf(arxiv_id, dest_path, version=None):

@@ -6,14 +6,14 @@ No CAPTCHA or bot detection was triggered during any test run.
 ## Navigation
 
 ### Direct search URL (fastest, always use this)
-```python
+```text
 goto("https://www.amazon.com/s?k=mechanical+keyboard")
 wait_for_load()
 wait(2)  # dynamic content needs ~2s after readyState=complete
 ```
 
 ### Search box typing (use when you need category filtering)
-```python
+```text
 goto("https://www.amazon.com")
 wait_for_load()
 wait(1)
@@ -28,7 +28,7 @@ wait(2)
 ```
 
 ### Direct product page
-```python
+```text
 # URL pattern: /dp/{ASIN}  or  /dp/{ASIN}?th=1 (Amazon may redirect to add ?th=1)
 goto("https://www.amazon.com/dp/B08Z6X4NK3")
 wait_for_load()
@@ -41,7 +41,7 @@ wait(2)
 `goto()` can silently fail to navigate if the current tab resists the navigation
 (observed when the daemon attached to a different real tab). The safe pattern:
 
-```python
+```text
 tid = new_tab("https://www.amazon.com/s?k=mechanical+keyboard")
 wait_for_load()
 wait(2)
@@ -55,7 +55,7 @@ After that, `goto()` works fine within the same Amazon session.
 `[data-component-type="s-search-result"]` — confirmed working, yields ~22 results per page.
 
 ### Full extraction (field-tested)
-```python
+```text
 results = js("""
   Array.from(document.querySelectorAll('[data-component-type="s-search-result"]')).map(el => ({
     asin: el.getAttribute('data-asin'),
@@ -83,7 +83,7 @@ results = js("""
 ## Product Detail Page Extraction
 
 ### Confirmed selectors (field-tested on B08Z6X4NK3)
-```python
+```text
 detail = js("""
   ({
     title: document.querySelector('#productTitle')?.innerText?.trim(),
@@ -119,7 +119,7 @@ e.g. `https://www.amazon.com/Best-Sellers-Electronics/zgbs/electronics/`
 ### DOM structure (2025)
 `.zg-item-immersion` **does not exist** — Amazon migrated to CSS modules. Use `[data-asin]` anchored on `[id="gridItemRoot"]`:
 
-```python
+```text
 goto("https://www.amazon.com/Best-Sellers-Electronics/zgbs/electronics/")
 wait_for_load()
 wait(2)
@@ -142,7 +142,7 @@ Note: Title comes from the product image `alt` attribute — the text title elem
 
 ## Pagination
 
-```python
+```text
 # Get next page URL directly
 next_url = js("document.querySelector('.s-pagination-next')?.href")
 if next_url:
@@ -156,7 +156,7 @@ goto("https://www.amazon.com/s?k=wireless+mouse&page=2")
 
 ## Result Count
 
-```python
+```text
 count_text = js("document.querySelector('[data-component-type=\"s-result-info-bar\"] h1')?.innerText?.trim()")
 # Returns e.g.: '1-16 of over 40,000 results for "wireless mouse"\nSort by:\n...'
 # Extract just the count: count_text.split('\n')[0]
@@ -166,7 +166,7 @@ count_text = js("document.querySelector('[data-component-type=\"s-result-info-ba
 
 No CAPTCHA was encountered during testing with a logged-in Chrome session. To detect defensively:
 
-```python
+```text
 def check_captcha():
     text = js("document.body.innerText.slice(0,500)") or ""
     url  = page_info()["url"]

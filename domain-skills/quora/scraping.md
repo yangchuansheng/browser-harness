@@ -28,7 +28,7 @@ Firefox UA          -> HTTP 200  (confirmed working)
 
 Use this header bundle for all requests:
 
-```python
+```text
 import urllib.request, gzip, json, re
 
 CHROME_UA = (
@@ -60,7 +60,7 @@ def quora_get(url):
 
 Quora SSR embeds all page data as a series of `.push("...")` calls inside `<script>` blocks. Each call pushes a JSON-encoded string (with escaped quotes) into `inlineQueryResults`. There are no JSON-LD blocks, no `__NEXT_DATA__`, no React hydration state — only these push calls.
 
-```python
+```text
 def extract_quora_payloads(html):
     """Extract and parse all push() payloads from a Quora page.
     Returns list of dicts (already decoded from double JSON encoding).
@@ -83,7 +83,7 @@ A question page returns **16 payloads**. A profile or topic page returns **3 pay
 
 ## Path 1: Question page — metadata + first answers (fastest)
 
-```python
+```text
 def quora_question(url):
     """
     Scrape a Quora question page.
@@ -172,7 +172,7 @@ def quora_question(url):
 
 ### Example output
 
-```python
+```text
 result = quora_question("https://www.quora.com/What-is-the-meaning-of-life")
 
 # result['question']:
@@ -208,7 +208,7 @@ result = quora_question("https://www.quora.com/What-is-the-meaning-of-life")
 
 ### Convert creation_time_us to datetime
 
-```python
+```text
 from datetime import datetime, timezone
 ts_sec = result['answers'][0]['creation_time_us'] / 1_000_000
 dt = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
@@ -221,7 +221,7 @@ dt = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
 
 Fetching `quora.com/{question-slug}/answer/{author-slug}` directly returns only that one answer's full data in 3 payloads instead of 16. Use this when you already know the answer URL.
 
-```python
+```text
 def quora_answer(answer_url):
     """
     Fetch a single answer by its permalink.
@@ -257,7 +257,7 @@ def quora_answer(answer_url):
 
 ## Path 3: Topic page
 
-```python
+```text
 def quora_topic(topic_url):
     """
     Fetch topic metadata from a Quora topic page.
@@ -295,7 +295,7 @@ def quora_topic(topic_url):
 
 ## Path 4: User profile page
 
-```python
+```text
 def quora_profile(profile_url):
     """
     Fetch user profile data from https://www.quora.com/profile/{username}

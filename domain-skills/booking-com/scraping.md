@@ -43,7 +43,7 @@ Same AWS WAF SDK, plus an `XMLHttpRequest`-based error reporter that POSTs to
 non-browser UA strings.
 
 **Detection in your code:**
-```python
+```text
 def is_waf_blocked(html: str) -> bool:
     return (
         'AwsWafIntegration' in html
@@ -79,7 +79,7 @@ has no value without the WAF token.
 Booking.com whitelists sitemap paths for Googlebot. This lets you enumerate
 millions of property, city, region, and attraction URLs without a browser.
 
-```python
+```text
 import gzip, re, urllib.request
 
 GOOGLEBOT = {"User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)"}
@@ -123,7 +123,7 @@ en_gb_shards = re.findall(
 
 ### 2. `robots.txt`
 
-```python
+```text
 robots = http_get("https://www.booking.com/robots.txt", headers={"User-Agent": "Mozilla/5.0"})
 ```
 
@@ -138,7 +138,7 @@ It accepts POST requests and returns JSON. Without a session, most queries
 return `Internal Server Error` from the backend (`irene` service), but
 **GraphQL validation errors fire before the backend** and reveal the schema.
 
-```python
+```text
 import json, urllib.request, gzip
 
 GQL_URL = "https://www.booking.com/dml/graphql?lang=en-gb"
@@ -279,7 +279,7 @@ Since `http_get` is blocked, all actual data extraction requires the browser
 
 ### Initial Navigation
 
-```python
+```text
 # Always use new_tab() for the first Booking.com load in a session
 tid = new_tab("https://www.booking.com/searchresults.html?ss=Paris&checkin=2026-05-01&checkout=2026-05-03&group_adults=2&no_rooms=1&selected_currency=USD")
 wait_for_load()
@@ -297,7 +297,7 @@ if "chal_t=" in url:
 Shown to visitors with EU IP addresses or EU `Accept-Language` headers **after**
 the WAF challenge resolves. It blocks interaction until dismissed.
 
-```python
+```text
 def dismiss_cookie_banner():
     # Booking.com uses data-testid="accept" on the Accept button
     accepted = js("""
@@ -322,7 +322,7 @@ may not see it at all.
 
 ### Search Results Page Extraction
 
-```python
+```text
 results = js("""
   Array.from(document.querySelectorAll('[data-testid="property-card"]')).map(el => ({
     name: el.querySelector('[data-testid="title"]')?.innerText?.trim(),
@@ -351,7 +351,7 @@ results = js("""
 
 ### Pagination
 
-```python
+```text
 # Method 1: Next page button
 next_btn = js("document.querySelector('[data-testid=\"pagination-next\"]')?.href")
 if next_btn:
@@ -369,7 +369,7 @@ wait(3)
 
 ### Property / Hotel Page Extraction
 
-```python
+```text
 detail = js("""
   ({
     name: document.querySelector('[data-testid="property-name"]')?.innerText?.trim()
@@ -403,7 +403,7 @@ detail = js("""
 Property pages embed JSON-LD when fully rendered in browser. The schema type
 is `Hotel`:
 
-```python
+```text
 ld_json = js("""
   (function() {
     for (var s of document.querySelectorAll('script[type="application/ld+json"]')) {
@@ -434,7 +434,7 @@ rendered page. `http_get` will never see it.
 Booking.com's React app may embed search state in `window.__NEXT_DATA__` or
 legacy `b_hotel_data` globals. Access via:
 
-```python
+```text
 next_data = js("window.__NEXT_DATA__")    # dict or None
 b_hotel   = js("window.b_hotel_data")    # dict or None — legacy pages
 ```
@@ -448,7 +448,7 @@ on page version. Prefer data-testid selectors which are more stable.
 
 Booking.com shows prices per night with multiple formatting variants:
 
-```python
+```text
 price_patterns = js("""
   ({
     // Search results card price
@@ -483,7 +483,7 @@ price_patterns = js("""
 The WAF resolves automatically in a real Chrome session. To detect if
 something went wrong:
 
-```python
+```text
 def check_booking_waf():
     url = page_info()["url"]
     html_snippet = js("document.body?.innerHTML?.slice(0, 500)") or ""
@@ -516,7 +516,7 @@ wait(2)  # hydration
 Use this when you need a list of property URLs for a given country or city,
 without needing to scrape search results pages in the browser:
 
-```python
+```text
 import gzip, re, urllib.request
 
 GOOGLEBOT = {"User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)"}

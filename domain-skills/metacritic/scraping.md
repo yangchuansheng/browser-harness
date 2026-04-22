@@ -2,13 +2,33 @@
 
 Field-tested against metacritic.com on 2026-04-18. All code blocks validated with live requests.
 
+## Rust-native paths
+
+For a direct backend fetch, use the installed Rust CLI:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://backend.metacritic.com/games/metacritic/the-last-of-us/web?componentName=product&componentType=Product&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u","timeout":20.0}
+JSON
+```
+
+For the packaged two-call score workflow, run the guest:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-metacritic-game-scores/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-metacritic-game-scores/target/wasm32-unknown-unknown/release/rust_metacritic_game_scores_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-metacritic-game-scores/target/wasm32-unknown-unknown/release/rust_metacritic_game_scores_guest.wasm","granted_operations":["http_get"],"allow_http":true,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ## Do this first
 
 **Use the backend API — it returns clean JSON with both scores in one call, no HTML parsing.**
 
 Metacritic's internal backend API is publicly accessible with a stable key embedded in every page. It covers games, movies, and TV shows.
 
-```python
+```text
 import json
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -54,7 +74,7 @@ Use the browser **only** if you need music pages — `metacritic.com/music/*` re
 
 If you only need the Metascore and critic review count and don't need the user score, JSON-LD is the single-call option — no API key, no separate request:
 
-```python
+```text
 import json, re
 
 url = "https://www.metacritic.com/game/elden-ring/"   # or /movie/ or /tv/
@@ -87,7 +107,7 @@ print(ld.get("datePublished"))      # "2022-02-25"
 
 ### Get scores for a single title (backend API)
 
-```python
+```text
 import json
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -133,7 +153,7 @@ print(show_scores("breaking-bad"))
 
 10 API calls in 0.68s with 5 workers — no rate-limit errors:
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 import urllib.request, gzip
@@ -176,7 +196,7 @@ results = batch_game_scores([
 
 ### Search by title
 
-```python
+```text
 import json, urllib.parse
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -217,7 +237,7 @@ results = search("elden ring", media_type="games")
 
 ### Browse/list titles by score
 
-```python
+```text
 import json
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -262,7 +282,7 @@ Finder API totals (confirmed 2026-04-18):
 
 ### Get per-platform scores for multi-platform games
 
-```python
+```text
 import json
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -296,7 +316,7 @@ print(game_platforms("elden-ring"))
 
 ### Get critic reviews (paginated)
 
-```python
+```text
 import json
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -330,7 +350,7 @@ print(reviews[0])
 
 ### Get user reviews (paginated)
 
-```python
+```text
 import json
 
 API_KEY = "1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
@@ -363,7 +383,7 @@ print(f"{total} user reviews")   # 2983
 
 If you need to avoid the backend API (e.g., the API key rotates), the HTML page embeds all score data in `<script id="__NUXT_DATA__">` as a flat pool with integer cross-references. This is more fragile but requires no API key:
 
-```python
+```text
 import json, re
 
 url = "https://www.metacritic.com/game/the-last-of-us/"
@@ -426,7 +446,7 @@ Metacritic slugs are lowercased, spaces replaced with hyphens, special chars dro
 
 Derive slug from the page URL: everything between the media-type path and the trailing slash.
 
-```python
+```text
 import re
 
 def slug_from_url(url):

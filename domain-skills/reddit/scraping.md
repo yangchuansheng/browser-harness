@@ -4,6 +4,27 @@ Reddit's "new" web UI (`reddit.com`) is a Lit / web-components SPA built around 
 
 Use the browser when you're logged in (private subreddits, NSFW gates, rate-limit avoidance). For fully public content, the JSON API path below is faster.
 
+## Rust-native paths
+
+For public post JSON, use the installed Rust CLI directly:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://www.reddit.com/r/cursor/comments/1l0u9y7/claude_code_prompt_to_autogenerate_full_cursor/.json","headers":{"User-Agent":"Mozilla/5.0"},"timeout":20.0}
+JSON
+```
+
+For logged-in browser extraction, run the Reddit guest. This assumes a live
+browser daemon is already attached:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-reddit-post-scrape/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-reddit-post-scrape/target/wasm32-unknown-unknown/release/rust_reddit_post_scrape_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-reddit-post-scrape/target/wasm32-unknown-unknown/release/rust_reddit_post_scrape_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","scroll","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ## URL patterns
 
 - Full post: `https://www.reddit.com/r/<sub>/comments/<id>/<slug>/`
@@ -13,9 +34,9 @@ Use the browser when you're logged in (private subreddits, NSFW gates, rate-limi
 
 ## Path 1: JSON API (fastest for public posts)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 url = "https://www.reddit.com/r/cursor/comments/1l0u9y7/claude_code_prompt_to_autogenerate_full_cursor/.json"
 data = json.loads(http_get(url, headers={"User-Agent": "Mozilla/5.0"}))
@@ -34,8 +55,8 @@ Fails on:
 
 Core selector: every post renders inside a single `<shreddit-post>` custom element. Top-level comments are `<shreddit-comment depth="0">`.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 new_tab("https://www.reddit.com/r/vibecoding/comments/1kwuqpz/")
 wait_for_load()
@@ -98,7 +119,7 @@ New Reddit renders only the initial visible comments. To get more, **scroll twic
 
 ### Login / gate detection
 
-```python
+```text
 state = js("""
 (()=>{
   const loginWall = !!document.querySelector('a[href*="/login"], [data-testid="login-button"]');
