@@ -15,12 +15,15 @@ domains/
 Current rules:
 
 - `skill.md` is the main site guide
+- `skill.md` is the primary artifact; guests are optional
 - extra notes can live beside it, such as
   [`github/repo-actions.md`](github/repo-actions.md)
 - executable guests still live under [`../rust/guests/`](../rust/guests/) for
   now
 - some sites are knowledge-only and do not have a guest crate yet
 - all active site-specific knowledge now lives under `domains/`
+- code examples may use Python-like helper syntax as pseudocode for harness
+  operations, not as a Python runtime requirement
 
 Current sites:
 
