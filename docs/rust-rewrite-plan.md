@@ -1,5 +1,8 @@
 # Rust Rewrite Plan
 
+Status: complete. This file is now a historical design record for the rewrite,
+not an active implementation plan.
+
 ## Goal
 
 Rewrite the stable runtime parts of Browser Harness in Rust without breaking the current user-facing workflow:
@@ -87,7 +90,7 @@ This removes the Python dynamic layer after the host API is proven stable.
 
 ### Phase 2 status
 
-Phase 2 has started as design + scaffolding.
+Phase 2 is now the normal product-development path, not an open rewrite phase.
 
 Current runner-owned preview surface:
 
