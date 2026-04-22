@@ -76,8 +76,10 @@ The primary Rust-native path for stable operations is:
 - `browser-harness click`
 - `browser-harness type-text`
 - `browser-harness press-key`
+- `browser-harness dispatch-key`
 - `browser-harness scroll`
 - `browser-harness screenshot`
+- `browser-harness upload-file`
 - `browser-harness wait-for-event`
 - `browser-harness watch-events`
 - `browser-harness wait-for-response`
