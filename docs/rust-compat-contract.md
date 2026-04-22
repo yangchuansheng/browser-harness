@@ -1,8 +1,28 @@
 # Rust Compatibility Contract
 
 This document defines the Python-facing contract that the in-repo Rust rewrite
-must preserve while `admin_cli.py` and `helpers.py` remain the compatibility
-shell. `admin.py` is only a compatibility alias for `admin_cli.py`.
+must preserve while the legacy Python compatibility layer still ships.
+
+Current compatibility split:
+
+- `runner_cli.py` is the intended stable Python helper shim over `bhrun`
+- `admin_cli.py` is the intended stable Python admin shim over Rust control
+  commands
+- `helpers.py` is deprecated and now exists as a compatibility facade over
+  `runner_cli.py` plus the raw-CDP / typed-meta fallback layer
+- `admin.py` is deprecated and is only a compatibility alias for `admin_cli.py`
+- `run.py` / `browser-harness-py` is the deprecated heredoc shell
+
+Deprecation-warning contract:
+
+- `browser-harness-py` warns on invocation
+- `import helpers` warns on import
+- `import admin` warns on import
+- `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` suppresses those warnings for
+  legacy automation
+
+This document exists because the deprecated layer still has to keep working
+until packaging and compatibility policy change again.
 
 ## Runtime Files
 
@@ -11,7 +31,8 @@ shell. `admin.py` is only a compatibility alias for `admin_cli.py`.
 - PID file: `/tmp/bu-<name>.pid`
 - Log file: `/tmp/bu-<name>.log`
 
-`admin_cli.py`, `helpers.py`, `bhd`, and `bhctl` must agree on these paths.
+`admin_cli.py`, `runner_cli.py`, `helpers.py`, `bhd`, and `bhctl` must agree on
+these paths.
 
 ## Daemon Socket Protocol
 
@@ -67,6 +88,9 @@ Unsupported typed meta negotiation:
   with `{"error":"unsupported meta command: <name>"}`.
 - `helpers.py` treats that exact prefix as a capability check and falls back to
   raw CDP or client-side behavior where a compatibility path exists.
+- `runner_cli.py` is the preferred stable Python path and does not provide that
+  raw fallback layer; the fallback behavior is intentionally isolated in the
+  deprecated `helpers.py` facade.
 - Raw CDP requests sent through `cdp(...)` remain part of the compatibility
   contract and are not considered a migration gap.
 
@@ -101,6 +125,8 @@ All non-meta requests are daemon-forwarded CDP calls and return either
 ## `bhctl` Commands Used By Python
 
 Rust mode in `admin_cli.py` currently relies on these commands and JSON shapes.
+`admin.py` must continue to expose the same behavior because it is only an
+alias over `admin_cli.py`.
 
 ### `bhctl daemon-alive [name]`
 
@@ -194,4 +220,5 @@ The local regression checks for this contract are:
 
 - `cargo test --workspace`
 - `python3 -m unittest tests/test_rust_mode_contract.py`
+- `python3 run.py --help`
 - `python3 scripts/remote_smoke.py` for live Browser Use verification
