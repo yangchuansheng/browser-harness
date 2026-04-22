@@ -26,7 +26,7 @@ Every browse URL has an `.xml` RSS variant. Returns price, pub/update dates, pla
 
 ```python
 import re
-from helpers import http_get
+from runner_cli import http_get
 
 def parse_rss(url):
     """
@@ -85,7 +85,7 @@ items = parse_rss("https://itch.io/games/top-rated.xml")
 
 ```python
 import re
-from helpers import http_get
+from runner_cli import http_get
 
 def parse_game_cards(html):
     """
@@ -185,7 +185,7 @@ The cleanest source for individual game data. All confirmed fields:
 
 ```python
 import json, re
-from helpers import http_get
+from runner_cli import http_get
 
 def extract_game_detail(url):
     """
@@ -302,7 +302,7 @@ Browse pages: `?page=N`. Detect end of results by HTTP 404 (page too high) or ab
 
 ```python
 import re
-from helpers import http_get
+from runner_cli import http_get
 
 def paginate_listing(base_url, max_pages=10):
     """
@@ -382,7 +382,7 @@ Base URL: `https://itch.io/api/1/<key>/`
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 ITCH_KEY = "your_api_key_here"   # from https://itch.io/user/settings/api-keys
 

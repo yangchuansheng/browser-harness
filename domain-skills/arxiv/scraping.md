@@ -8,7 +8,7 @@
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 NS = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
 
@@ -27,7 +27,7 @@ Use `http_get` on `https://arxiv.org/abs/{id}` + regex for `citation_*` meta tag
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 NS = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
 
@@ -63,7 +63,7 @@ for e in entries:
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 NS = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
 
@@ -91,7 +91,7 @@ Fetching 10 IDs in one call takes ~2s. Prefer this over parallel single-ID fetch
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 NS = {'atom': 'http://www.w3.org/2005/Atom'}
 
@@ -118,7 +118,7 @@ Use only when IDs are not known upfront or when mixing with other work. For pure
 ```python
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from helpers import http_get
+from runner_cli import http_get
 
 NS = {'atom': 'http://www.w3.org/2005/Atom'}
 
@@ -148,7 +148,7 @@ Use this when you want the full abstract or the versionless PDF URL without pars
 
 ```python
 import re
-from helpers import http_get
+from runner_cli import http_get
 
 html = http_get("https://arxiv.org/abs/1706.03762", headers={"User-Agent": "Mozilla/5.0"})
 # HTML page is ~48 KB, fully static, no JS required
@@ -186,7 +186,7 @@ All `citation_*` meta tags present on the abs page:
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 NS = {
     'atom': 'http://www.w3.org/2005/Atom',
