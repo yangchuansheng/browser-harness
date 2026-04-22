@@ -128,6 +128,19 @@ def dispatch_key(selector, key="Enter", event="keypress", daemon_name=None, time
     return result
 
 
+def scroll(x, y, dy=-300, dx=0, daemon_name=None, timeout_seconds=10):
+    result, _ = _named_runner_command(
+        "scroll",
+        daemon_name=daemon_name,
+        timeout_seconds=timeout_seconds,
+        x=x,
+        y=y,
+        dy=dy,
+        dx=dx,
+    )
+    return result
+
+
 def screenshot(path=None, full=False, daemon_name=None, timeout_seconds=20):
     encoded, _ = _named_runner_command(
         "screenshot",

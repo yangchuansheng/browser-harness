@@ -2,6 +2,12 @@
 
 `https://letterboxd.com` — film logging, rating, and review site. Film pages and user profile root pages are publicly accessible via `http_get` (~200–350ms). Most sub-pages (reviews, ratings, user film lists, browse/genre pages) return 403 and require the browser.
 
+Repo-local Python snippets below assume the Rust-backed runner shim:
+
+```python
+from scripts._runner_cli import goto, http_get, js, wait, wait_for_load
+```
+
 ## Access path decision table
 
 | Goal | Method | Latency |
@@ -32,7 +38,6 @@ Film pages at `letterboxd.com/film/{slug}/` are fully accessible. The JSON-LD bl
 
 ```python
 import json, re, html as htmllib
-from helpers import http_get
 
 def extract_film_data(slug):
     """
@@ -163,7 +168,6 @@ Only the user root page `letterboxd.com/{username}/` is accessible. Sub-pages (`
 
 ```python
 import re, html as htmllib
-from helpers import http_get
 
 def extract_user_profile(username):
     html = http_get(f"https://letterboxd.com/{username}/")
@@ -219,7 +223,6 @@ data = extract_user_profile('dave')
 
 ```python
 import re, html as htmllib
-from helpers import http_get
 
 def extract_activity_stream():
     html = http_get("https://letterboxd.com/films/")
@@ -253,7 +256,6 @@ def extract_activity_stream():
 These pages require the browser — use `goto()` + `wait_for_load()` + `wait(2)`:
 
 ```python
-from helpers import goto, wait_for_load, wait, js
 import json
 
 # Popular films

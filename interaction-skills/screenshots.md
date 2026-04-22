@@ -18,20 +18,20 @@ human-readable snapshot for later review.
 The Rust runner and guest boundary now expose screenshot capture directly:
 
 - `bhrun screenshot`
+- `browser-harness screenshot`
 - `bh_guest_sdk::screenshot(full)`
 
-The result is a base64-encoded PNG string. This differs from the Python
-compatibility helper, which still writes the decoded PNG bytes to a file path:
+The result is a base64-encoded PNG string. For repo-local Python scripts,
+prefer the Rust-backed shim in `scripts/_runner_cli.py`:
 
 ```python
-from helpers import screenshot
+from scripts._runner_cli import screenshot
 
 screenshot("/tmp/page.png", full=True)
 ```
 
-Use the runner/guest path when screenshots are part of a typed workflow or a
-Rust/Wasm guest. Use the Python helper when you are doing quick manual shell
-inspection.
+That helper still calls `bhrun screenshot` under the hood. The old
+`helpers.py` screenshot helper remains compatibility-only.
 
 ## Viewport Vs Full Page
 

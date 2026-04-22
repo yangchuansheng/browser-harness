@@ -12,8 +12,7 @@ silently.
    request or response.
 3. Use `watch_events` when you do not yet know the exact URL or when you need
    to see the whole burst of activity around an action.
-4. Fall back to `drain_events()` only for quick ad hoc inspection in the Python
-   compatibility shell.
+4. Treat raw event draining as a discovery fallback, not the normal path.
 
 ## Public HTTP First
 
@@ -22,6 +21,7 @@ faster, easier to verify, and avoids DOM ambiguity entirely.
 
 ```python
 import json
+from scripts._runner_cli import http_get
 
 data = json.loads(http_get(
     "https://backend.metacritic.com/games/metacritic/the-last-of-us/web"
@@ -50,10 +50,13 @@ Pattern:
 The current Rust runner path already supports this:
 
 - `bhrun current-session`
+- `browser-harness current-session`
 - `bhrun wait-for-event`
 - `bhrun wait-for-response`
 - `bhrun watch-events`
 - `bhrun wait-for-console`
+- `browser-harness wait-for-response`
+- `browser-harness watch-events`
 - `bh_guest_sdk::wait_for_event(...)`
 - `bh_guest_sdk::watch_events(...)`
 - `bh_guest_sdk::wait_for_response(...)` for Rust/Wasm guests
@@ -96,15 +99,17 @@ BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_watch_events_smo
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
 ```
 
-## Python Shell Fallback
+## Repo-Local Python Fallback
 
-The Python compatibility shell does not yet expose first-class wrappers for
-`wait_for_response` or `watch_events`. When you stay in `helpers.py` land,
-fallback to buffered inspection:
+If you want Python ergonomics inside this repo, use the Rust-backed
+`scripts._runner_cli` shim and only fall back to buffered event draining while
+you are still discovering the exact network pattern:
 
 ```python
-drain_events()          # clear old noise first
-click(420, 610)
+from scripts._runner_cli import drain_events, wait
+
+drain_events()  # clear old noise first
+# trigger the browser action here through browser-harness / bhrun / another script
 wait(1.0)
 
 responses = [
@@ -116,9 +121,10 @@ for event in responses:
     print(event.get("session_id"), response.get("status"), response.get("url"))
 ```
 
-This is good for discovery, but it is weaker than a runner-owned blocking wait
-because the buffer is destructive and you can miss short-lived events if you
-start looking too late.
+This is weaker than a runner-owned blocking wait because the buffer is
+destructive and you can miss short-lived events if you start looking too late.
+The legacy `helpers.py` shell has the same limitation and is no longer the
+preferred teaching surface.
 
 ## Practical Rules
 
