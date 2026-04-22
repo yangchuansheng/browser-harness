@@ -15,7 +15,7 @@ Use the browser when you're logged in (private subreddits, NSFW gates, rate-limi
 
 ```python
 import json
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 url = "https://www.reddit.com/r/cursor/comments/1l0u9y7/claude_code_prompt_to_autogenerate_full_cursor/.json"
 data = json.loads(http_get(url, headers={"User-Agent": "Mozilla/5.0"}))
@@ -35,7 +35,7 @@ Fails on:
 Core selector: every post renders inside a single `<shreddit-post>` custom element. Top-level comments are `<shreddit-comment depth="0">`.
 
 ```python
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 new_tab("https://www.reddit.com/r/vibecoding/comments/1kwuqpz/")
 wait_for_load()

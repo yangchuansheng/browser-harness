@@ -1,7 +1,7 @@
-# Python Via The Rust CLI
+# Python Integration
 
-The active source tree no longer keeps repo-local Python shims such as
-`runner_cli.py` or `admin_cli.py`.
+Browser Harness does not ship a Python runtime layer. If you want to keep some
+workflow logic in Python, call the Rust CLI directly through `subprocess`.
 
 If you intentionally want to keep extraction logic in Python, call the Rust
 CLI directly through `subprocess`:
@@ -95,5 +95,5 @@ the Rust CLI surface:
 - `BU_CDP_WS=ws://...` when you want to pin the exact browser websocket
 
 The helpers above are intentionally thin. If you need a command not listed
-here, add another small wrapper over `bh_call(...)` instead of reviving the old
-repo-local Python shims.
+here, add another small wrapper over `bh_call(...)` rather than building a
+second runtime layer around the CLI.

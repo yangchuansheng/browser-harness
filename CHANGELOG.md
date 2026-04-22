@@ -16,7 +16,7 @@
 - The old helper-loaded shell, shim modules, and deprecated import aliases now
   live under `archive/python-legacy/`.
 - Optional Python examples should shell out to `browser-harness`; see
-  `docs/python-cli-helpers.md`.
+  `docs/python-integration.md`.
 - Installed-package regression coverage now runs through
   `browser-harness verify-install` to check that the Python shell and Python
   compatibility modules are intentionally absent.

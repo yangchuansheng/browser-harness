@@ -24,7 +24,7 @@ https://oaipmh.arxiv.org/oai
 
 ```python
 import xml.etree.ElementTree as ET
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 OAI_NS = {
     'oai': 'http://www.openarchives.org/OAI/2.0/',
@@ -137,7 +137,7 @@ Subset sets use `topic:topic:SUBCATEGORY` notation, e.g. `cs:cs:LG` for Machine 
 
 ```python
 import xml.etree.ElementTree as ET
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 RAW_NS = {
     'oai': 'http://www.openarchives.org/OAI/2.0/',
@@ -178,7 +178,7 @@ Base URL: `https://api.semanticscholar.org/graph/v1/`
 
 ```python
 import json
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 paper = json.loads(http_get(
     "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
@@ -201,7 +201,7 @@ The ID format `arXiv:NNNN.NNNNN` is accepted directly — no conversion needed.
 
 ```python
 import json
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 import urllib.request
 
 ids = ["arXiv:1706.03762", "arXiv:1810.04805", "arXiv:2005.14165"]
@@ -232,7 +232,7 @@ Note: `browser-harness http-get` only does GET. For POST use
 
 ```python
 import json
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 results = json.loads(http_get(
     "https://api.semanticscholar.org/graph/v1/paper/search"

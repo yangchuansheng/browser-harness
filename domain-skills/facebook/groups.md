@@ -178,7 +178,7 @@ or `bhrun`.
 cd /path/to/browser-harness && python3 <<'PY'
 import json, sys
 from urllib.parse import urlparse, parse_qs, unquote
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 GROUP = "riceLakeBoating"          # slug or numeric id
 TARGET = 50                         # how many posts to collect

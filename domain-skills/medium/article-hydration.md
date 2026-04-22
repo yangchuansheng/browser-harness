@@ -33,11 +33,11 @@ Safe pattern: take the extracted markdown, then drop leading paragraphs that are
 ## Extractor
 
 This Python example should call the Rust CLI directly through the helper
-wrappers in `docs/python-cli-helpers.md`.
+wrappers in `docs/python-integration.md`.
 
 ````bash
 python3 <<'PY'
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 new_tab("https://medium.com/@user/slug-abc123")
 wait_for_load()
