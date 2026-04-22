@@ -21,7 +21,7 @@ async fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let Some(command) = args.next() else {
         return Err(
-            "usage: bhctl <create-browser|stop-browser|list-cloud-profiles|resolve-profile-name|list-local-profiles|sync-local-profile|daemon-alive|ensure-daemon|restart-daemon|stop-daemon>"
+            "usage: bhctl <create-browser|list-browsers|stop-browser|list-cloud-profiles|resolve-profile-name|list-local-profiles|sync-local-profile|daemon-alive|ensure-daemon|restart-daemon|stop-daemon>"
                 .to_string(),
         );
     };
@@ -41,6 +41,13 @@ async fn run() -> Result<(), String> {
                 object.insert("cdpWsUrl".to_string(), Value::String(cdp_ws_url));
             }
             browser
+        }
+        "list-browsers" => {
+            let client = browser_use_client()?;
+            let options = parse_list_browsers_options(read_json_stdin()?)?;
+            client
+                .list_browsers(options.page_size, options.page_number)
+                .await?
         }
         "stop-browser" => {
             let client = browser_use_client()?;
@@ -69,7 +76,7 @@ async fn run() -> Result<(), String> {
         "restart-daemon" | "stop-daemon" => restart_daemon_output(args.next().as_deref())?,
         other => {
             return Err(format!(
-                "unknown bhctl command {:?}; expected create-browser, stop-browser, list-cloud-profiles, resolve-profile-name, list-local-profiles, sync-local-profile, daemon-alive, ensure-daemon, restart-daemon, or stop-daemon",
+                "unknown bhctl command {:?}; expected create-browser, list-browsers, stop-browser, list-cloud-profiles, resolve-profile-name, list-local-profiles, sync-local-profile, daemon-alive, ensure-daemon, restart-daemon, or stop-daemon",
                 other
             ))
         }
@@ -86,6 +93,12 @@ struct EnsureDaemonOptions {
     name: Option<String>,
     wait_seconds: f64,
     env: BTreeMap<String, String>,
+}
+
+#[derive(Debug, PartialEq)]
+struct ListBrowsersOptions {
+    page_size: usize,
+    page_number: usize,
 }
 
 fn read_json_stdin() -> Result<Option<Value>, String> {
@@ -113,6 +126,24 @@ fn daemon_alive_output(name: Option<&str>) -> Value {
     json!({
         "alive": already_running(&config),
         "name": config.name,
+    })
+}
+
+fn parse_list_browsers_options(payload: Option<Value>) -> Result<ListBrowsersOptions, String> {
+    let payload = payload.unwrap_or_else(|| json!({}));
+    let Some(object) = payload.as_object() else {
+        return Err("list-browsers payload must be a JSON object".to_string());
+    };
+
+    let page_size =
+        parse_positive_usize_field(object.get("pageSize"), "list-browsers pageSize")?.unwrap_or(20);
+    let page_number =
+        parse_positive_usize_field(object.get("pageNumber"), "list-browsers pageNumber")?
+            .unwrap_or(1);
+
+    Ok(ListBrowsersOptions {
+        page_size,
+        page_number,
     })
 }
 
@@ -338,6 +369,21 @@ fn parse_ensure_daemon_options(payload: Option<Value>) -> Result<EnsureDaemonOpt
     })
 }
 
+fn parse_positive_usize_field(value: Option<&Value>, label: &str) -> Result<Option<usize>, String> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let raw = value
+        .as_u64()
+        .ok_or_else(|| format!("{label} must be a positive integer"))?;
+    let parsed =
+        usize::try_from(raw).map_err(|_| format!("{label} is too large for this platform"))?;
+    if parsed == 0 {
+        return Err(format!("{label} must be >= 1"));
+    }
+    Ok(Some(parsed))
+}
+
 fn parse_env_map(value: Option<&Value>) -> Result<BTreeMap<String, String>, String> {
     let Some(value) = value else {
         return Ok(BTreeMap::new());
@@ -435,7 +481,8 @@ mod tests {
 
     use super::{
         daemon_launch_command, parse_created_profile_id, parse_ensure_daemon_options,
-        profile_use_sync_command, resolve_daemon_name, EnsureDaemonOptions,
+        parse_list_browsers_options, profile_use_sync_command, resolve_daemon_name,
+        EnsureDaemonOptions, ListBrowsersOptions,
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -511,6 +558,32 @@ mod tests {
                 ]
                 .into_iter()
                 .collect(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_list_browsers_options_uses_defaults() {
+        assert_eq!(
+            parse_list_browsers_options(None).unwrap(),
+            ListBrowsersOptions {
+                page_size: 20,
+                page_number: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_list_browsers_options_reads_payload_values() {
+        assert_eq!(
+            parse_list_browsers_options(Some(json!({
+                "pageSize": 50,
+                "pageNumber": 3,
+            })))
+            .unwrap(),
+            ListBrowsersOptions {
+                page_size: 50,
+                page_number: 3,
             }
         );
     }

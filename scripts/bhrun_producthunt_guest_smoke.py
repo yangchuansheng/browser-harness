@@ -26,7 +26,12 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "bhrun-producthunt-guest-smoke")
 
-from admin import _browser_use, ensure_daemon, restart_daemon, start_remote_daemon  # noqa: E402
+from scripts._admin_cli import (  # noqa: E402
+    ensure_daemon,
+    list_browsers,
+    restart_daemon,
+    start_remote_daemon,
+)
 
 TARGET_URL_PREFIX = "https://www.producthunt.com"
 DIAGNOSTIC_SCRIPT = r"""
@@ -50,7 +55,7 @@ JSON.stringify({
 
 def poll_browser_status(browser_id, attempts=10, delay=1.0):
     for _ in range(attempts):
-        listing = _browser_use("/browsers?pageSize=20&pageNumber=1", "GET")
+        listing = list_browsers(page_size=20, page_number=1)
         item = next((item for item in listing.get("items", []) if item.get("id") == browser_id), None)
         status = item.get("status") if item else "missing"
         if status != "active":
