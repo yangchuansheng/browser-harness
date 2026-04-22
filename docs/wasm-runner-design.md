@@ -55,6 +55,7 @@ These are small operations that do not belong in generated CDP:
 - `wait`
 - `wait_for_event`
 - `watch_events`
+- `wait_for_request`
 - `http_get`
 
 Other utilities can exist, but they should stay narrow and clearly host-owned.
@@ -74,12 +75,21 @@ These preserve the current product ergonomics while the project transitions:
 - `wait_for_load`
 - `js`
 - `click`
+- `mouse_move`
+- `mouse_down`
+- `mouse_up`
 - `type_text`
 - `press_key`
 - `dispatch_key`
 - `scroll`
+- `set_viewport`
+- `print_pdf`
 - `screenshot`
+- `handle_dialog`
 - `upload_file`
+- `get_cookies`
+- `set_cookies`
+- `configure_downloads`
 
 These helpers are useful, but they should be layered above generated protocol
 access instead of defining the entire long-term ABI.
@@ -199,6 +209,15 @@ JSON
 cargo run --quiet --bin bhrun -- click <<'JSON'
 {"daemon_name":"default","x":100,"y":200,"button":"left","clicks":1}
 JSON
+cargo run --quiet --bin bhrun -- mouse-move <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"buttons":1}
+JSON
+cargo run --quiet --bin bhrun -- mouse-down <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"button":"left","buttons":1,"click_count":1}
+JSON
+cargo run --quiet --bin bhrun -- mouse-up <<'JSON'
+{"daemon_name":"default","x":320,"y":200,"button":"left","buttons":0,"click_count":1}
+JSON
 cargo run --quiet --bin bhrun -- type-text <<'JSON'
 {"daemon_name":"default","text":"hello"}
 JSON
@@ -208,8 +227,26 @@ JSON
 cargo run --quiet --bin bhrun -- scroll <<'JSON'
 {"daemon_name":"default","x":100,"y":200,"dy":-300,"dx":0}
 JSON
+cargo run --quiet --bin bhrun -- set-viewport <<'JSON'
+{"daemon_name":"default","width":1280,"height":800,"device_scale_factor":1.0,"mobile":false}
+JSON
+cargo run --quiet --bin bhrun -- print-pdf <<'JSON'
+{"daemon_name":"default","landscape":false}
+JSON
 cargo run --quiet --bin bhrun -- screenshot <<'JSON'
 {"daemon_name":"default","full":true}
+JSON
+cargo run --quiet --bin bhrun -- upload-file <<'JSON'
+{"daemon_name":"default","selector":"#file","files":["/tmp/file.txt"]}
+JSON
+cargo run --quiet --bin bhrun -- get-cookies <<'JSON'
+{"daemon_name":"default","urls":["https://example.com"]}
+JSON
+cargo run --quiet --bin bhrun -- set-cookies <<'JSON'
+{"daemon_name":"default","cookies":[{"name":"session","value":"token","url":"https://example.com"}]}
+JSON
+cargo run --quiet --bin bhrun -- configure-downloads <<'JSON'
+{"daemon_name":"default","download_path":"/tmp/bh-downloads"}
 JSON
 cargo run --quiet --bin bhrun -- current-session <<'JSON'
 {"daemon_name":"default"}
@@ -222,6 +259,12 @@ cargo run --quiet --bin bhrun -- watch-events <<'JSON'
 JSON
 cargo run --quiet --bin bhrun -- wait-for-load-event <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-download <<'JSON'
+{"daemon_name":"default","filename":"report.csv"}
+JSON
+cargo run --quiet --bin bhrun -- wait-for-request <<'JSON'
+{"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","method":"POST"}
 JSON
 cargo run --quiet --bin bhrun -- wait-for-response <<'JSON'
 {"daemon_name":"default","session_id":"<current-session-id>","url":"https://example.com/api","status":200}

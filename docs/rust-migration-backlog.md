@@ -130,12 +130,12 @@ Do these only when a domain skill proves the need.
 - [x] typed screenshot support
 - [x] typed file upload support
 - [x] typed `dispatch_key` support
-- [ ] viewport control helpers (`set_viewport` or equivalent emulation wrapper)
-- [ ] typed print-to-PDF support
-- [ ] cookie read/write helpers
-- [ ] download lifecycle detection/helpers
-- [ ] request-side network wait helpers, not only response-side waits
-- [ ] low-level drag primitives if current click/scroll/input helpers are not sufficient
+- [x] viewport control helpers (`set_viewport` or equivalent emulation wrapper)
+- [x] typed print-to-PDF support
+- [x] cookie read/write helpers
+- [x] download lifecycle detection/helpers
+- [x] request-side network wait helpers, not only response-side waits
+- [x] low-level drag primitives if current click/scroll/input helpers are not sufficient
 
 ## Secondary Track: Interaction Skill Refresh
 
@@ -144,17 +144,29 @@ domain migrations make the guidance concrete enough to stabilize.
 
 ### Likely Docs-First Refresh After More Domain Work
 
-- [ ] `interaction-skills/connection.md`
-- [ ] `interaction-skills/tabs.md`
-- [ ] `interaction-skills/scrolling.md`
-- [ ] `interaction-skills/cross-origin-iframes.md`
-- [ ] `interaction-skills/iframes.md`
-- [ ] `interaction-skills/dropdowns.md`
-- [ ] `interaction-skills/shadow-dom.md`
+- [x] `interaction-skills/connection.md`
+  Refreshed around `browser-harness ensure-daemon`, `bhrun list-tabs`,
+  `bhrun ensure-real-tab`, and real-tab recovery rules.
+- [x] `interaction-skills/tabs.md`
+  Refreshed around `list-tabs`, `current-tab`, `new-tab`, and `switch-tab`.
+- [x] `interaction-skills/scrolling.md`
+  Refreshed around `bhrun scroll`, page-vs-container scrolling, and geometry
+  re-check rules.
+- [x] `interaction-skills/cross-origin-iframes.md`
+  Refreshed around `iframe-target` and iframe-scoped typed operations.
+- [x] `interaction-skills/iframes.md`
+  Refreshed around same-origin DOM traversal versus page-space input.
+- [x] `interaction-skills/dropdowns.md`
+  Refreshed around `click`, `type_text`, `press_key`, `dispatch_key`, and
+  option re-measurement after open.
+- [x] `interaction-skills/shadow-dom.md`
+  Refreshed around recursive `shadowRoot` access and when pointer input is the
+  simpler path.
 - [x] `interaction-skills/network-requests.md`
   Refreshed around runner-owned `http_get`, `wait_for_event`, `watch_events`,
-  `wait_for_response`, and the matching `bh-guest-sdk` wrappers, with local
-  acceptance via `scripts/bhrun_response_smoke.py`,
+  `wait_for_request`, `wait_for_response`, and the matching `bh-guest-sdk`
+  wrappers, with local acceptance via `scripts/bhrun_request_smoke.py`,
+  `scripts/bhrun_response_smoke.py`,
   `scripts/bhrun_watch_events_smoke.py`, and
   `scripts/bhrun_event_waits_guest_smoke.py`
 - [x] `interaction-skills/screenshots.md`
@@ -171,23 +183,36 @@ migration pulls one forward.
   Refreshed around `bhrun handle-dialog`, `bh_guest_sdk::handle_dialog(...)`,
   `wait-for-dialog`, and the local acceptance path in
   `scripts/bhrun_event_waits_guest_smoke.py`
-- [ ] `interaction-skills/uploads.md`
-- [ ] `interaction-skills/viewport.md`
-- [ ] `interaction-skills/print-as-pdf.md`
-- [ ] `interaction-skills/downloads.md`
-- [ ] `interaction-skills/cookies.md`
-- [ ] `interaction-skills/drag-and-drop.md`
+- [x] `interaction-skills/uploads.md`
+  Refreshed around `bhrun upload-file`, `bh_guest_sdk::upload_file(...)`, and
+  local acceptance via `scripts/bhrun_upload_smoke.py`
+- [x] `interaction-skills/viewport.md`
+  Refreshed around `bhrun set-viewport`, `bh_guest_sdk::set_viewport(...)`,
+  and local acceptance via `scripts/bhrun_viewport_smoke.py`
+- [x] `interaction-skills/print-as-pdf.md`
+  Refreshed around `bhrun print-pdf`, `bh_guest_sdk::print_pdf(...)`, and local
+  acceptance via `scripts/bhrun_print_pdf_smoke.py`
+- [x] `interaction-skills/downloads.md`
+  Refreshed around `configure-downloads`, `wait-for-download`, and local
+  acceptance via `scripts/bhrun_download_smoke.py`
+- [x] `interaction-skills/cookies.md`
+  Refreshed around `get-cookies`, `set-cookies`, and local acceptance via
+  `scripts/bhrun_cookies_smoke.py`
+- [x] `interaction-skills/drag-and-drop.md`
+  Refreshed around `mouse-move`, `mouse-down`, `mouse-up`, and local
+  acceptance via `scripts/bhrun_drag_smoke.py`
 
 ### Special Case
 
-- [ ] `interaction-skills/profile-sync.md`
-  Treat this primarily as Phase 1 admin/control-plane cleanup and verification,
-  not as a guest-boundary migration.
+- [x] `interaction-skills/profile-sync.md`
+  Refreshed onto the Rust-native admin CLI (`browser-harness
+  list-cloud-profiles|list-local-profiles|sync-local-profile|create-browser`)
+  since this remains control-plane work rather than a guest-boundary primitive.
 
 ## First Concrete Tasks
 
 If work resumes from the top of the backlog, do these first:
 
 - [x] switch repo-facing docs and install guidance to the Rust-native CLI first
-- [ ] decide the first post-sunset interaction capability to pull forward only if a real domain migration needs it
-- [ ] only then choose between another delayed domain slice or the first post-sunset interaction primitive
+- [x] decide the first post-sunset interaction capability to pull forward only if a real domain migration needs it
+- [x] only then choose between another delayed domain slice or the first post-sunset interaction primitive
