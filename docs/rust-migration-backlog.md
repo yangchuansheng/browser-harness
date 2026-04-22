@@ -114,9 +114,10 @@ enough to be high-value early migration work.
 - [x] make the Rust-native CLI the primary documented/default repo-local interface
 - [x] decide which remaining `helpers.py` conveniences are intentionally legacy versus worth moving to guests/runner
   Stable helper surface now has Rust-native replacements, including raw CDP via
-  `bhrun cdp-raw` / `bh_guest_sdk::cdp_raw(...)`; `helpers.py` is now
-  compatibility-only and remaining conveniences like `drain_events()` and
-  screenshot file writing are intentionally legacy.
+  `bhrun cdp-raw` / `bh_guest_sdk::cdp_raw(...)`; the stable legacy helper path
+  now lives behind `runner_cli.py`, while `helpers.py` keeps only the
+  compatibility fallback layer (`cdp()`, `_send()`, unsupported-meta caching,
+  and the raw fallback wrappers that still matter).
 - [x] move the stable helper implementation path behind `runner_cli.py`;
   `helpers.py` now keeps the legacy names plus raw-CDP fallback behavior
 - [x] replace the final public Python entrypoint; `browser-harness` now installs the Rust-native CLI and the Python shell is explicit legacy `browser-harness-py`

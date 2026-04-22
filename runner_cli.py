@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+_DEFAULT_SCREENSHOT_PATH = object()
 
 __all__ = [
     "cdp_raw",
@@ -155,12 +156,15 @@ def current_tab(daemon_name=None, timeout_seconds=10):
     return result
 
 
-def list_tabs(include_internal=True, daemon_name=None, timeout_seconds=10):
+def list_tabs(include_internal=True, include_chrome=None, daemon_name=None, timeout_seconds=10):
+    normalized_include_internal = include_chrome if include_chrome is not None else include_internal
+    if not isinstance(normalized_include_internal, bool):
+        raise TypeError("include_internal/include_chrome must be a bool")
     result, _ = _named_runner_command(
         "list-tabs",
         daemon_name=daemon_name,
         timeout_seconds=timeout_seconds,
-        include_internal=include_internal,
+        include_internal=normalized_include_internal,
     )
     return result
 
@@ -365,13 +369,15 @@ def set_viewport(
     return result
 
 
-def screenshot(path=None, full=False, daemon_name=None, timeout_seconds=20):
+def screenshot(path=_DEFAULT_SCREENSHOT_PATH, full=False, daemon_name=None, timeout_seconds=20):
     encoded, _ = _named_runner_command(
         "screenshot",
         daemon_name=daemon_name,
         timeout_seconds=timeout_seconds,
         full=full,
     )
+    if path is _DEFAULT_SCREENSHOT_PATH:
+        path = "/tmp/shot.png"
     if path is None:
         return encoded
     Path(path).write_bytes(base64.b64decode(encoded))
@@ -438,9 +444,10 @@ def handle_dialog(action="accept", prompt_text=None, daemon_name=None, timeout_s
 
 
 def upload_file(selector, files, target_id=None, daemon_name=None, timeout_seconds=10):
+    normalized_files = [files] if isinstance(files, str) else list(files)
     payload = {
         "selector": selector,
-        "files": list(files),
+        "files": normalized_files,
     }
     if target_id is not None:
         payload["target_id"] = target_id
@@ -461,6 +468,11 @@ def wait(seconds=1.0, timeout_seconds=None):
         timeout_seconds=timeout_seconds or max(10, int(seconds) + 5),
     )
     return result
+
+
+def wait_compat(seconds=1.0, timeout_seconds=None):
+    wait(seconds, timeout_seconds=timeout_seconds)
+    return None
 
 
 def wait_for_request(

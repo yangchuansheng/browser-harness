@@ -1,6 +1,5 @@
 """Legacy compatibility wrappers over runner_cli with raw CDP fallback."""
 
-import base64
 import json
 import os
 import socket
@@ -10,8 +9,22 @@ from urllib.parse import urlparse
 
 import runner_cli
 
+click = runner_cli.click
+current_tab = runner_cli.current_tab
+dispatch_key = runner_cli.dispatch_key
 drain_events = runner_cli.drain_events
+ensure_real_tab = runner_cli.ensure_real_tab
+iframe_target = runner_cli.iframe_target
 http_get = runner_cli.http_get
+list_tabs = runner_cli.list_tabs
+new_tab = runner_cli.new_tab
+press_key = runner_cli.press_key
+scroll = runner_cli.scroll
+screenshot = runner_cli.screenshot
+switch_tab = runner_cli.switch_tab
+type_text = runner_cli.type_text
+upload_file = runner_cli.upload_file
+wait = runner_cli.wait_compat
 
 
 def _load_env():
@@ -118,248 +131,6 @@ def page_info():
     return _runner_or_fallback("page_info", lambda: runner_cli.page_info(), fallback)
 
 
-def click(x, y, button="left", clicks=1):
-    return _runner_or_fallback(
-        "click",
-        lambda: runner_cli.click(x, y, button=button, clicks=clicks),
-        lambda: (
-            cdp(
-                "Input.dispatchMouseEvent",
-                type="mousePressed",
-                x=x,
-                y=y,
-                button=button,
-                clickCount=clicks,
-            ),
-            cdp(
-                "Input.dispatchMouseEvent",
-                type="mouseReleased",
-                x=x,
-                y=y,
-                button=button,
-                clickCount=clicks,
-            ),
-        )[-1],
-    )
-
-
-def type_text(text):
-    return _runner_or_fallback(
-        "type_text",
-        lambda: runner_cli.type_text(text),
-        lambda: cdp("Input.insertText", text=text),
-    )
-
-
-_KEYS = {
-    "Enter": (13, "Enter", "\r"),
-    "Tab": (9, "Tab", "\t"),
-    "Backspace": (8, "Backspace", ""),
-    "Escape": (27, "Escape", ""),
-    "Delete": (46, "Delete", ""),
-    " ": (32, "Space", " "),
-    "ArrowLeft": (37, "ArrowLeft", ""),
-    "ArrowUp": (38, "ArrowUp", ""),
-    "ArrowRight": (39, "ArrowRight", ""),
-    "ArrowDown": (40, "ArrowDown", ""),
-    "Home": (36, "Home", ""),
-    "End": (35, "End", ""),
-    "PageUp": (33, "PageUp", ""),
-    "PageDown": (34, "PageDown", ""),
-}
-
-
-def press_key(key, modifiers=0):
-    """Modifiers bitfield: 1=Alt, 2=Ctrl, 4=Meta(Cmd), 8=Shift."""
-
-    def fallback():
-        vk, code, text = _KEYS.get(
-            key,
-            (ord(key[0]) if len(key) == 1 else 0, key, key if len(key) == 1 else ""),
-        )
-        base = {
-            "key": key,
-            "code": code,
-            "modifiers": modifiers,
-            "windowsVirtualKeyCode": vk,
-            "nativeVirtualKeyCode": vk,
-        }
-        cdp(
-            "Input.dispatchKeyEvent",
-            type="keyDown",
-            **base,
-            **({"text": text} if text else {}),
-        )
-        if text and len(text) == 1:
-            cdp(
-                "Input.dispatchKeyEvent",
-                type="char",
-                text=text,
-                **{name: value for name, value in base.items() if name != "text"},
-            )
-        return cdp("Input.dispatchKeyEvent", type="keyUp", **base)
-
-    return _runner_or_fallback(
-        "press_key",
-        lambda: runner_cli.press_key(key, modifiers=modifiers),
-        fallback,
-    )
-
-
-def scroll(x, y, dy=-300, dx=0):
-    return _runner_or_fallback(
-        "scroll",
-        lambda: runner_cli.scroll(x, y, dy=dy, dx=dx),
-        lambda: cdp(
-            "Input.dispatchMouseEvent",
-            type="mouseWheel",
-            x=x,
-            y=y,
-            deltaX=dx,
-            deltaY=dy,
-        ),
-    )
-
-
-def screenshot(path="/tmp/shot.png", full=False):
-    def fallback():
-        data = cdp("Page.captureScreenshot", format="png", captureBeyondViewport=full)["data"]
-        Path(path).write_bytes(base64.b64decode(data))
-        return path
-
-    return _runner_or_fallback(
-        "screenshot",
-        lambda: runner_cli.screenshot(path=path, full=full),
-        fallback,
-    )
-
-
-def list_tabs(include_chrome=True):
-    return _runner_or_fallback(
-        "list_tabs",
-        lambda: runner_cli.list_tabs(include_internal=include_chrome),
-        lambda: [
-            {"targetId": tab["targetId"], "title": tab.get("title", ""), "url": tab.get("url", "")}
-            for tab in cdp("Target.getTargets")["targetInfos"]
-            if tab["type"] == "page"
-            and (include_chrome or not tab.get("url", "").startswith(INTERNAL))
-        ],
-    )
-
-
-def current_tab():
-    return _runner_or_fallback(
-        "current_tab",
-        lambda: runner_cli.current_tab(),
-        lambda: {
-            "targetId": cdp("Target.getTargetInfo").get("targetInfo", {}).get("targetId"),
-            "url": cdp("Target.getTargetInfo").get("targetInfo", {}).get("url", ""),
-            "title": cdp("Target.getTargetInfo").get("targetInfo", {}).get("title", ""),
-        },
-    )
-
-
-def _mark_tab():
-    try:
-        cdp(
-            "Runtime.evaluate",
-            expression="if(!document.title.startsWith('\\U0001F7E2'))document.title='\\U0001F7E2 '+document.title",
-        )
-    except Exception:
-        pass
-
-
-def switch_tab(target_id):
-    def fallback():
-        try:
-            cdp(
-                "Runtime.evaluate",
-                expression="if(document.title.startsWith('\\U0001F7E2 '))document.title=document.title.slice(2)",
-            )
-        except Exception:
-            pass
-        cdp("Target.activateTarget", targetId=target_id)
-        session_id = cdp("Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"]
-        _send({"meta": "set_session", "session_id": session_id})
-        _mark_tab()
-        return session_id
-
-    return _runner_or_fallback(
-        "switch_tab",
-        lambda: runner_cli.switch_tab(target_id),
-        fallback,
-    )
-
-
-def new_tab(url="about:blank"):
-    def fallback():
-        target_id = cdp("Target.createTarget", url="about:blank")["targetId"]
-        switch_tab(target_id)
-        if url != "about:blank":
-            goto(url)
-            deadline = time.time() + 5.0
-            while time.time() < deadline:
-                if js("location.href") != "about:blank":
-                    break
-                time.sleep(0.1)
-            else:
-                raise RuntimeError("new_tab navigation did not start before timeout")
-        return target_id
-
-    return _runner_or_fallback(
-        "new_tab",
-        lambda: runner_cli.new_tab(url=url),
-        fallback,
-    )
-
-
-def ensure_real_tab():
-    """Switch to a real user tab if current is chrome:// / internal / stale."""
-
-    def fallback():
-        tabs = list_tabs(include_chrome=False)
-        if not tabs:
-            return None
-        try:
-            current = current_tab()
-            if current["url"] and not current["url"].startswith(INTERNAL):
-                return current
-        except Exception:
-            pass
-        switch_tab(tabs[0]["targetId"])
-        return tabs[0]
-
-    return _runner_or_fallback(
-        "ensure_real_tab",
-        lambda: runner_cli.ensure_real_tab(),
-        fallback,
-    )
-
-
-def iframe_target(url_substr):
-    """First iframe target whose URL contains `url_substr`."""
-
-    return _runner_or_fallback(
-        "iframe_target",
-        lambda: runner_cli.iframe_target(url_substr),
-        lambda: next(
-            (
-                tab["targetId"]
-                for tab in cdp("Target.getTargets")["targetInfos"]
-                if tab["type"] == "iframe" and url_substr in tab.get("url", "")
-            ),
-            None,
-        ),
-    )
-
-
-def wait(seconds=1.0):
-    """Legacy helper name routed through the runner; preserves `None` return."""
-
-    runner_cli.wait(seconds)
-    return None
-
-
 def wait_for_load(timeout=15.0):
     def fallback():
         deadline = time.time() + timeout
@@ -397,77 +168,6 @@ def js(expression, target_id=None):
         lambda: runner_cli.js(expression, target_id=target_id),
         fallback,
     )
-
-
-_KC = {
-    "Enter": 13,
-    "Tab": 9,
-    "Escape": 27,
-    "Backspace": 8,
-    " ": 32,
-    "ArrowLeft": 37,
-    "ArrowUp": 38,
-    "ArrowRight": 39,
-    "ArrowDown": 40,
-}
-
-
-def dispatch_key(selector, key="Enter", event="keypress"):
-    """Dispatch a DOM KeyboardEvent on the matched element."""
-
-    def fallback():
-        key_code = _KC.get(key, ord(key) if len(key) == 1 else 0)
-        return js(
-            "(()=>{const e=document.querySelector("
-            + json.dumps(selector)
-            + ");if(e){e.focus();e.dispatchEvent(new KeyboardEvent("
-            + json.dumps(event)
-            + ",{key:"
-            + json.dumps(key)
-            + ",code:"
-            + json.dumps(key)
-            + f",keyCode:{key_code},which:{key_code},bubbles:true}}));}})()"
-        )
-
-    return _runner_or_fallback(
-        "dispatch_key",
-        lambda: runner_cli.dispatch_key(selector, key=key, event=event),
-        fallback,
-    )
-
-
-def upload_file(selector, path, target_id=None):
-    """Set files on a file input via CDP DOM.setFileInputFiles."""
-
-    files = [path] if isinstance(path, str) else list(path)
-
-    def fallback():
-        session_id = cdp("Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"] if target_id else None
-        try:
-            document = cdp("DOM.getDocument", session_id=session_id, depth=-1)
-            node_id = cdp(
-                "DOM.querySelector",
-                session_id=session_id,
-                nodeId=document["root"]["nodeId"],
-                selector=selector,
-            )["nodeId"]
-            if not node_id:
-                raise RuntimeError(f"no element for {selector}")
-            return cdp("DOM.setFileInputFiles", session_id=session_id, files=files, nodeId=node_id)
-        finally:
-            if session_id:
-                try:
-                    cdp("Target.detachFromTarget", sessionId=session_id)
-                except Exception:
-                    pass
-
-    return _runner_or_fallback(
-        "upload_file",
-        lambda: runner_cli.upload_file(selector, files, target_id=target_id),
-        fallback,
-    )
-
-
 __all__ = [
     "INTERNAL",
     "NAME",
