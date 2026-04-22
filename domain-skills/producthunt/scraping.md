@@ -22,6 +22,12 @@ Product Hunt is a React SPA. Key structural facts discovered:
 
 ## Navigation Pattern
 
+Repo-local Python snippets below assume:
+
+```python
+from scripts._runner_cli import js, new_tab, page_info, wait, wait_for_load
+```
+
 ```python
 # goto() may fail on Product Hunt — use new_tab() reliably
 tid = new_tab("https://www.producthunt.com")

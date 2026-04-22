@@ -1,6 +1,13 @@
 # Etsy — Scraping & Data Extraction
 
-Field-tested against `www.etsy.com` on 2026-04-18 using `http_get` (no browser) and direct `urllib` probes.
+Field-tested against `www.etsy.com` on 2026-04-18 using runner-owned `http_get`
+(no browser) and direct `urllib` probes.
+
+Repo-local Python snippets below assume the Rust-backed runner shim:
+
+```python
+from scripts._runner_cli import goto, http_get, js, new_tab, wait, wait_for_load
+```
 
 ## Quick summary
 
@@ -75,7 +82,6 @@ Body (816 bytes — a JavaScript challenge, not a hard block):
 ### `robots.txt` (200 OK)
 
 ```python
-from helpers import http_get
 text = http_get("https://www.etsy.com/robots.txt")
 # Returns 51 KB plain-text file — no DataDome
 ```
@@ -88,7 +94,6 @@ The `openapi.etsy.com/v3/` endpoint is NOT DataDome-protected. It returns struct
 
 ```python
 import json
-from helpers import http_get
 
 API_KEY = "your_key_here"  # from developer.etsy.com
 
@@ -161,8 +166,6 @@ Since http_get is blocked, all HTML scraping requires the Chrome browser via CDP
 ### Navigation pattern
 
 ```python
-from helpers import goto, wait_for_load, wait, js, new_tab
-
 # Always use new_tab() for the first Etsy navigation in a session
 tid = new_tab("https://www.etsy.com/search?q=handmade+candle&explicit=1")
 wait_for_load()
@@ -455,7 +458,6 @@ GET /application/seller-taxonomy/nodes   (full category tree)
 
 ```python
 import json, time
-from helpers import http_get
 
 API_KEY = "your_key_here"
 
