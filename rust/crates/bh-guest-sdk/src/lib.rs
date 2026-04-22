@@ -71,6 +71,21 @@ pub fn http_get(
     )
 }
 
+pub fn cdp_raw(
+    method: &str,
+    params: Option<Value>,
+    session_id: Option<&str>,
+) -> Result<Value, GuestError> {
+    call_json(
+        "cdp_raw",
+        &json!({
+            "method": method,
+            "params": params,
+            "session_id": session_id,
+        }),
+    )
+}
+
 pub fn current_session() -> Result<CurrentSessionResult, GuestError> {
     call_json("current_session", &json!({}))
 }
@@ -393,12 +408,12 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 #[cfg(test)]
 mod tests {
     use super::{
-        call_json_with, click, current_session, current_tab, dispatch_key, ensure_real_tab, goto,
-        handle_dialog, http_get, iframe_target, js, list_tabs, new_tab, page_info, press_key,
-        screenshot, scroll, switch_tab, type_text, upload_file, wait, wait_for_console,
-        wait_for_dialog, wait_for_event, wait_for_load, wait_for_load_event, wait_for_response,
-        watch_events, CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary,
-        WaitResult, WatchEventsLine,
+        call_json_with, cdp_raw, click, current_session, current_tab, dispatch_key,
+        ensure_real_tab, goto, handle_dialog, http_get, iframe_target, js, list_tabs, new_tab,
+        page_info, press_key, screenshot, scroll, switch_tab, type_text, upload_file, wait,
+        wait_for_console, wait_for_dialog, wait_for_event, wait_for_load, wait_for_load_event,
+        wait_for_response, watch_events, CurrentSessionResult, GuestError, NewTabResult,
+        SwitchTabResult, TabSummary, WaitResult, WatchEventsLine,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -932,6 +947,48 @@ mod tests {
     }
 
     #[test]
+    fn cdp_raw_serializes_method_params_and_session() {
+        let result: Value = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"cdp_raw");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("method").and_then(Value::as_str),
+                    Some("Runtime.evaluate")
+                );
+                assert_eq!(
+                    request
+                        .pointer("/params/expression")
+                        .and_then(Value::as_str),
+                    Some("2+3")
+                );
+                assert_eq!(
+                    request.get("session_id").and_then(Value::as_str),
+                    Some("session-2")
+                );
+                let response = serde_json::to_vec(&json!({
+                    "result":{"type":"number","value":5}
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "cdp_raw",
+            &json!({
+                "method":"Runtime.evaluate",
+                "params":{"expression":"2+3","returnByValue":true},
+                "session_id":"session-2"
+            }),
+        )
+        .expect("cdp raw result");
+
+        assert_eq!(
+            result.pointer("/result/value").and_then(Value::as_i64),
+            Some(5)
+        );
+    }
+
+    #[test]
     fn watch_events_deserializes_line_sequence() {
         let result: Vec<WatchEventsLine> = call_json_with(
             |operation, request, output| {
@@ -1091,6 +1148,7 @@ mod tests {
     fn helper_functions_use_expected_operations() {
         let _ = wait;
         let _ = http_get;
+        let _ = cdp_raw;
         let _ = current_session;
         let _ = current_tab;
         let _ = list_tabs;

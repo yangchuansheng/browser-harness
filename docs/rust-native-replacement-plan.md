@@ -29,6 +29,9 @@ As of the current rewrite stage:
 This means the Python daemon path is sunset. The remaining Python surface is
 now a shim layer, not the product core.
 
+The raw `helpers.py` `cdp()` escape hatch now also has a Rust-native
+replacement via `browser-harness cdp-raw` and `bh_guest_sdk::cdp_raw(...)`.
+
 ## What "Python Sunset" Means
 
 Python sunset does not require deleting every `.py` file immediately.
@@ -107,6 +110,9 @@ These remain legacy compatibility only for now:
 - `helpers.py`
 - Python convenience wrappers that still sit above the socket contract
 - direct ad hoc Python snippets that depend on helper pre-imports
+
+Those are compatibility shims now, not the canonical product surface. Raw CDP
+is no longer Python-only.
 
 They should only receive:
 

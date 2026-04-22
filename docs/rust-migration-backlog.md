@@ -112,7 +112,11 @@ enough to be high-value early migration work.
 - [x] sunset the Python daemon path; `admin.py` now uses Rust control-plane commands only
 - [x] add a Rust-native top-level CLI facade: `rust/bins/browser-harness-cli`
 - [x] make the Rust-native CLI the primary documented/default repo-local interface
-- [ ] decide which remaining `helpers.py` conveniences are intentionally legacy versus worth moving to guests/runner
+- [x] decide which remaining `helpers.py` conveniences are intentionally legacy versus worth moving to guests/runner
+  Stable helper surface now has Rust-native replacements, including raw CDP via
+  `bhrun cdp-raw` / `bh_guest_sdk::cdp_raw(...)`; `helpers.py` is now
+  compatibility-only and remaining conveniences like `drain_events()` and
+  screenshot file writing are intentionally legacy.
 - [x] replace the final public Python entrypoint; `browser-harness` now installs the Rust-native CLI and the Python shell is explicit legacy `browser-harness-py`
 
 ## Secondary Track: Capability Pull List

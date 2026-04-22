@@ -142,6 +142,17 @@ pub struct HttpGetRequest {
     pub timeout: f64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CdpRawRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    pub method: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WaitResult {
     pub elapsed_ms: u64,
@@ -515,6 +526,17 @@ impl Default for HttpGetRequest {
             url: String::new(),
             headers: None,
             timeout: default_http_timeout_seconds(),
+        }
+    }
+}
+
+impl Default for CdpRawRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            method: String::new(),
+            params: None,
+            session_id: None,
         }
     }
 }
@@ -961,6 +983,21 @@ impl HttpGetRequest {
             } else {
                 default_http_timeout_seconds()
             },
+        }
+    }
+}
+
+impl CdpRawRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            method: self.method.clone(),
+            params: self.params.clone(),
+            session_id: self.session_id.clone(),
         }
     }
 }
@@ -1602,14 +1639,14 @@ mod tests {
     use super::{
         console_event_filter, console_event_matches, default_manifest, default_runner_config,
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
-        response_received_filter, ClickRequest, CurrentSessionRequest, CurrentTabRequest,
-        DispatchKeyRequest, EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest,
-        GuestTransport, HandleDialogRequest, HttpGetRequest, IframeTargetRequest, JsRequest,
-        ListTabsRequest, NewTabRequest, PageInfoRequest, PressKeyRequest, ProtocolFamilyKind,
-        ScreenshotRequest, ScrollRequest, Stability, SwitchTabRequest, TypeTextRequest,
-        UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
-        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WatchEventsLine,
-        WatchEventsRequest,
+        response_received_filter, CdpRawRequest, ClickRequest, CurrentSessionRequest,
+        CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest, EventFilter, ExecutionModel,
+        GotoRequest, GuestTransport, HandleDialogRequest, HttpGetRequest, IframeTargetRequest,
+        JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest, PressKeyRequest,
+        ProtocolFamilyKind, ScreenshotRequest, ScrollRequest, Stability, SwitchTabRequest,
+        TypeTextRequest, UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest,
+        WaitForEventRequest, WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest,
+        WatchEventsLine, WatchEventsRequest,
     };
     use std::collections::BTreeMap;
 
@@ -2028,6 +2065,25 @@ mod tests {
         assert_eq!(normalized.url, "https://example.com");
         assert_eq!(normalized.timeout, 20.0);
         assert_eq!(normalized.headers, Some(headers));
+    }
+
+    #[test]
+    fn cdp_raw_request_normalizes_blank_name_and_keeps_payload() {
+        let request = CdpRawRequest {
+            daemon_name: "   ".to_string(),
+            method: "Runtime.evaluate".to_string(),
+            params: Some(json!({"expression":"2+3","returnByValue":true})),
+            session_id: Some("session-1".to_string()),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.method, "Runtime.evaluate");
+        assert_eq!(
+            normalized.params,
+            Some(json!({"expression":"2+3","returnByValue":true}))
+        );
+        assert_eq!(normalized.session_id.as_deref(), Some("session-1"));
     }
 
     #[test]
