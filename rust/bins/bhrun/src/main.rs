@@ -864,6 +864,10 @@ where
     watch_events_with_drain(request, stdout, drain_events)
 }
 
+fn watch_events_collect(request: WatchEventsRequest) -> Result<Vec<WatchEventsLine>, String> {
+    watch_events_collect_with_drain(request, drain_events)
+}
+
 fn wait_for_event_with_drain<F>(
     request: WaitForEventRequest,
     mut drain: F,
@@ -947,11 +951,38 @@ where
 fn watch_events_with_drain<W, F>(
     request: WatchEventsRequest,
     stdout: &mut W,
-    mut drain: F,
+    drain: F,
 ) -> Result<(), String>
 where
     W: Write,
     F: FnMut(&str) -> Result<Vec<Value>, String>,
+{
+    run_watch_events_with_drain(request, drain, |line| write_json_line(stdout, &line))
+}
+
+fn watch_events_collect_with_drain<F>(
+    request: WatchEventsRequest,
+    drain: F,
+) -> Result<Vec<WatchEventsLine>, String>
+where
+    F: FnMut(&str) -> Result<Vec<Value>, String>,
+{
+    let mut lines = Vec::new();
+    run_watch_events_with_drain(request, drain, |line| {
+        lines.push(line);
+        Ok(())
+    })?;
+    Ok(lines)
+}
+
+fn run_watch_events_with_drain<F, E>(
+    request: WatchEventsRequest,
+    mut drain: F,
+    mut emit: E,
+) -> Result<(), String>
+where
+    F: FnMut(&str) -> Result<Vec<Value>, String>,
+    E: FnMut(WatchEventsLine) -> Result<(), String>,
 {
     let request = request.normalized();
     let start = Instant::now();
@@ -966,40 +997,33 @@ where
         for event in events {
             if event_matches_filter(&event, &request.filter) {
                 matched_events += 1;
-                write_json_line(
-                    stdout,
-                    &WatchEventsLine::Event {
-                        event,
-                        index: matched_events,
-                        elapsed_ms: start.elapsed().as_millis() as u64,
-                    },
-                )?;
+                emit(WatchEventsLine::Event {
+                    event,
+                    index: matched_events,
+                    elapsed_ms: start.elapsed().as_millis() as u64,
+                })?;
                 if request.max_events == Some(matched_events) {
-                    return write_json_line(
-                        stdout,
-                        &WatchEventsLine::End {
-                            matched_events,
-                            polls,
-                            elapsed_ms: start.elapsed().as_millis() as u64,
-                            timed_out: false,
-                            reached_max_events: true,
-                        },
-                    );
+                    emit(WatchEventsLine::End {
+                        matched_events,
+                        polls,
+                        elapsed_ms: start.elapsed().as_millis() as u64,
+                        timed_out: false,
+                        reached_max_events: true,
+                    })?;
+                    return Ok(());
                 }
             }
         }
 
         if start.elapsed() >= timeout {
-            return write_json_line(
-                stdout,
-                &WatchEventsLine::End {
-                    matched_events,
-                    polls,
-                    elapsed_ms: start.elapsed().as_millis() as u64,
-                    timed_out: true,
-                    reached_max_events: false,
-                },
-            );
+            emit(WatchEventsLine::End {
+                matched_events,
+                polls,
+                elapsed_ms: start.elapsed().as_millis() as u64,
+                timed_out: true,
+                reached_max_events: false,
+            })?;
+            return Ok(());
         }
 
         thread::sleep(poll_interval.min(timeout.saturating_sub(start.elapsed())));
@@ -1168,6 +1192,10 @@ fn dispatch_guest_operation(
         "wait_for_event" => serialize_guest_result(
             wait_for_event(parse_request_value(&request)?),
             "wait_for_event",
+        )?,
+        "watch_events" => serialize_guest_result(
+            watch_events_collect(parse_request_value(&request)?),
+            "watch_events",
         )?,
         "wait_for_load_event" => serialize_guest_result(
             wait_for_load_event(parse_request_value(&request)?),
@@ -1361,11 +1389,11 @@ mod tests {
         page_info_with_sender, press_key_with_sender, run_cli, screenshot_with_sender,
         scroll_with_sender, serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
         upload_file_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
-        wait_for_load_with_sender, watch_events_with_drain, DaemonResponse, GuestHostState,
-        GuestRuntime, META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY, META_ENSURE_REAL_TAB,
-        META_GOTO, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO,
-        META_PRESS_KEY, META_SCREENSHOT, META_SCROLL, META_SESSION, META_SWITCH_TAB,
-        META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+        wait_for_load_with_sender, watch_events_collect_with_drain, watch_events_with_drain,
+        DaemonResponse, GuestHostState, GuestRuntime, META_CLICK, META_CURRENT_TAB,
+        META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO, META_IFRAME_TARGET, META_JS,
+        META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT, META_SCROLL,
+        META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
     };
     use std::collections::BTreeMap;
     use std::collections::VecDeque;
@@ -1382,7 +1410,8 @@ mod tests {
         NewTabRequest, PageInfoRequest, PressKeyRequest, RunnerConfig, ScreenshotRequest,
         ScrollRequest, SwitchTabRequest, TypeTextRequest, UploadFileRequest, WaitForConsoleRequest,
         WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
-        WaitForLoadRequest, WaitForResponseRequest, WaitRequest, WatchEventsRequest,
+        WaitForLoadRequest, WaitForResponseRequest, WaitRequest, WatchEventsLine,
+        WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -2396,6 +2425,56 @@ mod tests {
             parsed[2].get("matched_events").and_then(Value::as_u64),
             Some(2)
         );
+    }
+
+    #[test]
+    fn watch_events_collect_returns_guest_serializable_lines() {
+        let mut drains = VecDeque::from(vec![Ok(vec![json!({
+            "method":"Runtime.consoleAPICalled",
+            "params":{"type":"log","args":[{"type":"string","value":"token-1"}]},
+            "session_id":"session-2"
+        })])]);
+
+        let lines = watch_events_collect_with_drain(
+            WatchEventsRequest {
+                daemon_name: "stub".to_string(),
+                filter: EventFilter {
+                    method: Some("Runtime.consoleAPICalled".to_string()),
+                    session_id: Some("session-2".to_string()),
+                    ..EventFilter::default()
+                },
+                timeout_ms: 50,
+                poll_interval_ms: 1,
+                max_events: Some(1),
+            },
+            |_| drains.pop_front().unwrap_or_else(|| Ok(vec![])),
+        )
+        .expect("watch events collect");
+
+        assert_eq!(lines.len(), 2);
+        match &lines[0] {
+            WatchEventsLine::Event { event, index, .. } => {
+                assert_eq!(*index, 1);
+                assert_eq!(
+                    event.get("method").and_then(Value::as_str),
+                    Some("Runtime.consoleAPICalled")
+                );
+            }
+            other => panic!("unexpected first watch line: {other:?}"),
+        }
+        match &lines[1] {
+            WatchEventsLine::End {
+                matched_events,
+                reached_max_events,
+                timed_out,
+                ..
+            } => {
+                assert_eq!(*matched_events, 1);
+                assert!(*reached_max_events);
+                assert!(!timed_out);
+            }
+            other => panic!("unexpected second watch line: {other:?}"),
+        }
     }
 
     #[test]

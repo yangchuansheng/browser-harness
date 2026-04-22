@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub use bh_wasm_host::{
-    CurrentSessionResult, HttpGetRequest, NewTabResult, SwitchTabResult, TabSummary,
-    WaitForEventResult, WaitResult,
+    CurrentSessionResult, EventFilter, HttpGetRequest, NewTabResult, SwitchTabResult, TabSummary,
+    WaitForEventResult, WaitResult, WatchEventsLine,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -252,6 +252,76 @@ pub fn wait_for_response(
     )
 }
 
+pub fn wait_for_event(
+    filter: EventFilter,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+) -> Result<WaitForEventResult, GuestError> {
+    call_json(
+        "wait_for_event",
+        &json!({
+            "filter": filter,
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+        }),
+    )
+}
+
+pub fn watch_events(
+    filter: EventFilter,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+    max_events: Option<u64>,
+) -> Result<Vec<WatchEventsLine>, GuestError> {
+    call_json(
+        "watch_events",
+        &json!({
+            "filter": filter,
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+            "max_events": max_events,
+        }),
+    )
+}
+
+pub fn wait_for_console(
+    console_type: Option<&str>,
+    text: Option<&str>,
+    session_id: Option<&str>,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+) -> Result<WaitForEventResult, GuestError> {
+    call_json(
+        "wait_for_console",
+        &json!({
+            "type": console_type,
+            "text": text,
+            "session_id": session_id,
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+        }),
+    )
+}
+
+pub fn wait_for_dialog(
+    dialog_type: Option<&str>,
+    message: Option<&str>,
+    session_id: Option<&str>,
+    timeout_ms: u64,
+    poll_interval_ms: u64,
+) -> Result<WaitForEventResult, GuestError> {
+    call_json(
+        "wait_for_dialog",
+        &json!({
+            "type": dialog_type,
+            "message": message,
+            "session_id": session_id,
+            "timeout_ms": timeout_ms,
+            "poll_interval_ms": poll_interval_ms,
+        }),
+    )
+}
+
 fn call_json_with<F, TRequest, TResponse>(
     mut host_call: F,
     operation: &str,
@@ -315,9 +385,10 @@ mod tests {
     use super::{
         call_json_with, click, current_session, current_tab, dispatch_key, ensure_real_tab, goto,
         http_get, iframe_target, js, list_tabs, new_tab, page_info, press_key, screenshot, scroll,
-        switch_tab, type_text, upload_file, wait, wait_for_load, wait_for_load_event,
-        wait_for_response, CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult,
-        TabSummary, WaitResult,
+        switch_tab, type_text, upload_file, wait, wait_for_console, wait_for_dialog,
+        wait_for_event, wait_for_load, wait_for_load_event, wait_for_response, watch_events,
+        CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary,
+        WaitResult, WatchEventsLine,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -805,6 +876,181 @@ mod tests {
     }
 
     #[test]
+    fn wait_for_event_serializes_filter_request() {
+        let result: WaitForEventResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_event");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.pointer("/filter/method").and_then(Value::as_str),
+                    Some("Page.loadEventFired")
+                );
+                assert_eq!(
+                    request
+                        .pointer("/filter/session_id")
+                        .and_then(Value::as_str),
+                    Some("session-2")
+                );
+                assert_eq!(
+                    request.get("timeout_ms").and_then(Value::as_u64),
+                    Some(4000)
+                );
+                let response = serde_json::to_vec(&json!({
+                    "matched": true,
+                    "event": {"method":"Page.loadEventFired","session_id":"session-2"},
+                    "polls": 1,
+                    "elapsed_ms": 22
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_event",
+            &json!({
+                "filter":{
+                    "method":"Page.loadEventFired",
+                    "session_id":"session-2"
+                },
+                "timeout_ms":4000,
+                "poll_interval_ms":100
+            }),
+        )
+        .expect("wait for event result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 1);
+    }
+
+    #[test]
+    fn watch_events_deserializes_line_sequence() {
+        let result: Vec<WatchEventsLine> = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"watch_events");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.pointer("/filter/method").and_then(Value::as_str),
+                    Some("Runtime.consoleAPICalled")
+                );
+                assert_eq!(request.get("max_events").and_then(Value::as_u64), Some(2));
+                let response = serde_json::to_vec(&json!([
+                    {
+                        "kind":"event",
+                        "event":{"method":"Runtime.consoleAPICalled","session_id":"session-3"},
+                        "index":1,
+                        "elapsed_ms":10
+                    },
+                    {
+                        "kind":"end",
+                        "matched_events":1,
+                        "polls":2,
+                        "elapsed_ms":30,
+                        "timed_out":false,
+                        "reached_max_events":false
+                    }
+                ]))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "watch_events",
+            &json!({
+                "filter":{"method":"Runtime.consoleAPICalled"},
+                "timeout_ms":500,
+                "poll_interval_ms":50,
+                "max_events":2
+            }),
+        )
+        .expect("watch events result");
+
+        assert_eq!(result.len(), 2);
+        match &result[0] {
+            WatchEventsLine::Event { index, .. } => assert_eq!(*index, 1),
+            other => panic!("unexpected first watch line: {other:?}"),
+        }
+        match &result[1] {
+            WatchEventsLine::End { polls, .. } => assert_eq!(*polls, 2),
+            other => panic!("unexpected second watch line: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn wait_for_console_serializes_console_filter() {
+        let result: WaitForEventResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_console");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("type").and_then(Value::as_str), Some("log"));
+                assert_eq!(request.get("text").and_then(Value::as_str), Some("token-1"));
+                assert_eq!(
+                    request.get("session_id").and_then(Value::as_str),
+                    Some("session-4")
+                );
+                let response = serde_json::to_vec(&json!({
+                    "matched": true,
+                    "event": {"method":"Runtime.consoleAPICalled","session_id":"session-4"},
+                    "polls": 2,
+                    "elapsed_ms": 51
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_console",
+            &json!({
+                "type":"log",
+                "text":"token-1",
+                "session_id":"session-4",
+                "timeout_ms":5000,
+                "poll_interval_ms":100
+            }),
+        )
+        .expect("wait for console result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 2);
+    }
+
+    #[test]
+    fn wait_for_dialog_serializes_dialog_filter() {
+        let result: WaitForEventResult = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"wait_for_dialog");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("type").and_then(Value::as_str), Some("alert"));
+                assert_eq!(
+                    request.get("message").and_then(Value::as_str),
+                    Some("token-2")
+                );
+                assert_eq!(
+                    request.get("session_id").and_then(Value::as_str),
+                    Some("session-5")
+                );
+                let response = serde_json::to_vec(&json!({
+                    "matched": true,
+                    "event": {"method":"Page.javascriptDialogOpening","session_id":"session-5"},
+                    "polls": 2,
+                    "elapsed_ms": 61
+                }))
+                .expect("serialize response");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "wait_for_dialog",
+            &json!({
+                "type":"alert",
+                "message":"token-2",
+                "session_id":"session-5",
+                "timeout_ms":5000,
+                "poll_interval_ms":100
+            }),
+        )
+        .expect("wait for dialog result");
+
+        assert!(result.matched);
+        assert_eq!(result.polls, 2);
+    }
+
+    #[test]
     fn helper_functions_use_expected_operations() {
         let _ = wait;
         let _ = http_get;
@@ -825,6 +1071,10 @@ mod tests {
         let _ = scroll;
         let _ = screenshot;
         let _ = upload_file::<Vec<&str>, &str>;
+        let _ = wait_for_event;
+        let _ = watch_events;
+        let _ = wait_for_console;
+        let _ = wait_for_dialog;
         let _ = wait_for_load_event;
         let _ = wait_for_response;
         let _ = js::<String>;

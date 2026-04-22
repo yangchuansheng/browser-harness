@@ -278,6 +278,10 @@ Host utilities:
 
 - `wait(seconds)`
 - `wait_for_event(filter, timeout)`
+- `watch_events(filter, timeout, max_events)`
+- `wait_for_response(url, status, session)`
+- `wait_for_console(type, text, session)`
+- `wait_for_dialog(type, message, session)`
 - `http_get(url, headers)`
 
 Compatibility helpers kept for ergonomics while the product transitions:

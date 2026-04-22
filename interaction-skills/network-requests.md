@@ -50,9 +50,14 @@ Pattern:
 The current Rust runner path already supports this:
 
 - `bhrun current-session`
+- `bhrun wait-for-event`
 - `bhrun wait-for-response`
 - `bhrun watch-events`
+- `bhrun wait-for-console`
+- `bh_guest_sdk::wait_for_event(...)`
+- `bh_guest_sdk::watch_events(...)`
 - `bh_guest_sdk::wait_for_response(...)` for Rust/Wasm guests
+- `bh_guest_sdk::wait_for_console(...)` for Rust/Wasm guests
 
 The repository acceptance script that proves the full two-process pattern is:
 
@@ -82,11 +87,13 @@ iframe does not satisfy the watch accidentally.
 The repository smoke for this path is:
 
 - `scripts/bhrun_watch_events_smoke.py`
+- `scripts/bhrun_event_waits_guest_smoke.py` for the Rust/Wasm guest wrapper path
 
 Local verification:
 
 ```bash
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_watch_events_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
 ```
 
 ## Python Shell Fallback
