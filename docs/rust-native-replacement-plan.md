@@ -183,7 +183,7 @@ Python can be removed entirely only when all of the following are true:
 4. Move remaining interaction skills into either:
    - pre-sunset blockers, or
    - explicit post-sunset work
-5. Remove Python packaging/runtime dependencies that only existed for
-   `daemon.py`.
+5. Remove Python packaging/runtime dependencies that only existed for the old
+   Python daemon path.
 6. Replace the final public Python entrypoint only after the Rust-native path is
    operationally complete.
