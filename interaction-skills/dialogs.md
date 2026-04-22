@@ -6,6 +6,15 @@ Browser dialogs (`alert`, `confirm`, `prompt`, `beforeunload`) freeze the JS thr
 
 `page_info()` auto-surfaces any open dialog: if one is pending it returns `{"dialog": {"type", "message", ...}}` instead of the usual viewport dict (because the page's JS is frozen anyway). So if you call `page_info()` after an action and see a `dialog` key, handle it before doing anything else.
 
+When you expect a dialog and need a blocking wait instead of post-hoc polling,
+prefer the Rust runner path:
+
+- `bhrun wait-for-dialog`
+- `bh_guest_sdk::wait_for_dialog(...)` in Rust/Wasm guests
+
+That gives you a scoped runner-owned wait on `Page.javascriptDialogOpening`
+without depending on the destructive `drain_events()` buffer.
+
 ## Reactive: dismiss via CDP (preferred)
 
 Works even when JS is frozen. Handles all dialog types including `beforeunload`.
@@ -24,6 +33,9 @@ for e in events:
 ```
 
 Undetectable by antibot — no JS injected into the page.
+
+Until typed dialog accept/dismiss lands on the Rust side, raw CDP dismissal is
+still the right follow-up after `wait-for-dialog`.
 
 ## Proactive: stub via JS
 

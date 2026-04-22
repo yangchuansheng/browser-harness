@@ -19,7 +19,7 @@ Current status:
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
-- `bh-guest-sdk` now also covers typed tab/session control and response waits, with a compiled workflow sample in `guests/rust-tab-response-workflow`
+- `bh-guest-sdk` now also covers typed tab/session control and the event-wait family, with compiled workflow samples in `guests/rust-tab-response-workflow` and `guests/rust-event-waits-sdk`
 - the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, `dispatch_key`, `scroll`, `screenshot`, `upload_file`, and runner-owned `http_get`
 - the first skill-shaped Rust/Wasm guest now exists via `guests/rust-github-trending`, which ports the browser-trending slice of `domain-skills/github/scraping.md`
 - a second skill-shaped Rust/Wasm guest now exists via `guests/rust-reddit-post-scrape`, which ports the browser DOM extraction slice of `domain-skills/reddit/scraping.md`
@@ -223,6 +223,7 @@ BROWSER_USE_API_KEY=... python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... BU_GUEST_MODE=serve-guest BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" python3 scripts/bhrun_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_tab_response_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_github_trending_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_reddit_guest_smoke.py
 ```

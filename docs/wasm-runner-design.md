@@ -284,6 +284,9 @@ That helper is now exercised through `bh-guest-sdk` in a compiled Rust/Wasm
 workflow guest, not only through direct CLI smokes.
 `wait-for-console` is the first console/debugging helper layered on the same event contract.
 `wait-for-dialog` is the first dialog helper layered on the same event contract.
+`guests/rust-event-waits-sdk` is the first compiled Rust/Wasm guest that
+exercises `wait_for_event`, `watch_events`, `wait_for_console`, and
+`wait_for_dialog` together through `bh-guest-sdk`.
 `http_get` is now the first pure-network utility on the guest boundary, and it
 already powers the public Metacritic, Walmart, and TradingView guests without
 needing a browser session.
