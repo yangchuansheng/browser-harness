@@ -7,12 +7,13 @@ It exposes stable browser operations, keeps the control plane small, and still
 lets the agent extend missing behavior mid-task when it needs to.
 
 ```
-  ● agent: wants to upload a file
+  ● agent: needs a site-specific browser workflow
   │
-  ● browser-harness / bhrun already exposes upload-file
+  ● browser-harness exposes stable primitives
   │
-  ● if a capability is missing, the agent extends the harness mid-task
-  │   in Rust
+  ● a helper is missing
+  │
+  ● the agent adds it in Rust or as a WASM guest
   ✓ task completed
 ```
 
