@@ -234,16 +234,16 @@ BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- upload-file
 ```
 
-Live `bhrun` action smoke:
+Local `bhrun` action smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_actions_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- actions
 ```
 
-Live `bhrun` tab/session smoke:
+Local `bhrun` tab/session smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_tabs_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- tabs
 ```
 
 Live `bhrun run-guest` smoke:

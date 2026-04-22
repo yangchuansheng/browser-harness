@@ -13,6 +13,8 @@ use serde_json::{json, Map, Value};
 
 const SCENARIOS: &[&str] = &[
     "remote",
+    "actions",
+    "tabs",
     "wait-for-load-event",
     "watch-events",
     "wait-for-request",
@@ -60,6 +62,8 @@ fn run() -> Result<Value, String> {
 
     match command.to_string_lossy().as_ref() {
         "remote" => smoke_remote(),
+        "actions" => smoke_actions(),
+        "tabs" => smoke_tabs(),
         "wait-for-load-event" => smoke_wait_for_load_event(),
         "watch-events" => smoke_watch_events(),
         "wait-for-request" => smoke_wait_for_request(),
@@ -180,6 +184,232 @@ fn smoke_remote() -> Result<Value, String> {
         let screenshot_b64 = screenshot_b64(name, true)?;
         let (png, _, _) = decode_png_dimensions(&screenshot_b64)?;
         result.insert("screenshot_size".into(), Value::from(png.len() as u64));
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_actions() -> Result<Value, String> {
+    let options = load_options("bhrun-actions-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let name = options.name.as_str();
+        let initial_page = page_info(name)?;
+        result.insert("initial_page".into(), initial_page);
+
+        let current_session = current_session(name)?;
+        let session_id = required_string_field(&current_session, "session_id")?;
+        result.insert("current_session".into(), current_session);
+        result.insert("session_id".into(), Value::String(session_id.clone()));
+
+        let token = unique_token("bhrun-actions-smoke");
+        let target_url = format!("https://example.com/?via=bhrun-actions-smoke&token={token}");
+        let wait_payload = json!({
+            "daemon_name": name,
+            "session_id": session_id,
+            "timeout_ms": 5000,
+            "poll_interval_ms": 100,
+        });
+        result.insert("wait_request".into(), wait_payload.clone());
+        let wait_child = start_command(
+            ToolKind::Runner,
+            "wait-for-load-event",
+            Some(wait_payload),
+            &[],
+        )?;
+        sleep_ms(500);
+        result.insert("goto_result".into(), goto(name, &target_url)?);
+        let wait_result = finish_json(wait_child, Duration::from_secs(10))?;
+        result.insert("wait_result".into(), wait_result.clone());
+        if !wait_result
+            .get("matched")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("wait-for-load-event returned matched=false".to_string());
+        }
+        let event = wait_result
+            .get("event")
+            .ok_or_else(|| "wait-for-load-event response missing event".to_string())?;
+        if event.get("method").and_then(Value::as_str) != Some("Page.loadEventFired") {
+            return Err(format!(
+                "unexpected load event method: {:?}",
+                event.get("method").and_then(Value::as_str)
+            ));
+        }
+        if event.get("session_id").and_then(Value::as_str) != Some(session_id.as_str()) {
+            return Err("load event session_id did not match the active session".to_string());
+        }
+
+        let page_after_goto = page_info(name)?;
+        result.insert("page_after_goto".into(), page_after_goto.clone());
+        if page_after_goto.get("url").and_then(Value::as_str) != Some(target_url.as_str()) {
+            return Err("page-info URL did not match the navigation target".to_string());
+        }
+
+        let js_href = js(name, "location.href")?;
+        result.insert("js_href".into(), js_href.clone());
+        if js_href.as_str() != Some(target_url.as_str()) {
+            return Err("js(location.href) did not match the navigation target".to_string());
+        }
+
+        let js_title = js(name, "document.title")?;
+        result.insert("js_title".into(), js_title.clone());
+        if !js_title
+            .as_str()
+            .unwrap_or_default()
+            .contains("Example Domain")
+        {
+            return Err(format!("unexpected document.title from js(): {js_title:?}"));
+        }
+
+        result.insert("target_url".into(), Value::String(target_url));
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_tabs() -> Result<Value, String> {
+    let options = load_options("bhrun-tabs-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let name = options.name.as_str();
+        let initial_current_tab = current_tab(name)?;
+        result.insert("initial_current_tab".into(), initial_current_tab.clone());
+        let initial_tabs = list_tabs(name)?;
+        result.insert("initial_tabs".into(), Value::Array(initial_tabs.clone()));
+        let initial_target_id = required_string_field(&initial_current_tab, "targetId")?;
+
+        let token = unique_token("bhrun-tabs-smoke");
+        let target_url = format!("https://example.com/?via=bhrun-tabs-smoke&token={token}");
+        let new_target_id = new_tab(name, &target_url)?;
+        result.insert(
+            "new_tab".into(),
+            json!({"target_id": new_target_id.clone()}),
+        );
+
+        let current_after_new = current_tab(name)?;
+        result.insert("current_after_new".into(), current_after_new.clone());
+        if current_after_new.get("targetId").and_then(Value::as_str) != Some(new_target_id.as_str())
+        {
+            return Err("current-tab did not move to the new tab target".to_string());
+        }
+
+        let page_after_new = page_info(name)?;
+        result.insert("page_after_new".into(), page_after_new.clone());
+        if page_after_new.get("url").and_then(Value::as_str) != Some(target_url.as_str()) {
+            return Err("page-info did not report the new tab URL".to_string());
+        }
+
+        let tabs_after_new = list_tabs(name)?;
+        result.insert(
+            "tabs_after_new".into(),
+            Value::Array(tabs_after_new.clone()),
+        );
+        let target_ids = tabs_after_new
+            .iter()
+            .filter_map(|tab| tab.get("targetId").and_then(Value::as_str))
+            .collect::<std::collections::BTreeSet<_>>();
+        if !target_ids.contains(initial_target_id.as_str())
+            || !target_ids.contains(new_target_id.as_str())
+        {
+            return Err("list-tabs did not include both the initial and new targets".to_string());
+        }
+
+        let switch_back = switch_tab(name, &initial_target_id)?;
+        result.insert("switch_back".into(), switch_back.clone());
+        let session_after_switch_back = current_session(name)?;
+        result.insert(
+            "session_after_switch_back".into(),
+            session_after_switch_back.clone(),
+        );
+        if session_after_switch_back
+            .get("session_id")
+            .and_then(Value::as_str)
+            != switch_back.get("session_id").and_then(Value::as_str)
+        {
+            return Err(
+                "current-session did not match switch-tab result after switching back".to_string(),
+            );
+        }
+
+        let current_after_switch_back = current_tab(name)?;
+        result.insert(
+            "current_after_switch_back".into(),
+            current_after_switch_back.clone(),
+        );
+        if current_after_switch_back
+            .get("targetId")
+            .and_then(Value::as_str)
+            != Some(initial_target_id.as_str())
+        {
+            return Err("current-tab did not move back to the initial target".to_string());
+        }
+
+        let page_after_switch_back = page_info(name)?;
+        result.insert(
+            "page_after_switch_back".into(),
+            page_after_switch_back.clone(),
+        );
+        if let Some(expected_url) = current_after_switch_back.get("url").and_then(Value::as_str) {
+            if page_after_switch_back.get("url").and_then(Value::as_str) != Some(expected_url) {
+                return Err(
+                    "page-info after switch-back did not match the active current-tab URL"
+                        .to_string(),
+                );
+            }
+        }
+
+        let switch_forward = switch_tab(name, &new_target_id)?;
+        result.insert("switch_forward".into(), switch_forward.clone());
+        let session_after_switch_forward = current_session(name)?;
+        result.insert(
+            "session_after_switch_forward".into(),
+            session_after_switch_forward.clone(),
+        );
+        if session_after_switch_forward
+            .get("session_id")
+            .and_then(Value::as_str)
+            != switch_forward.get("session_id").and_then(Value::as_str)
+        {
+            return Err(
+                "current-session did not match switch-tab result after switching forward"
+                    .to_string(),
+            );
+        }
+
+        let current_after_switch_forward = current_tab(name)?;
+        result.insert(
+            "current_after_switch_forward".into(),
+            current_after_switch_forward.clone(),
+        );
+        if current_after_switch_forward
+            .get("targetId")
+            .and_then(Value::as_str)
+            != Some(new_target_id.as_str())
+        {
+            return Err("current-tab did not move back to the new target".to_string());
+        }
+
+        let page_after_switch_forward = page_info(name)?;
+        result.insert(
+            "page_after_switch_forward".into(),
+            page_after_switch_forward.clone(),
+        );
+        if page_after_switch_forward.get("url").and_then(Value::as_str) != Some(target_url.as_str())
+        {
+            return Err("page-info after switch-forward did not match the new tab URL".to_string());
+        }
+
+        result.insert("target_url".into(), Value::String(target_url));
         Ok(())
     })();
     finalize_smoke(&options, remote_browser, &mut result, run_result)
@@ -1851,6 +2081,34 @@ fn current_session(name: &str) -> Result<Value, String> {
     runner_json(
         "current-session",
         Some(named_payload(name, Value::Null)?),
+        Duration::from_secs(10),
+    )
+}
+
+fn current_tab(name: &str) -> Result<Value, String> {
+    runner_json(
+        "current-tab",
+        Some(named_payload(name, Value::Null)?),
+        Duration::from_secs(10),
+    )
+}
+
+fn list_tabs(name: &str) -> Result<Vec<Value>, String> {
+    let value = runner_json(
+        "list-tabs",
+        Some(named_payload(name, Value::Null)?),
+        Duration::from_secs(10),
+    )?;
+    value
+        .as_array()
+        .cloned()
+        .ok_or_else(|| "list-tabs did not return an array".to_string())
+}
+
+fn switch_tab(name: &str, target_id: &str) -> Result<Value, String> {
+    runner_json(
+        "switch-tab",
+        Some(named_payload(name, json!({"target_id": target_id}))?),
         Duration::from_secs(10),
     )
 }
