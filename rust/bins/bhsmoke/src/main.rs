@@ -1814,7 +1814,7 @@ fn smoke_github_trending_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/github/scraping.md".to_string()),
+        Value::String("domains/github/skill.md".to_string()),
     );
     result.insert(
         "target_url".into(),
@@ -2011,7 +2011,7 @@ fn smoke_reddit_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/reddit/scraping.md".to_string()),
+        Value::String("domains/reddit/skill.md".to_string()),
     );
     result.insert(
         "target_url_prefix".into(),
@@ -2253,7 +2253,7 @@ fn smoke_producthunt_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/producthunt/scraping.md".to_string()),
+        Value::String("domains/producthunt/skill.md".to_string()),
     );
     result.insert(
         "target_url_prefix".into(),
@@ -2489,7 +2489,7 @@ fn smoke_letterboxd_popular_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/letterboxd/scraping.md".to_string()),
+        Value::String("domains/letterboxd/skill.md".to_string()),
     );
     result.insert(
         "target_url_prefix".into(),
@@ -2721,7 +2721,7 @@ fn smoke_spotify_search_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/spotify/scraping.md".to_string()),
+        Value::String("domains/spotify/skill.md".to_string()),
     );
     result.insert(
         "target_url_prefix".into(),
@@ -2938,7 +2938,7 @@ fn smoke_etsy_search_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/etsy/scraping.md".to_string()),
+        Value::String("domains/etsy/skill.md".to_string()),
     );
     result.insert(
         "target_url_prefix".into(),
@@ -3325,7 +3325,7 @@ fn smoke_metacritic_game_scores_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/metacritic/scraping.md".to_string()),
+        Value::String("domains/metacritic/skill.md".to_string()),
     );
     result.insert("mode".into(), Value::String("http_only".to_string()));
     maybe_build_default_guest(
@@ -3456,7 +3456,7 @@ fn smoke_walmart_search_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/walmart/scraping.md".to_string()),
+        Value::String("domains/walmart/skill.md".to_string()),
     );
     result.insert("mode".into(), Value::String("http_only".to_string()));
     result.insert(
@@ -3603,7 +3603,7 @@ fn smoke_tradingview_symbol_search_guest() -> Result<Value, String> {
     );
     result.insert(
         "skill".into(),
-        Value::String("domain-skills/tradingview/scraping.md".to_string()),
+        Value::String("domains/tradingview/skill.md".to_string()),
     );
     result.insert("mode".into(), Value::String("http_only".to_string()));
     result.insert(

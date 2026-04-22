@@ -87,10 +87,13 @@ If you intentionally want Python around the Rust CLI, use the small
 
 ## Search first
 
-After cloning the repo, search `domain-skills/` first for the domain you are working on before inventing a new approach.
+After cloning the repo, search `domains/` first for the domain you are working
+on before inventing a new approach. If a site has not been migrated yet, fall
+back to `domain-skills/`.
 
-Examples in `domain-skills/` use helper-style operation names such as
-`http_get()`, `goto()`, `new_tab()`, `wait()`, `page_info()`, and `js()`.
+Examples in `domains/` and `domain-skills/` use helper-style operation names
+such as `http_get()`, `goto()`, `new_tab()`, `wait()`, `page_info()`, and
+`js()`.
 Treat those as conceptual Browser Harness operations that can be mapped to
 `browser-harness`, `bhrun`, or a guest. They are not a requirement to use
 Python.
@@ -116,13 +119,13 @@ Only if you start struggling with a specific mechanic while navigating, look in 
 Useful commands:
 
 ```bash
-rg --files domain-skills
-rg -n "tiktok|upload" domain-skills
+rg --files domains domain-skills
+rg -n "tiktok|upload" domains domain-skills
 ```
 
 ## Always contribute back
 
-**If you learned anything non-obvious about how a site works, open a PR to `domain-skills/<site>/` before you finish. Default to contributing.** The harness gets better only because agents file what they learn. If figuring something out cost you a few steps, the next run should not pay the same tax.
+**If you learned anything non-obvious about how a site works, open a PR to `domains/<site>/skill.md` before you finish.** If the site has not been migrated yet, update `domain-skills/<site>/` instead. Default to contributing. The harness gets better only because agents file what they learn. If figuring something out cost you a few steps, the next run should not pay the same tax.
 
 Examples of what's worth a PR:
 
@@ -149,7 +152,8 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 
 - **Raw pixel coordinates.** They break on viewport, zoom, and layout changes. Describe how to *locate* the target (selector, `scrollIntoView`, `aria-label`, visible text) — never where it happened to be on your screen.
 - **Run narration** or step-by-step of the specific task you just did.
-- **Secrets, cookies, session tokens, user-specific state.** `domain-skills/` is shared and public.
+- **Secrets, cookies, session tokens, user-specific state.** `domains/` and
+  `domain-skills/` are shared and public.
 
 ## What actually works
 
@@ -216,4 +220,5 @@ Chrome / Browser Use cloud -> CDP WS -> bhd -> /tmp/bu-<NAME>.sock -> bhrun / bh
 ## Interaction notes
 
 - `interaction-skills/` holds reusable UI mechanics such as dialogs, tabs, dropdowns, iframes, and uploads.
-- `domain-skills/` holds site-specific workflows and should be updated when you discover reusable patterns for a website.
+- `domains/` is the active home for site-specific workflows.
+- `domain-skills/` contains legacy site guides that are still being migrated.
