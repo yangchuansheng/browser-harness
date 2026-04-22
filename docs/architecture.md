@@ -77,7 +77,6 @@ Guests are capability-gated. A guest config explicitly grants operations such as
 
 - `rust/`: binaries, crates, guest modules, and Rust workspace metadata
 - `domains/`: active site-specific knowledge packages rooted at `domains/<site>/skill.md`
-- `domain-skills/`: legacy site-specific knowledge that has not been migrated yet
 - `interaction-skills/`: reusable browser mechanics
 - `docs/`: architecture, development, integration notes, and future design notes
 - `install.md`: install/bootstrap entrypoint

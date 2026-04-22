@@ -126,8 +126,7 @@ When this page appears, tick the checkbox so the agent can connect to your brows
 
 <img src="docs/setup-remote-debugging.png" alt="Remote debugging setup" width="520" style="border-radius: 12px;" />
 
-See [domains/](domains/) for the active site-specific knowledge tree. Legacy
-guides that have not moved yet still live in [domain-skills/](domain-skills/).
+See [domains/](domains/) for the active site-specific knowledge tree.
 
 ## Remote Browsers
 
@@ -151,7 +150,6 @@ as the live browser session and CDP connection details.
 
 - `rust/` — binaries, crates, guest modules, and workspace metadata
 - `domains/` — active site-specific packages, centered on `domains/<site>/skill.md`
-- `domain-skills/` — legacy site guides that have not moved yet
 - `interaction-skills/` — reusable browser mechanics
 - `docs/` — architecture, development, and future design notes
 - `scripts/` — repo maintenance helpers such as leak scanning
