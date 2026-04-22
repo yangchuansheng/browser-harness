@@ -26,6 +26,8 @@ As of the current rewrite stage:
 - `admin.py` is only a compatibility alias to `admin_cli.py`
 - the installed default `browser-harness` command is now the Rust-native CLI,
   while the Python shell is explicitly `browser-harness-py`
+- `browser-harness-py`, `helpers.py`, and `admin.py` are now explicitly
+  deprecated and emit suppressible warnings
 - repo-owned smoke/verification scripts now call `browser-harness` / `bhrun`
   through small script shims instead of importing `helpers.py` or `admin.py`
 
@@ -119,6 +121,15 @@ These remain legacy compatibility only for now:
 
 Those are compatibility shims now, not the canonical product surface. Raw CDP
 is no longer Python-only.
+
+Deprecation policy inside that legacy surface:
+
+- `runner_cli.py` and `admin_cli.py` are the only Python shims still intended
+  to remain canonical during compatibility mode
+- `browser-harness-py`, `helpers.py`, and `admin.py` are deprecated and warn by
+  default
+- `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` suppresses those warnings for
+  legacy automation only
 
 They should only receive:
 
