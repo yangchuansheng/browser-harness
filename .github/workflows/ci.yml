@@ -20,6 +20,16 @@ jobs:
       - name: Check Out
         uses: actions/checkout@v4
 
+      - name: Ensure Ripgrep
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ripgrep
+          fi
+
+      - name: Scan Sensitive Content
+        run: ./scripts/scan_sensitive.sh
+
       - name: Set Up Rust
         uses: dtolnay/rust-toolchain@stable
 
