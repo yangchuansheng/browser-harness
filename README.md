@@ -24,8 +24,30 @@ Browser Harness is now in a Rust-first transition:
 
 - Rust owns the daemon/runtime/control plane
 - the default installed command is now the Rust-native `browser-harness`
-- the new repo-local top-level CLI is `cargo run --quiet --bin browser-harness -- ...`
-- the old helper-preloaded shell now lives under `browser-harness-py`
+- the repo-local fallback is `cargo run --quiet --bin browser-harness -- ...`
+
+## Quick Start
+
+Install once, then use the Rust-native CLI directly:
+
+```bash
+uv tool install -e .
+browser-harness ensure-daemon
+browser-harness page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
+browser-harness new-tab <<'JSON'
+{"daemon_name":"default","url":"https://example.com"}
+JSON
+```
+
+If you are working inside the repo and have not installed the global command
+yet, use:
+
+```bash
+cd rust
+cargo run --quiet --bin browser-harness -- --help
+```
 
 ## Setup prompt
 
@@ -34,7 +56,7 @@ Paste into Claude Code or Codex:
 ```text
 Set up https://github.com/browser-use/browser-harness for me.
 
-Read `install.md` first to install and connect this repo to my real browser. Then read `SKILL.md` for normal usage. Prefer the Rust-native CLI path first; only use `helpers.py` if you intentionally need the legacy compatibility shell. When you open a setup or verification tab, activate it so I can see the active browser tab. After it is installed, open this repository in my browser and, if I am logged in to GitHub, ask me whether you should star it for me as a quick demo that the interaction works — only click the star if I say yes. If I am not logged in, just go to browser-use.com.
+Read `install.md` first to install and connect this repo to my real browser. Then read `SKILL.md` for normal usage. Prefer the Rust-native CLI path first. When you open a setup or verification tab, activate it so I can see the active browser tab. After it is installed, open this repository in my browser and, if I am logged in to GitHub, ask me whether you should star it for me as a quick demo that the interaction works — only click the star if I say yes. If I am not logged in, just go to browser-use.com.
 ```
 
 When this page appears, tick the checkbox so the agent can connect to your browser:
@@ -58,7 +80,16 @@ Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card
 - `rust/bins/bhctl` — admin/control plane
 - `rust/bins/bhrun` — typed browser operations, waits, and guest runner
 - `rust/bins/bhd` — daemon/runtime core
-- `run.py` + `helpers.py` + `admin.py` — legacy Python compatibility shell behind `browser-harness-py`
+
+## Legacy Compatibility
+
+The old Python shell still exists, but it is no longer the default path:
+
+- `browser-harness-py` — explicit legacy heredoc shell
+- `run.py` + `helpers.py` + `admin.py` — compatibility layer behind that shell
+
+Use it only when you intentionally need old helper-preloaded behavior. New
+docs, smokes, and guest work should land on `browser-harness` / `bhrun` first.
 
 ## Contributing
 

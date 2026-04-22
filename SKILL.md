@@ -11,26 +11,25 @@ Easiest and most powerful way to interact with the browser. **Read this file in 
 
 Read `install.md` first for first-time install or reconnect/bootstrap.
 
-Rust now owns the runtime/control plane. The repo-local Rust-native entrypoint
-is:
+Rust now owns the runtime/control plane. The preferred entrypoint is the
+installed Rust-native CLI:
+
+```bash
+browser-harness --help
+browser-harness ensure-daemon
+browser-harness page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
+```
+
+If the global command is not installed yet, use the repo-local fallback:
 
 ```bash
 cd rust
 cargo run --quiet --bin browser-harness -- --help
 ```
 
-`browser-harness-py <<'PY'` and `helpers.py` are now legacy compatibility-only.
-
-```bash
-cd rust
-cargo run --quiet --bin browser-harness -- ensure-daemon
-cargo run --quiet --bin browser-harness -- page-info <<'JSON'
-{"daemon_name":"default"}
-JSON
-```
-
-- For Rust-native repo-local use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
-- The Python heredoc shell remains available only for legacy compatibility.
+- For repo-local Rust-native use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
 - First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
 
 The code is the doc.
@@ -44,8 +43,7 @@ Available domain skills:
 ## Tool call shape
 
 ```bash
-cd rust
-cargo run --quiet --bin browser-harness -- page-info <<'JSON'
+browser-harness page-info <<'JSON'
 {"daemon_name":"default"}
 JSON
 ```
@@ -55,26 +53,45 @@ legacy compatibility only.
 
 ### Remote browsers
 
-Use remote for **parallel sub-agents** (each gets its own isolated browser via a distinct `BU_NAME`) or on a headless server. `BROWSER_USE_API_KEY` must be set. `start_remote_daemon`, `list_cloud_profiles`, `list_local_profiles`, `sync_local_profile` are pre-imported.
+Use remote for **parallel sub-agents** (each gets its own isolated browser via a distinct `BU_NAME`) or on a headless server. `BROWSER_USE_API_KEY` must be set.
 
 ```bash
-browser-harness-py <<'PY'
-start_remote_daemon("work")                               # default — clean browser, no profile
-# start_remote_daemon("work", profileName="my-work")      # reuse a cloud profile (already logged in)
-# start_remote_daemon("work", profileId="<uuid>")         # same, but by UUID
-# start_remote_daemon("work", proxyCountryCode="de", timeout=120)   # DE proxy, 2-hour timeout
-# start_remote_daemon("work", proxyCountryCode=None)      # disable the Browser Use proxy
-PY
+browser-harness create-browser <<'JSON'
+{"timeout":120}
+JSON
 
-BU_NAME=work browser-harness-py <<'PY'
-new_tab("https://example.com")
-print(page_info())
-PY
+BU_NAME=work browser-harness ensure-daemon <<'JSON'
+{"name":"work","env":{"BU_CDP_WS":"<cdpWsUrl-from-create-browser>","BU_BROWSER_ID":"<browser-id>"}}
+JSON
+
+BU_NAME=work browser-harness new-tab <<'JSON'
+{"daemon_name":"work","url":"https://example.com"}
+JSON
 ```
 
-`start_remote_daemon` prints `liveUrl` and auto-opens it in the local browser (if a GUI is detected) so the user can watch along. Headless servers print only — share the URL with the user. The daemon `PATCH`es the cloud browser to `stop` on shutdown, which persists profile state. Running remote daemons bill until timeout.
+`create-browser` returns `id`, `cdpWsUrl`, and `liveUrl`. Share `liveUrl` with
+the user if they need to watch the session. When the daemon is stopped with the
+matching `BU_BROWSER_ID`, it PATCHes the cloud browser to `stop`, which ends
+billing and persists profile state.
 
-Profiles (cookies-only login state) live in `interaction-skills/profile-sync.md` — covers `list_cloud_profiles()`, the chat-driven "which profile?" pattern, and `sync_local_profile()` for uploading a local Chrome profile.
+Profiles (cookies-only login state) live in `interaction-skills/profile-sync.md`
+and map to:
+
+- `browser-harness list-cloud-profiles`
+- `browser-harness resolve-profile-name <name>`
+- `browser-harness list-local-profiles`
+- `browser-harness sync-local-profile`
+
+The old `start_remote_daemon(...)` and Python admin helpers remain available
+only in the legacy shell.
+
+## Legacy compatibility
+
+Use this only when you intentionally need the old helper-loaded shell:
+
+- `browser-harness-py`
+- `helpers.py`
+- Python admin helpers like `start_remote_daemon(...)`
 
 ## Search first
 
@@ -147,7 +164,7 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 - **DOM reads**: use `js(...)` for inspection and extraction when the screenshot shows that coordinates are the wrong tool.
 - **Iframe sites** (Azure blades, Salesforce): `click(x, y)` passes through; only drop to iframe DOM work when coordinate clicks are the wrong tool.
 - **Auth wall**: redirected to login → stop and ask the user. Don't type credentials from screenshots.
-- **Raw CDP** for anything helpers don't cover: `cdp("Domain.method", **params)`.
+- **Raw CDP** for typed gaps: `browser-harness cdp-raw <<'JSON' ... JSON` or `bh_guest_sdk::cdp_raw(...)`.
 
 ## Design constraints
 
