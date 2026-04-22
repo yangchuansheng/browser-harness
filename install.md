@@ -150,25 +150,19 @@ browser-harness restart-daemon
 
 ## Legacy Compatibility
 
-Installed Rust binaries no longer ship the old Python shell.
+Installed Rust binaries no longer ship any Python entrypoint.
 
 ```bash
 browser-harness --help
 ```
 
-If you are working inside the source tree and intentionally need the deprecated
-helper-loaded compatibility shell, use:
+If you intentionally want Python around the Rust CLI, use the thin
+`subprocess` wrappers in [docs/python-cli-helpers.md](docs/python-cli-helpers.md)
+instead of the archived repo-local shims.
 
-```bash
-python3 run.py --help
-```
+Current source-tree policy:
 
-Current deprecation behavior:
-
-- installed packages no longer ship any Python entrypoint
-- repo-local `run.py` warns when invoked
-- installed packages no longer ship `helpers.py` or `admin.py`
-- repo-local `helpers.py` warns on import; use `runner_cli.py` instead
-- repo-local `admin.py` warns on import; use `admin_cli.py` instead
-- set `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` only when a legacy script
-  needs to suppress those warnings
+- the active source tree ships no repo-local Python shim
+- the deprecated shell/import aliases live in `archive/python-legacy/`
+- new setup, verification, and guest flows should use `browser-harness`,
+  `bhrun`, or `bhsmoke`

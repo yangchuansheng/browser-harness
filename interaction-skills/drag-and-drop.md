@@ -30,13 +30,19 @@ Typical sequence:
 
 ## Example
 
-```python
-from scripts._runner_cli import mouse_down, mouse_move, mouse_up
-
-mouse_move(100, 200, buttons=0)
-mouse_down(100, 200, button="left", buttons=1, click_count=1)
-mouse_move(320, 200, buttons=1)
-mouse_up(320, 200, button="left", buttons=0, click_count=1)
+```bash
+browser-harness mouse-move <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"buttons":0}
+JSON
+browser-harness mouse-down <<'JSON'
+{"daemon_name":"default","x":100,"y":200,"button":"left","buttons":1,"click_count":1}
+JSON
+browser-harness mouse-move <<'JSON'
+{"daemon_name":"default","x":320,"y":200,"buttons":1}
+JSON
+browser-harness mouse-up <<'JSON'
+{"daemon_name":"default","x":320,"y":200,"button":"left","buttons":0,"click_count":1}
+JSON
 ```
 
 ## When These Primitives Are Not Enough

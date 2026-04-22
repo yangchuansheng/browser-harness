@@ -20,25 +20,12 @@ The Rust-native path is:
 
 ## Example
 
-```python
-from scripts._runner_cli import get_cookies, set_cookies
-
-set_cookies(
-    [{
-        "name": "session",
-        "value": "token",
-        "url": "https://example.com",
-        "secure": True,
-        "sameSite": "Lax",
-    }]
-)
-
-print(get_cookies(["https://example.com"]))
-```
-
 ```bash
-bhrun set-cookies <<'JSON'
+browser-harness set-cookies <<'JSON'
 {"daemon_name":"default","cookies":[{"name":"session","value":"token","url":"https://example.com","secure":true}]}
+JSON
+browser-harness get-cookies <<'JSON'
+{"daemon_name":"default","urls":["https://example.com"]}
 JSON
 ```
 

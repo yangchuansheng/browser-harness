@@ -32,12 +32,13 @@ Safe pattern: take the extracted markdown, then drop leading paragraphs that are
 
 ## Extractor
 
-This is a legacy helper-shell example. Use it only if you intentionally need
-the deprecated compatibility shell; new work should prefer `browser-harness`
-or `bhrun`.
+This Python example should call the Rust CLI directly through the helper
+wrappers in `docs/python-cli-helpers.md`.
 
 ````bash
-python3 run.py <<'PY'
+python3 <<'PY'
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+
 new_tab("https://medium.com/@user/slug-abc123")
 wait_for_load()
 wait(2.0)  # Medium hydrates more UI after readyState=complete

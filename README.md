@@ -90,24 +90,25 @@ Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card
 
 ## Legacy Compatibility
 
-The old Python shell now exists only in the source tree, not in installed
-packages:
+The active repo workflow is now Rust-native:
 
-- `python3 run.py` — deprecated repo-local heredoc shell
-- `run.py` + `runner_cli.py` + `admin_cli.py` — repo-local compatibility layer
-- `helpers.py` and `admin.py` — deprecated repo-local compatibility import paths
+- `browser-harness` — top-level CLI facade
+- `bhctl` — admin/control plane
+- `bhrun` — typed browser operations and guest runner
+- `bhsmoke` — repo-owned smoke coverage
 
-Use it only when you intentionally need old helper-preloaded behavior. New
-docs, smokes, and guest work should land on `browser-harness` / `bhrun` first.
+The old repo-local Python shims were moved to `archive/python-legacy/` for
+historical reference only.
 
-Deprecation details:
+If you intentionally want Python around the Rust CLI, use the direct
+`subprocess` helpers in [docs/python-cli-helpers.md](docs/python-cli-helpers.md)
+instead of reviving the archived shim files.
+
+Current policy:
 
 - installed packages no longer ship any Python entrypoint
-- `run.py` now warns on invocation
-- `helpers.py` now warns on import in the source tree; use `runner_cli.py` for stable Python helpers
-- `admin.py` now warns on import in the source tree; use `admin_cli.py` for Python admin shims
-- set `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` only if you need to suppress
-  those warnings in legacy automation
+- the active source tree ships no repo-local Python shim
+- archived legacy Python files live only under `archive/python-legacy/`
 
 ## Contributing
 

@@ -25,11 +25,18 @@ Current status:
 - the Rust rewrite is done
 - the Python sunset is done
 - installed packages are Rust-only
+- the deprecated Python shell, shim modules, and import aliases are archived
+  under `archive/python-legacy/`
+- optional Python examples now call `browser-harness` through
+  `docs/python-cli-helpers.md`
+- a post-sunset local Rust-only smoke sweep passes against the current Chrome
+  debug profile for `actions`, `tabs`, `guest-run`, `set-viewport`,
+  `upload-file`, `github-trending-guest`, and `2048-guest`
 - remaining work should be treated as normal product work, not migration debt
 
 ## Global Rules
 
-- [ ] use local browser smokes as the primary acceptance gate
+- [x] use local browser smokes as the primary acceptance gate
 - [ ] keep Browser Use remote verification best-effort only for site-dependent targets
 - [ ] prefer browser-first public domains before API-first domains
 - [ ] avoid anti-bot/login-heavy domains until the public browser-first queue is stronger
@@ -133,16 +140,17 @@ enough to be high-value early migration work.
   installs the Rust-native CLI and the legacy Python shell is repo-local only
 - [x] move repo-owned smoke/verification scripts off `helpers.py`; remaining
   direct `helpers.py` usage is now limited to explicit compatibility coverage
-  like `tests/test_rust_mode_contract.py`
+  like the now-archived legacy contract test
 - [x] move repo-owned smoke/verification scripts off `admin.py`; remaining
   direct `admin.py` usage is now limited to explicit compatibility alias
   coverage; the legacy `run.py` shell now imports the Rust-native
   `admin_cli.py` shim
 - [x] add installed-package regression coverage for deprecated Python surfaces;
   installed packages now omit the Python shell and compatibility modules
-  entirely; source-tree compatibility/tests still cover the deprecated repo-
-  local modules, and the installed-package smoke verifies that absence is
-  intentional
+  entirely, the deprecated root-level shims are archived in-tree only, and the
+  installed-package smoke verifies that absence is intentional
+- [x] archive the final repo-local Python shims and move active docs to
+  `browser-harness` / `bhrun` or `docs/python-cli-helpers.md`
 
 ## Secondary Track: Capability Pull List
 

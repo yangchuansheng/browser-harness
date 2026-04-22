@@ -25,7 +25,7 @@ Product Hunt is a React SPA. Key structural facts discovered:
 Repo-local Python snippets below assume:
 
 ```python
-from scripts._runner_cli import js, new_tab, page_info, wait, wait_for_load
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 ```
 
 ```python

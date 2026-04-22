@@ -436,9 +436,10 @@ The `__NEXT_DATA__` SSR approach replaces any need for the official API for read
 - **Page sizes vary**: Page 1 returned 66 items across 2 stacks; page 2 returned 55.
   Do not assume a fixed items-per-page count.
 
-- **`http_get` default already sends `Mozilla/5.0`**: `helpers.http_get()` uses
-  `"User-Agent": "Mozilla/5.0"` by default — no override needed when calling it directly.
-  Only pass a custom `headers=` if you need to change something else.
+- **`http_get` default already sends `Mozilla/5.0`**: the current
+  `browser-harness http-get` path already sends
+  `"User-Agent": "Mozilla/5.0"` by default. Only pass a custom `headers=` if
+  you need to change something else.
 
 - **`developer.api.walmart.com`** returns HTTP 403 without an API key. Not usable for
   unauthenticated scraping.

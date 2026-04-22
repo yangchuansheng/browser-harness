@@ -6,10 +6,11 @@
 
 **Use the REST API for repo/user/release data — it's one call, no browser, fully parsed JSON.**
 
-Repo-local Python snippets below assume the Rust-backed runner shim:
+Python snippets below assume the direct `browser-harness` wrappers from
+`docs/python-cli-helpers.md`:
 
 ```python
-from scripts._runner_cli import goto, http_get, js, wait, wait_for_load
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 ```
 
 ```python

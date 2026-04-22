@@ -87,5 +87,5 @@ JSON
 
 Legacy fallback:
 
-- `helpers.py` / raw `Page.handleJavaScriptDialog` calls are now
-  compatibility-only, not the primary path.
+- archived `helpers.py` / raw `Page.handleJavaScriptDialog` calls are
+  historical-only, not the primary path.

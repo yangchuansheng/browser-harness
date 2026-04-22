@@ -21,16 +21,10 @@ silently.
 If a workflow can be satisfied without browser state, prefer pure HTTP. It is
 faster, easier to verify, and avoids DOM ambiguity entirely.
 
-```python
-import json
-from scripts._runner_cli import http_get
-
-data = json.loads(http_get(
-    "https://backend.metacritic.com/games/metacritic/the-last-of-us/web"
-    "?componentName=product&componentType=Product"
-    "&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u"
-))
-print(data["data"]["item"]["title"])   # "The Last of Us"
+```bash
+browser-harness http-get <<'JSON' | jq -r . | jq -r '.data.item.title'
+{"url":"https://backend.metacritic.com/games/metacritic/the-last-of-us/web?componentName=product&componentType=Product&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u","timeout":20.0}
+JSON
 ```
 
 Use this path for APIs, SSR payloads such as Walmart `__NEXT_DATA__`, or other
@@ -121,31 +115,27 @@ BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- event-waits-guest
 ```
 
-## Repo-Local Python Fallback
+## CLI Fallback
 
-If you want Python ergonomics inside this repo, use the Rust-backed
-`scripts._runner_cli` shim and only fall back to buffered event draining while
-you are still discovering the exact network pattern:
+If you are still discovering the exact network pattern, you can fall back to
+buffered event draining through the Rust CLI:
 
-```python
-from scripts._runner_cli import drain_events, wait
-
-drain_events()  # clear old noise first
+```bash
+browser-harness drain-events <<'JSON'
+{"daemon_name":"default"}
+JSON
 # trigger the browser action here through browser-harness / bhrun / another script
-wait(1.0)
-
-responses = [
-    e for e in drain_events()
-    if e.get("method") == "Network.responseReceived"
-]
-for event in responses:
-    response = event.get("params", {}).get("response", {})
-    print(event.get("session_id"), response.get("status"), response.get("url"))
+browser-harness wait <<'JSON'
+{"duration_ms":1000}
+JSON
+browser-harness drain-events <<'JSON' | jq '.[] | select(.method=="Network.responseReceived") | {session_id, status: .params.response.status, url: .params.response.url}'
+{"daemon_name":"default"}
+JSON
 ```
 
 This is weaker than a runner-owned blocking wait because the buffer is
 destructive and you can miss short-lived events if you start looking too late.
-The legacy `helpers.py` shell has the same limitation and is no longer the
+The archived `helpers.py` shell had the same limitation and is no longer the
 preferred teaching surface.
 
 ## Practical Rules

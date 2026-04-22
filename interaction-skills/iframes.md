@@ -10,13 +10,10 @@ For same-origin iframes, `js(...)` can often read through
 
 Example shape:
 
-```python
-from scripts._runner_cli import js
-
-title = js(
-    "document.querySelector('iframe').contentDocument.querySelector('h1').textContent"
-)
-print(title)
+```bash
+browser-harness js <<'JSON'
+{"daemon_name":"default","expression":"document.querySelector('iframe').contentDocument.querySelector('h1').textContent"}
+JSON
 ```
 
 ## Coordinate Warning

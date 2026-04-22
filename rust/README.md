@@ -1,17 +1,17 @@
 # Rust Workspace
 
-This workspace is the starting point for the Browser Harness rewrite.
+This workspace is the Browser Harness runtime and guest implementation.
 
-The near-term goal is a Rust daemon/core that preserves the current Python
-workflow. The long-term goal is a Rust host with a WASM guest layer.
+The short-term rewrite is done. The remaining long-term track is the
+Rust-host-plus-WASM-guest direction.
 
 Current status:
 
-- Phase 1 hybrid rewrite is complete: Rust owns the daemon/runtime core and Python remains the compatibility shell
+- The runtime rewrite is complete: Rust owns the daemon/runtime core and the remaining repo-local Python shims have been archived
 - Rust daemon connects to local or remote CDP and serves the existing Unix socket contract
 - first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, viewport control, PDF export, cookie read/write, download configuration, low-level input primitives, drag primitives, DOM key dispatch, and file upload
 - remote-browser shutdown parity is implemented in the Rust daemon
-- local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
+- local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and the Rust-native smoke surface
 - site-dependent domain-skill acceptance now has passing local browser smokes via `DevToolsActivePort`, including the GitHub trending, Reddit post, Product Hunt homepage, Letterboxd popular, Spotify search, and Etsy search guest slices
 - Browser Use remote remains useful for simple runner/plumbing smokes, but site-dependent guest verification against origins such as GitHub, Reddit, Product Hunt, and Letterboxd is currently best-effort because cloud navigation to those sites has been intermittently unreliable
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](../docs/wasm-runner-design.md)
@@ -163,11 +163,9 @@ cargo run --quiet --bin bhrun -- wait-for-dialog <<'JSON'
 JSON
 ```
 
-Python compatibility tests:
-
-```bash
-python3 -m unittest tests/test_rust_mode_contract.py
-```
+Optional Python wrappers should now call `browser-harness` through the thin
+helpers in [docs/python-cli-helpers.md](../docs/python-cli-helpers.md). The old
+shim files live under `archive/python-legacy/`.
 
 Live remote smoke test:
 
@@ -291,8 +289,14 @@ Local `bhrun serve-guest` smoke:
 cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- persistent-guest
 ```
 
+Local 2048 guest smoke:
+
+```bash
+BU_BROWSER_MODE=local BU_2048_TARGET=512 cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- 2048-guest
+```
+
 Remote GitHub domain-skill acceptance smoke (best-effort):
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/domain_skill_github_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- github-trending-guest
 ```

@@ -6,7 +6,7 @@ The Rust-native path is:
 
 - `bhrun scroll`
 - `bh_guest_sdk::scroll(...)`
-- `scripts._runner_cli.scroll(...)`
+- `browser-harness scroll`
 
 ## Split The Cases
 
@@ -27,10 +27,10 @@ Virtualized list or dropdown:
 
 ## Example
 
-```python
-from scripts._runner_cli import scroll
-
-scroll(300, 400, dy=-320, dx=0)
+```bash
+browser-harness scroll <<'JSON'
+{"daemon_name":"default","x":300,"y":400,"dy":-320,"dx":0}
+JSON
 ```
 
 ## Rules

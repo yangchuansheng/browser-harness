@@ -18,7 +18,7 @@ The default list query (`q=list` implied) returns ALL courses in Coursera's cata
 20,659 as of the test date.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 resp = http_get(
