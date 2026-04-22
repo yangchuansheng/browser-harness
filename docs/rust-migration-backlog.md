@@ -25,8 +25,8 @@ Current status:
 - the Rust rewrite is done
 - the Python sunset is done
 - installed packages are Rust-only
-- the deprecated Python shell, shim modules, and import aliases are archived
-  under `archive/python-legacy/`
+- the deprecated Python shell, shim modules, and import aliases have been
+  removed from the repository
 - optional Python examples now call `browser-harness` through
   `docs/python-cli-helpers.md`
 - a post-sunset local Rust-only smoke sweep passes against the current Chrome
@@ -149,7 +149,7 @@ enough to be high-value early migration work.
   installed packages now omit the Python shell and compatibility modules
   entirely, the deprecated root-level shims are archived in-tree only, and the
   installed-package smoke verifies that absence is intentional
-- [x] archive the final repo-local Python shims and move active docs to
+- [x] remove the final repo-local Python shims and move active docs to
   `browser-harness` / `bhrun` or `docs/python-cli-helpers.md`
 
 ## Secondary Track: Capability Pull List

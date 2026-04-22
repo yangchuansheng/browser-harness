@@ -2,7 +2,7 @@
 
 This document records the final Python-facing contract that existed during the
 Rust rewrite. The active repo workflow no longer keeps repo-local Python shims.
-The historical Python layer now lives under `archive/python-legacy/`, and any
+The historical Python layer has been removed from the repository, and any
 optional Python examples should call `browser-harness` through the small
 subprocess wrappers in `docs/python-cli-helpers.md`.
 
@@ -11,14 +11,14 @@ Archived compatibility split:
 - `runner_cli.py` was the repo-local Python helper shim over `bhrun`
 - `admin_cli.py` was the repo-local Python admin shim over Rust control
   commands
-- `archive/python-legacy/` keeps the removed `run.py`, `helpers.py`,
-  `admin.py`, and related historical compatibility code for reference only
+- `run.py`, `helpers.py`, `admin.py`, and related compatibility code have been
+  removed from the repository
 
 Installed-package policy:
 
 - installed packages do not ship any Python entrypoint
 - installed packages do not ship `runner_cli.py` or `admin_cli.py`
-- the archived legacy Python layer is source-tree only
+- the legacy Python layer no longer exists in the source tree
 
 ## Runtime Files
 

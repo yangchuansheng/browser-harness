@@ -97,8 +97,7 @@ The active repo workflow is now Rust-native:
 - `bhrun` — typed browser operations and guest runner
 - `bhsmoke` — repo-owned smoke coverage
 
-The old repo-local Python shims were moved to `archive/python-legacy/` for
-historical reference only.
+The old repo-local Python shims have been removed from the repository.
 
 If you intentionally want Python around the Rust CLI, use the direct
 `subprocess` helpers in [docs/python-cli-helpers.md](docs/python-cli-helpers.md)
@@ -108,7 +107,7 @@ Current policy:
 
 - installed packages no longer ship any Python entrypoint
 - the active source tree ships no repo-local Python shim
-- archived legacy Python files live only under `archive/python-legacy/`
+- the legacy Python shim layer has been removed
 
 ## Contributing
 
