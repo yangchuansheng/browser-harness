@@ -24,18 +24,17 @@ As of the current rewrite stage:
 - `run.py`, `admin_cli.py`, `runner_cli.py`, and `helpers.py` remain the
   legacy compatibility shell surface
 - `admin.py` is only a compatibility alias to `admin_cli.py`
-- the installed default `browser-harness` command is now the Rust-native CLI,
-  while the Python shell is explicitly `browser-harness-py`
-- `browser-harness-py`, `helpers.py`, and `admin.py` are now explicitly
+- the installed package is now Rust-only and the default installed command is
+  `browser-harness`
+- `run.py`, `helpers.py`, and `admin.py` are now explicitly
   deprecated and emit suppressible warnings
 - repo-owned smoke/verification scripts now call `browser-harness` / `bhrun`
   through small script shims instead of importing `helpers.py` or `admin.py`
-- installed-package regression coverage now explicitly checks that the
-  deprecated `browser-harness-py` still ships, while installed packages now
-  intentionally omit `helpers.py` and `admin.py`
+- installed-package regression coverage now explicitly checks that installed
+  packages omit the deprecated Python shell and compatibility modules
 
 This means the Python daemon path is sunset. The remaining Python surface is
-now a shim layer, not the product core.
+now repo-local only, not the product core.
 
 The raw `helpers.py` `cdp()` escape hatch now also has a Rust-native
 replacement via `browser-harness cdp-raw` and `bh_guest_sdk::cdp_raw(...)`.
@@ -100,7 +99,7 @@ The primary Rust-native path for stable operations is:
 
 ### 3. Dynamic Task Logic
 
-The long-term replacement for `browser-harness-py <<'PY'` is not another Rust
+The long-term replacement for `python3 run.py <<'PY'` is not another Rust
 string-eval shell. It is:
 
 - runner-owned utilities in `bhrun`
@@ -129,14 +128,14 @@ Deprecation policy inside that legacy surface:
 
 - `runner_cli.py` and `admin_cli.py` are the only Python shims still intended
   to remain canonical during compatibility mode
-- `browser-harness-py`, `helpers.py`, and `admin.py` are deprecated and warn by
-  default
+- installed packages no longer ship the Python shell or compatibility modules
+- `run.py`, `helpers.py`, and `admin.py` are deprecated and warn by default in
+  the source tree
 - `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` suppresses those warnings for
   legacy automation only
-- installed packages now intentionally omit `helpers.py` and `admin.py`; they
-  remain repo-local only for compatibility tests and source-tree fallback paths
-- `browser-harness-py` remains shipped, but now preloads a `runner_cli`-backed
-  fallback helper surface when `helpers.py` is absent
+- `run.py`, `helpers.py`, `admin.py`, `runner_cli.py`, and `admin_cli.py`
+  remain repo-local only for compatibility tests and source-tree fallback
+  paths
 
 They should only receive:
 
@@ -166,7 +165,7 @@ Python can be removed entirely only when all of the following are true:
 
 - the Rust-native `browser-harness` CLI covers the active install/bootstrap and
   day-to-day control flows
-- the remaining production workflows no longer rely on `browser-harness-py <<'PY'`
+- the remaining production workflows no longer rely on `python3 run.py <<'PY'`
 - raw escape hatch needs are either intentionally dropped or re-homed behind
   `bhrun`
 - the interaction/domain backlog no longer depends on Python-only helpers

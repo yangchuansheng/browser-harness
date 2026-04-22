@@ -89,8 +89,8 @@ only in the legacy shell.
 
 Use this only when you intentionally need the old helper-loaded shell:
 
-- `browser-harness-py` (deprecated; warns on invocation)
-- `runner_cli.py` and `admin_cli.py` (intended Python compatibility shims)
+- `python3 run.py` (deprecated repo-local shell; installed packages no longer ship it)
+- `runner_cli.py` and `admin_cli.py` (repo-local Python compatibility shims)
 - `helpers.py` and `admin.py` (deprecated import paths; warn on import)
 - Python admin helpers like `start_remote_daemon(...)`
 
