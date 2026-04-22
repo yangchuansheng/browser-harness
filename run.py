@@ -1,6 +1,6 @@
 import sys
 
-from admin import (
+from admin_cli import (
     ensure_daemon,
     list_cloud_profiles,
     list_local_profiles,
@@ -21,7 +21,8 @@ Legacy Python-shell usage:
   print(page_info())
   PY
 
-Helpers are pre-imported. The daemon auto-starts and connects to the running browser.
+Helpers are pre-imported. The daemon auto-starts and connects to the running
+browser.
 The primary command is now the Rust-native `browser-harness` CLI.
 """
 
