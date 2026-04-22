@@ -55,10 +55,10 @@ In those cases:
 
 ## Local Acceptance
 
-- `scripts/bhrun_drag_smoke.py`
+- `rust/bins/bhsmoke` with the `drag` scenario
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_drag_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- drag
 ```
 
 That smoke:

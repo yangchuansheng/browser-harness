@@ -89,12 +89,12 @@ then attach screenshots as supporting proof.
 
 The repository smoke for this path is:
 
-- `scripts/bhrun_screenshot_smoke.py`
+- `rust/bins/bhsmoke` with the `screenshot` scenario
 
 Primary acceptance is local browser mode:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_screenshot_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- screenshot
 ```
 
 That smoke:

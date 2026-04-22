@@ -16,6 +16,7 @@ Current status:
 - Browser Use remote remains useful for simple runner/plumbing smokes, but site-dependent guest verification against origins such as GitHub, Reddit, Product Hunt, and Letterboxd is currently best-effort because cloud navigation to those sites has been intermittently unreliable
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](../docs/wasm-runner-design.md)
 - the new Rust-native top-level CLI facade is `browser-harness`, which forwards admin commands to `bhctl` and runner/helper commands to `bhrun`
+- the repo-owned runner/admin verification smokes for the common helper surface now live in `bins/bhsmoke`
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
@@ -171,66 +172,66 @@ python3 -m unittest tests/test_rust_mode_contract.py
 Live remote smoke test:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/remote_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- remote
 ```
 
 Live `bhrun wait-for-event` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_event_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-load-event
 ```
 
 Live `bhrun watch-events` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_watch_events_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- watch-events
 ```
 
 Live `bhrun wait-for-response` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_response_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-response
 ```
 
-Live `bhrun wait-for-request` smoke:
+Local `bhrun wait-for-request` smoke:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_request_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-request
 ```
 
-Live `bhrun set-viewport` smoke:
+Local `bhrun set-viewport` smoke:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_viewport_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- set-viewport
 ```
 
 Live `bhrun wait-for-console` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_console_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-console
 ```
 
 Live `bhrun wait-for-dialog` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_dialog_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-dialog
 ```
 
 Live `bhrun screenshot` smoke:
 
 ```bash
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_screenshot_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- screenshot
 ```
 
 Local `bhrun` runner-helper smokes:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_screenshot_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_print_pdf_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_cookies_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_download_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_drag_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_upload_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- screenshot
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- print-pdf
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- cookies
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-download
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- drag
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- upload-file
 ```
 
 Live `bhrun` action smoke:
