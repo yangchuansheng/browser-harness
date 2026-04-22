@@ -43,5 +43,5 @@ JSON
 The tab/session helpers are already exercised by:
 
 - `rust/bins/bhsmoke` with the `tab-response-guest` scenario
-- `scripts/bhrun_github_trending_guest_smoke.py`
-- `scripts/bhrun_letterboxd_popular_guest_smoke.py`
+- `rust/bins/bhsmoke` with the `github-trending-guest` scenario
+- `rust/bins/bhsmoke` with the `letterboxd-popular-guest` scenario
