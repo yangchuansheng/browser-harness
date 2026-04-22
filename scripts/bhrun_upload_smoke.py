@@ -19,7 +19,12 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "bhrun-upload-smoke")
 
-from admin import ensure_daemon, restart_daemon  # noqa: E402
+from scripts._admin_cli import (  # noqa: E402
+    ensure_daemon,
+    list_browsers,
+    restart_daemon,
+    start_remote_daemon,
+)
 from scripts._runner_cli import goto, js, page_info, set_viewport, upload_file, wait, wait_for_load  # noqa: E402
 
 

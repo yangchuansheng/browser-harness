@@ -67,6 +67,10 @@ impl BrowserUseClient {
         format!("{}/browsers/{}", self.api_base, browser_id)
     }
 
+    fn list_browsers_path(&self, page_size: usize, page_number: usize) -> String {
+        format!("/browsers?pageSize={page_size}&pageNumber={page_number}")
+    }
+
     fn stop_browser_payload(&self) -> serde_json::Value {
         json!({ "action": "stop" })
     }
@@ -86,6 +90,20 @@ impl BrowserUseClient {
     pub async fn create_browser(&self, body: &Value) -> Result<Value, String> {
         self.request_json(reqwest::Method::POST, "/browsers", Some(body), false)
             .await
+    }
+
+    pub async fn list_browsers(
+        &self,
+        page_size: usize,
+        page_number: usize,
+    ) -> Result<Value, String> {
+        self.request_json(
+            reqwest::Method::GET,
+            &self.list_browsers_path(page_size, page_number),
+            None,
+            false,
+        )
+        .await
     }
 
     pub async fn cdp_ws_from_url(&self, cdp_url: &str) -> Result<String, String> {
@@ -213,6 +231,15 @@ mod tests {
         });
         assert_eq!(payload["proxyCountryCode"], "us");
         assert_eq!(payload["timeout"], 1);
+    }
+
+    #[test]
+    fn list_browsers_request_uses_expected_query_params() {
+        let client = BrowserUseClient::with_api_base("test-key", "https://api.example.test");
+        assert_eq!(
+            client.list_browsers_path(20, 3),
+            "/browsers?pageSize=20&pageNumber=3"
+        );
     }
 
     #[test]
