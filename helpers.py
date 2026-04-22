@@ -10,6 +10,9 @@ from urllib.parse import urlparse
 
 import runner_cli
 
+drain_events = runner_cli.drain_events
+http_get = runner_cli.http_get
+
 
 def _load_env():
     path = Path(__file__).parent / ".env"
@@ -68,14 +71,6 @@ def cdp(method, session_id=None, **params):
     Rust-native workflows.
     """
     return _send({"method": method, "params": params, "session_id": session_id}).get("result", {})
-
-
-def drain_events():
-    return _runner_or_fallback(
-        "drain_events",
-        lambda: runner_cli.drain_events(),
-        lambda: _send({"meta": "drain_events"})["events"],
-    )
 
 
 def goto(url):
@@ -359,9 +354,10 @@ def iframe_target(url_substr):
 
 
 def wait(seconds=1.0):
-    """Client-side sleep utility intentionally kept outside the daemon contract."""
+    """Legacy helper name routed through the runner; preserves `None` return."""
 
-    time.sleep(seconds)
+    runner_cli.wait(seconds)
+    return None
 
 
 def wait_for_load(timeout=15.0):
@@ -472,7 +468,29 @@ def upload_file(selector, path, target_id=None):
     )
 
 
-def http_get(url, headers=None, timeout=20.0):
-    """Pure HTTP utility now routed through the Rust runner."""
-
-    return runner_cli.http_get(url, headers=headers, timeout=timeout)
+__all__ = [
+    "INTERNAL",
+    "NAME",
+    "SOCK",
+    "cdp",
+    "click",
+    "current_tab",
+    "dispatch_key",
+    "drain_events",
+    "ensure_real_tab",
+    "goto",
+    "http_get",
+    "iframe_target",
+    "js",
+    "list_tabs",
+    "new_tab",
+    "page_info",
+    "press_key",
+    "screenshot",
+    "scroll",
+    "switch_tab",
+    "type_text",
+    "upload_file",
+    "wait",
+    "wait_for_load",
+]
