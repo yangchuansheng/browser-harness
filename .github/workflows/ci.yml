@@ -51,3 +51,6 @@ jobs:
           browser-harness summary
           bhctl daemon-alive
           bhrun summary
+
+      - name: Check Installed Python Compatibility Surface
+        run: python scripts/installed_package_compat_smoke.py
