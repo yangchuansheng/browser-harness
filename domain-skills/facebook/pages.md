@@ -72,7 +72,7 @@ Unlike a Group, a Page's header carries useful signal on its own — category,
 verified, follower count, website. Pull it in one JS call before you start
 scrolling the feed.
 
-```python
+```text
 meta = js("""
   ({
     name: document.querySelector('h1')?.innerText || null,
@@ -95,7 +95,7 @@ Decode `website_redirector` with the same helper as post links (see below).
 Same collect-as-you-go pattern as groups. FB virtualizes the Page feed too —
 scrolled-past posts unmount, so scroll-then-collect loses them.
 
-```python
+```text
 seen = {}  # permalink -> dict
 TARGET = 50
 MAX_SCROLLS = 30
@@ -136,7 +136,7 @@ Notes:
 Identical to groups.md — every outbound link is wrapped in
 `https://l.facebook.com/l.php?u={URL-encoded real URL}&h=...`. Strip the wrapper.
 
-```python
+```text
 from urllib.parse import urlparse, parse_qs, unquote
 def decode_fb_link(href):
     if not href.startswith("https://l.facebook.com/l.php"):
@@ -151,7 +151,7 @@ Same pattern as groups — Pages are the walled-garden surface that Harness is
 good at; the external URLs the Page has shared are public and better suited to
 Firecrawl's schema-native extraction.
 
-```python
+```text
 external_urls = sorted({decode_fb_link(x) for p in seen.values() for x in p["externals"]})
 print(f"harvested {len(external_urls)} unique external URLs from Page")
 # In the calling conversation:
@@ -176,7 +176,7 @@ at the screen, and don't try to auto-resolve.
 
 ## Self-inspection block (run when selectors stop working)
 
-```python
+```text
 print(js("""
   ({
     articles: document.querySelectorAll('div[role="article"]').length,
@@ -196,15 +196,13 @@ print(js("""
 
 ## Full example — mine one Page, emit JSON for downstream tools
 
-This is a legacy helper-shell example. Use it only if you intentionally need
-the deprecated compatibility shell; new work should prefer `browser-harness`
-or `bhrun`.
+Helper-style extraction example. Map these calls to `browser-harness`,
+`bhrun`, or a guest as needed.
 
-```bash
-cd /path/to/browser-harness && python3 <<'PY'
+```text
 import json, sys
 from urllib.parse import urlparse, parse_qs, unquote
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 PAGE = "BoatingOntario.ca"   # vanity slug OR numeric Page ID
 TARGET = 30
@@ -271,7 +269,6 @@ print(json.dumps({
     "posts": posts,
     "external_urls": all_externals,
 }, ensure_ascii=False))
-PY
 ```
 
 The stdout JSON is the handoff payload — parse it in the calling agent and

@@ -12,9 +12,9 @@ Trustpilot is a Next.js SSR app. Every company review page embeds the full data 
 `<script id="__NEXT_DATA__">` JSON block — no browser needed. This includes the business unit
 metadata, all 20 reviews for the current page, pagination info, and rating distribution.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_trustpilot_page(domain, page=1, stars=None, languages='en', verified=False):
     """
@@ -51,7 +51,7 @@ def get_trustpilot_page(domain, page=1, stars=None, languages='en', verified=Fal
 
 ## Business Unit (Company) Metadata
 
-```python
+```text
 bu, reviews, pagination, ratings = get_trustpilot_page("amazon.com")
 
 # Confirmed fields (tested 2026-04-18):
@@ -79,7 +79,7 @@ pagination  # {'currentPage': 1, 'perPage': 20, 'totalCount': 28039, 'totalPages
 
 Each review in the `reviews` list has these confirmed fields:
 
-```python
+```text
 review = {
     'id':      '69e3103e09f46d6b5910f3c1',  # hex ObjectId, unique
     'rating':  1,                             # int 1–5
@@ -134,9 +134,9 @@ review = {
 This cap applies per filter combination, so `stars=1` gives 200 reviews, `stars=2` gives another
 200, etc.
 
-```python
+```text
 import re, json, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def collect_reviews(domain, stars=None, languages='en', max_pages=10, delay=0.5):
     """
@@ -188,7 +188,7 @@ reviews_all = collect_reviews("stripe.com", languages='all')  # all languages
 Since each star filter gives an independent 200-review window, you can collect up to 1,000
 reviews per company (pages are deduplicated across filters):
 
-```python
+```text
 all_reviews = {}
 for stars in range(1, 6):
     for r in collect_reviews("amazon.com", stars=stars, delay=0.5):
@@ -216,7 +216,7 @@ All filter params are appended to the base URL `https://www.trustpilot.com/revie
 
 ## Pagination Object
 
-```python
+```text
 # From filters.pagination (present on pages 1–10 when data exists):
 pagination = {
     'currentPage': 1,
@@ -296,9 +296,9 @@ Consumer API, so if you have an API key, you can use it directly without a separ
 
 ## Complete One-Shot Example
 
-```python
+```text
 import re, json, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def scrape_trustpilot(domain, max_unique=200):
     """

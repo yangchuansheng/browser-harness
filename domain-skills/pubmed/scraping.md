@@ -6,9 +6,9 @@
 
 **ESearch → ESummary is the fastest pipeline for most tasks — two calls, JSON responses, no XML parsing.**
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Step 1: search → get PMIDs
 search = json.loads(http_get(
@@ -43,9 +43,9 @@ Use **EFetch XML** when you need: full abstract text, MeSH terms, complete autho
 
 ### Search PubMed (ESearch)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -90,9 +90,9 @@ Boolean operators: `AND`, `OR`, `NOT`. Phrase search: `"exact phrase"[Title]`.
 
 ### Lightweight metadata — ESummary (JSON, no XML)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
@@ -130,9 +130,9 @@ for uid in result['uids']:
 
 Use this for full abstracts, complete author names, MeSH terms, structured abstract sections.
 
-```python
+```text
 import json, xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 raw = http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -226,9 +226,9 @@ for art in root.findall('.//PubmedArticle'):
 
 When `count` exceeds `retmax` (max 10 000), use server-side history to paginate EFetch without re-running ESearch on every page.
 
-```python
+```text
 import json, xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Step 1: ESearch with usehistory=y — NCBI holds result set on server
 search = json.loads(http_get(
@@ -258,9 +258,9 @@ for start in range(0, min(total, 1000), batch_size):  # cap at 1000 for demo
 
 ### EInfo — list available NCBI databases
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?retmode=json"
@@ -274,9 +274,9 @@ print(dbs[:10])
 
 Get PubMed-specific metadata (field list, link list):
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?db=pubmed&retmode=json"
@@ -296,9 +296,9 @@ print(f"Link types ({len(link_names)}):", link_names[:5])
 
 ELink connects a PubMed record to associated data in other NCBI databases. The `pubmed_pubmed` "related articles" linkname relies on a similarity server that is intermittently unavailable (returns `"Couldn't resolve #exLinkSrv2, the address table is empty."`). Use the non-similarity links below instead.
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Link a PMID to its free full-text in PMC (if open access)
 # linkname=pubmed_pmc — may also hit the server outage; check error field
@@ -367,7 +367,7 @@ https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi     # DB metadata
 
 ### PubMed article URL construction
 
-```python
+```text
 pmid = "41999029"
 pubmed_url  = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
 doi         = "10.12659/MSM.951157"
@@ -390,7 +390,7 @@ pmc_url     = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/"
   - Confirmed real examples (2026-04-18): PMID 37586835 (`GeKeR Study Group`), PMID 36328784 (`Breast Cancer Association Consortium`)
 
 - **PubDate has three possible structures.** Most articles have `<Year>` + optional `<Month>` + optional `<Day>`. Seasonal journals use `<Season>` (e.g. `Jul-Aug`, `Oct-Dec`) instead of `<Month>`. A minority of older records use `<MedlineDate>` (e.g. `1995 Fall`) with no `<Year>`. Safe extraction pattern:
-  ```python
+  ```text
   pub_date = journal.find('.//PubDate')
   year_el    = pub_date.find('Year')    if pub_date is not None else None
   medline_el = pub_date.find('MedlineDate') if pub_date is not None else None
@@ -407,7 +407,7 @@ pmc_url     = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/"
 - **`retmax` upper bound is 10 000 for ESearch.** To retrieve more than 10 000 PMIDs for a search, use `usehistory=y` and page through EFetch with `retstart` offsets. EFetch itself also accepts `retmax` up to 10 000 per call.
 
 - **`retmax=0` in ESearch returns only the count, not IDs — useful for counting.** Combine with `usehistory=y` to store the result for later paging without fetching IDs upfront:
-  ```python
+  ```text
   search = json.loads(http_get(
       "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
       "?db=pubmed&term=cancer&retmax=0&retmode=json&usehistory=y"

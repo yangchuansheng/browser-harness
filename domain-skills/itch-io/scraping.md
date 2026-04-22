@@ -24,9 +24,9 @@ No Cloudflare, no JS challenge, no CAPTCHA on standard game/browse routes.
 
 Every browse URL has an `.xml` RSS variant. Returns price, pub/update dates, platforms, thumbnail. No HTML parsing.
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_rss(url):
     """
@@ -83,9 +83,9 @@ items = parse_rss("https://itch.io/games/top-rated.xml")
 
 ## Approach 2: HTML listings — ratings, genre, price, 36 games per page
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_game_cards(html):
     """
@@ -183,9 +183,9 @@ games = parse_game_cards(html)
 
 The cleanest source for individual game data. All confirmed fields:
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def extract_game_detail(url):
     """
@@ -300,9 +300,9 @@ r = extract_game_detail("https://adamgryu.itch.io/a-short-hike")
 
 Browse pages: `?page=N`. Detect end of results by HTTP 404 (page too high) or absent `<link rel="next">`.
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def paginate_listing(base_url, max_pages=10):
     """
@@ -337,7 +337,7 @@ def paginate_listing(base_url, max_pages=10):
 
 All confirmed working via `http_get`:
 
-```python
+```text
 BASE = "https://itch.io/games"
 
 # Sort orders
@@ -380,9 +380,9 @@ Get one at: `https://itch.io/user/settings/api-keys`
 
 Base URL: `https://itch.io/api/1/<key>/`
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 ITCH_KEY = "your_api_key_here"   # from https://itch.io/user/settings/api-keys
 

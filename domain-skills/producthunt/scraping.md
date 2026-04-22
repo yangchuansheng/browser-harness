@@ -3,6 +3,19 @@
 Field-tested against https://www.producthunt.com on 2026-04-18.
 All selectors verified with actual browser runs.
 
+## Rust-native path
+
+Use the Product Hunt homepage guest for the browser workflow below. This
+assumes a live browser daemon is already attached:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-producthunt-homepage/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-producthunt-homepage/target/wasm32-unknown-unknown/release/rust_producthunt_homepage_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-producthunt-homepage/target/wasm32-unknown-unknown/release/rust_producthunt_homepage_guest.wasm","granted_operations":["new_tab","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ---
 
 ## Page Structure Overview
@@ -22,13 +35,13 @@ Product Hunt is a React SPA. Key structural facts discovered:
 
 ## Navigation Pattern
 
-Repo-local Python snippets below assume:
+Examples below use helper-style operations such as `http_get()`, `goto()`, `new_tab()`, `page_info()`, `wait()`, and `js()`. Map them to `browser-harness`, `bhrun`, or a guest as needed:
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 ```
 
-```python
+```text
 # goto() may fail on Product Hunt — use new_tab() reliably
 tid = new_tab("https://www.producthunt.com")
 wait(4)  # React SPA needs time; wait_for_load() alone is insufficient
@@ -44,7 +57,7 @@ The homepage shows today's launches plus rolling sections for yesterday, last we
 
 ### Working selector: `[data-test^="post-item-"]`
 
-```python
+```text
 # Full extraction with name, tagline, slug, votes, topics
 products = js("""
 JSON.stringify(
@@ -138,7 +151,7 @@ URL: `https://www.producthunt.com/topics/developer-tools`
 
 Selector changes on topic pages — uses `[data-test^="product:"]` not `post-item-`.
 
-```python
+```text
 # Navigate to topic
 new_tab("https://www.producthunt.com/topics/developer-tools")
 wait(3)
@@ -184,7 +197,7 @@ Same `[data-test^="product:"]` selector as topics. Returns 15 top-reviewed produ
 URL: `https://www.producthunt.com/products/claude-opus-4-7`
 
 ### Get total vote count (sidebar button)
-```python
+```text
 # Use [data-test="vote-button"] — different from [data-test="action-bar-vote-button"]
 vote_text = js("document.querySelector('[data-test=\"vote-button\"]').outerText.trim().replace(/\\s+/g, ' ')")
 # Returns: "Upvote • 466 points"
@@ -192,7 +205,7 @@ vote_text = js("document.querySelector('[data-test=\"vote-button\"]').outerText.
 ```
 
 ### Get review count and rating
-```python
+```text
 review_link = js("JSON.stringify(Array.from(document.querySelectorAll('a')).filter(a => a.href && a.href.includes('/reviews') && a.outerText.includes('review')).map(a => a.outerText.trim()).slice(0, 1))")
 # Returns: ["1 review"] or ["5.0\n(731 reviews)"]
 ```
@@ -211,7 +224,7 @@ URL: `https://www.producthunt.com/search?q=AI+agent`
 
 Selector: `[data-test^="spotlight-result-product-"]`
 
-```python
+```text
 new_tab("https://www.producthunt.com/search?q=AI+agent")
 wait(3)
 
@@ -277,7 +290,7 @@ JSON.stringify(
 
 ## Recommended Workflow for Scraping Today's Launches
 
-```python
+```text
 # 1. Open Product Hunt in a new tab
 new_tab("https://www.producthunt.com/leaderboard/daily/2026/4/18")
 wait(4)

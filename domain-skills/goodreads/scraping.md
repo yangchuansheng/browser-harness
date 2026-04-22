@@ -23,9 +23,9 @@ URL pattern: `https://www.goodreads.com/book/show/{book_id}` or `/{book_id}.{Slu
 
 The slug is optional — numeric ID alone works and redirects cleanly.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_book(book_id):
     html = http_get(f"https://www.goodreads.com/book/show/{book_id}")
@@ -101,9 +101,9 @@ book = parse_book(149267)  # The Stand by Stephen King
 
 Use when you only need title, author, rating, page count, and awards. ~3× less parsing code.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_book_fast(book_id):
     html = http_get(f"https://www.goodreads.com/book/show/{book_id}")
@@ -140,9 +140,9 @@ URL: `https://www.goodreads.com/search?q={query}&search_type=books&page={n}`
 
 Search uses server-rendered HTML with schema.org microdata `<tr>` rows. No `__NEXT_DATA__`.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def search_books(query, page=1):
     from urllib.parse import quote_plus
@@ -201,9 +201,9 @@ URL: `https://www.goodreads.com/author/show/{author_id}.{Slug}`
 Author pages are **not** Next.js — they use classic server-rendered HTML with OG meta tags and microdata.
 The author ID and slug can be obtained from a book's `author_url` field.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_author(author_id_and_slug):
     # author_id_and_slug e.g. "58.Frank_Patrick_Herbert"
@@ -272,9 +272,9 @@ URL: `https://www.goodreads.com/list/show/{list_id}.{Slug}?page={n}`
 
 Returns 100 books per page with rank numbers.
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_list(list_id_and_slug, page=1):
     url = f"https://www.goodreads.com/list/show/{list_id_and_slug}?page={page}"
@@ -329,10 +329,10 @@ Open Library's ratings are from its own user base (~400 ratings vs. Goodreads' 8
 
 ### Search
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def ol_search(query, limit=10):
     url = f"https://openlibrary.org/search.json?q={quote_plus(query)}&limit={limit}"
@@ -359,7 +359,7 @@ r = ol_search("dune frank herbert", limit=5)
 
 ### Work (book details)
 
-```python
+```text
 def ol_work(ol_key):
     # ol_key like "/works/OL893415W" or just "OL893415W"
     key = ol_key if ol_key.startswith('/') else f'/works/{ol_key}'
@@ -383,7 +383,7 @@ work = ol_work("OL893415W")
 
 ### Ratings for a work
 
-```python
+```text
 def ol_ratings(ol_key):
     key = ol_key if ol_key.startswith('/') else f'/works/{ol_key}'
     data = json.loads(http_get(f"https://openlibrary.org{key}/ratings.json"))
@@ -394,7 +394,7 @@ def ol_ratings(ol_key):
 
 ### Author
 
-```python
+```text
 def ol_author(author_key):
     # author_key like "OL79034A"
     data = json.loads(http_get(f"https://openlibrary.org/authors/{author_key}.json"))
@@ -419,7 +419,7 @@ author = ol_author("OL79034A")
 
 ## Combining Goodreads + Open Library
 
-```python
+```text
 # Get full book data: Goodreads for ratings/genres/description, OL for ISBNs/edition details
 def get_book_full(goodreads_book_id, ol_work_key=None):
     gr = parse_book(goodreads_book_id)

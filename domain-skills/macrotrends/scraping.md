@@ -23,9 +23,9 @@ All results validated against live site on 2026-04-18.
 
 Construct the iframe URL directly — no need to fetch the main page first.
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_stock_ohlcv(ticker: str, years_back: int = None) -> list[dict]:
     """
@@ -83,7 +83,7 @@ print(f"{latest['d']}: close=${latest['c']} vol={latest['v']}M shares")
 
 All tested with direct iframe URL, no page fetch needed:
 
-```python
+```text
 # All work: AAPL, MSFT, TSLA, NVDA, GOOGL, AMZN, META, NFLX, etc.
 # 3772 records for yb=15 (goes back to 2011-04-18)
 # AAPL full history: 11428 records back to 1980-12-12
@@ -97,9 +97,9 @@ Different PHP files depending on metric. Construct directly.
 
 ### Market cap (daily, in billions USD)
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_market_cap(ticker: str, years_back: int = 15) -> list[dict]:
     url = f"https://www.macrotrends.net/production/stocks/desktop/PRODUCTION/market_cap.php?t={ticker}&yb={years_back}"
@@ -121,9 +121,9 @@ data = get_market_cap('AAPL')
 
 ### PE ratio, revenue, current ratio (quarterly/annual fundamentals)
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_fundamental(ticker: str, metric_type: str, statement: str,
                     freq: str = 'Q', years_back: int = 15) -> list[dict]:
@@ -165,7 +165,7 @@ ratio = get_fundamental('AAPL', 'current-ratio', 'ratios')
 
 ### Profit margins
 
-```python
+```text
 def get_profit_margins(ticker: str, years_back: int = 15) -> list[dict]:
     url = (
         f"https://www.macrotrends.net/production/stocks/desktop/PRODUCTION/"
@@ -189,7 +189,7 @@ margins = get_profit_margins('AAPL')
 
 ### Dividend yield
 
-```python
+```text
 def get_dividend_yield(ticker: str, years_back: int = 15) -> list[dict]:
     url = f"https://www.macrotrends.net/production/stocks/desktop/PRODUCTION/dividend_yield.php?t={ticker}&yb={years_back}"
     html = http_get(url)
@@ -232,9 +232,9 @@ All take `?t={TICKER}&yb={N}` (or `&sub=&yb={N}` for the fundamental ones).
 
 These pages embed chart data via `chart_iframe_comp.php`. The variable is `originalData`.
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def extract_index_chart(page_id: int, url_slug: str) -> list[dict]:
     """
@@ -271,7 +271,7 @@ print(f"Latest gold:   {gold_data[-1]}") # {'id': ..., 'date': '2026-04-01', 'cl
 
 ### Detecting which pattern a page uses
 
-```python
+```text
 def get_page_pattern(page_url: str) -> str:
     html = http_get(page_url)
     if 'chart_iframe_comp.php' in html:
@@ -285,9 +285,9 @@ def get_page_pattern(page_url: str) -> str:
 
 ### To get the ID and slug from a page
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 page_url = "https://www.macrotrends.net/2577/sp500-pe-ratio-price-to-earnings-chart"
 html = http_get(page_url)
@@ -311,9 +311,9 @@ url_slug = parts[-1]         # 'sp500-pe-ratio-price-to-earnings-chart'
 Pages that use `generateChart()` in their JS load data from `/economic-data/{pageID}/{freq}`.
 This endpoint requires a `Referer` header matching the page URL.
 
-```python
+```text
 import json, datetime, gzip, urllib.request
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_economic_data(page_id: int, referer_url: str, freq: str = 'D') -> dict:
     """
@@ -370,7 +370,7 @@ debt_gdp = get_economic_data(1381, "https://www.macrotrends.net/1381/debt-to-gdp
 
 ### metadata fields
 
-```python
+```text
 {
     'name':            'Fed Funds Interest Rate',  # chart title
     'tableHeaderName': 'Fed Funds Interest Rate',
@@ -420,9 +420,9 @@ Try `D` first, fall back to `M` if you get `null`.
 
 One function that handles all three embedded-JS patterns:
 
-```python
+```text
 import json, re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def extract_chart_var(html: str, var_name: str) -> list:
     """Extract a JS array variable from Macrotrends iframe HTML."""
@@ -453,7 +453,7 @@ pe_data = extract_chart_var(html2, 'originalData')
 
 ### Stock pages
 
-```python
+```text
 STOCK_BASE = "https://www.macrotrends.net/production/stocks/desktop/PRODUCTION/"
 
 # Price history OHLCV
@@ -478,7 +478,7 @@ f"{STOCK_BASE}dividend_yield.php?t={ticker}&yb={years}"
 
 ### Economic / index pages
 
-```python
+```text
 # From numeric ID + URL slug (read from page source or page URL)
 f"https://www.macrotrends.net/assets/php/chart_iframe_comp.php?id={id}&url={slug}"
 
@@ -493,7 +493,7 @@ f"https://www.macrotrends.net/economic-data/{page_id}/{freq}"
 - **No rate limiting observed** at any tested volume. 10 rapid requests to the same stock iframe completed in 1.8s with no throttling, CAPTCHA, or 429 errors.
 - **Default UA works** (`Mozilla/5.0`) for most endpoints. The iframe PHP files never 403'd.
 - **Chrome UA needed** for some main HTML pages (not data endpoints): use when fetching `/stocks/charts/...` or `/2015/...` wrapper pages if you get 403. Switch to:
-  ```python
+  ```text
   headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
   ```
 - **Referer required** for `/economic-data/{id}/{freq}` — send the page URL as `Referer`. Without it, the request is allowed but you get a 403 on some pages.
@@ -511,13 +511,13 @@ f"https://www.macrotrends.net/economic-data/{page_id}/{freq}"
 - omit → full history (AAPL: 11428 records to 1980; default for most queries)
 
 **Two iframe patterns for economic pages:** Pages at `macrotrends.net/NNNN/slug` use either `chart_iframe_comp.php` (→ `originalData`) or `generateChart` + `/economic-data/` API. Check the main page HTML to detect which:
-```python
+```text
 if 'chart_iframe_comp.php' in html:   # use extract_index_chart()
 elif 'highchartsURL' in html:          # use get_economic_data()
 ```
 
 **Gold data has two price columns:**
-```python
+```text
 {'id': 'GOLDAMGBD228NLBM', 'date': '2026-04-01', 'close': '5177.19', 'close1': '5177.190'}
 # 'close'  = inflation-adjusted price (base year adjusts over time)
 # 'close1' = nominal USD price (the raw market price)

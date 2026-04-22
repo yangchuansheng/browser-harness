@@ -6,9 +6,9 @@
 
 **Fetch all 250 countries in one call with a field filter — almost always the fastest approach.**
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/all?fields=name,cca2,capital,population,area,region")
 countries = json.loads(data)
@@ -33,9 +33,9 @@ Use the `?fields=` query param to limit response size — essential when fetchin
 
 ### Lookup a single country by code (ISO 3166-1 alpha-2 or alpha-3)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Single code — returns a list (one element)
 data = http_get("https://restcountries.com/v3.1/alpha/DE")
@@ -63,9 +63,9 @@ print(name, currency_codes, lang_names)
 
 Use `/alpha?codes=` for fetching a known list of countries — always returns a list.
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 codes = ["US", "GB", "FR", "DE", "JP", "CN", "IN", "BR", "AU", "CA"]
 data = http_get(f"https://restcountries.com/v3.1/alpha?codes={','.join(codes)}&fields=name,cca2,population")
@@ -78,9 +78,9 @@ for c in countries:
 
 ### Search by name
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Partial match (default) — may return multiple results
 data = http_get("https://restcountries.com/v3.1/name/united")
@@ -96,9 +96,9 @@ print(results2[0]["name"]["common"])  # United Kingdom
 
 ### Filter by region
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/region/europe?fields=name,cca2,population")
 countries = json.loads(data)
@@ -115,9 +115,9 @@ Valid region values: `africa`, `americas`, `asia`, `europe`, `oceania`, `antarct
 
 ### Filter by subregion
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/subregion/Western%20Europe?fields=name,cca2")
 countries = json.loads(data)
@@ -127,9 +127,9 @@ print([c["cca2"] for c in countries])
 
 ### Filter by language
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/lang/arabic")
 countries = json.loads(data)
@@ -142,9 +142,9 @@ print(f"Arabic-speaking countries: {len(countries)}")
 
 ### Filter by currency
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/currency/EUR")
 countries = json.loads(data)
@@ -157,9 +157,9 @@ print(names[:5])
 
 ### Filter by capital city
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/capital/berlin?fields=name,cca2,capital")
 result = json.loads(data)
@@ -170,9 +170,9 @@ print(result[0]["name"]["common"], result[0]["capital"])
 
 ### Full country detail — all fields
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = http_get("https://restcountries.com/v3.1/alpha/US")
 c = json.loads(data)[0]

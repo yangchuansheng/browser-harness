@@ -11,9 +11,9 @@ Two fully public, no-auth APIs. Everything is a direct HTTP call — never need 
 
 ## Fastest path: forward geocode a place
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = {"User-Agent": "browser-harness/1.0"}
 
@@ -47,9 +47,9 @@ results = geocode("Eiffel Tower")
 
 ### 1. Forward geocode (free-text)
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = {"User-Agent": "browser-harness/1.0"}
 
@@ -70,7 +70,7 @@ results = json.loads(raw)
 
 ### 2. Reverse geocode (lat/lon → address)
 
-```python
+```text
 raw = http_get(
     "https://nominatim.openstreetmap.org/reverse?lat=48.8584&lon=2.2945&format=json",
     headers=UA
@@ -91,7 +91,7 @@ result = json.loads(raw)
 
 ### 3. Structured search (field-based)
 
-```python
+```text
 raw = http_get(
     "https://nominatim.openstreetmap.org/search?city=Paris&country=France&format=json&limit=1",
     headers=UA
@@ -110,7 +110,7 @@ result = json.loads(raw)[0]
 
 ### 4. Lookup by OSM ID
 
-```python
+```text
 # Prefix: N=node, W=way, R=relation
 raw = http_get(
     "https://nominatim.openstreetmap.org/lookup?osm_ids=W5013364&format=json",
@@ -159,9 +159,9 @@ Overpass is a read-only query engine over the full OSM planet. It supports findi
 
 ### GET query (simplest for http_get)
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = {"User-Agent": "browser-harness/1.0"}
 OVERPASS = "https://overpass.openstreetmap.fr/api/interpreter"
@@ -198,9 +198,9 @@ for rest in r['elements']:
 
 ### POST query (for complex QL, avoids URL length limits)
 
-```python
+```text
 import json, urllib.parse, urllib.request, gzip
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 OVERPASS = "https://overpass.openstreetmap.fr/api/interpreter"
 
@@ -233,7 +233,7 @@ print(len(r['elements']))  # 5 (or up to 5)
 
 Every element in `r['elements']` is a dict with at minimum:
 
-```python
+```text
 {
     "type": "node",          # "node", "way", or "relation"
     "id": 308684349,         # int — OSM element ID (stable, use for dedup)
@@ -255,7 +255,7 @@ Every element in `r['elements']` is a dict with at minimum:
 
 For `way` elements, use `out center;` to get a `center` dict with lat/lon instead of a node list:
 
-```python
+```text
 # way element with out center:
 {
     "type": "way",
@@ -314,7 +314,7 @@ https://{a,b,c}.tile.openstreetmap.org/{z}/{x}/{y}.png
 - Tile coordinate calculator: `https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames`
 - Bulk tile downloading is prohibited — use Overpass or data extracts instead
 
-```python
+```text
 # Convert lat/lon to tile coordinates
 import math
 
@@ -341,7 +341,7 @@ url = f"https://a.tile.openstreetmap.org/14/{x}/{y}.png"
 | Tile server | 2 req/s per IP | Soft/hard | IP block |
 
 **Check your Overpass quota**:
-```python
+```text
 raw = http_get("https://overpass-api.de/api/status", headers={"User-Agent": "browser-harness/1.0"})
 print(raw)
 # Connected as: 1728118854
@@ -351,7 +351,7 @@ print(raw)
 ```
 
 **Handle rate limiting in production**:
-```python
+```text
 import time
 
 def overpass_get_with_retry(query: str, max_retries: int = 3) -> dict:
@@ -372,9 +372,9 @@ def overpass_get_with_retry(query: str, max_retries: int = 3) -> dict:
 
 ## Complete working example
 
-```python
+```text
 import json, time, urllib.parse, urllib.request, gzip
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 UA = {"User-Agent": "browser-harness/1.0"}
 NOMINATIM = "https://nominatim.openstreetmap.org"

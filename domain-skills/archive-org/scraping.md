@@ -6,7 +6,7 @@
 
 **Use the CDX API for anything Wayback-related — it is the reliable workhorse. The Wayback Availability API (`/wayback/available`) is known to return empty `archived_snapshots` even for well-archived URLs and should not be used as a primary mechanism.**
 
-```python
+```text
 import json
 
 # Find snapshots of any URL — primary entry point for Wayback data
@@ -26,7 +26,7 @@ for row in rows[1:]:
 
 For item metadata (books, video, audio, software), go straight to:
 
-```python
+```text
 data = json.loads(http_get("https://archive.org/metadata/{identifier}", timeout=30.0))
 ```
 
@@ -34,7 +34,7 @@ data = json.loads(http_get("https://archive.org/metadata/{identifier}", timeout=
 
 ### Find the nearest archived snapshot to a target date
 
-```python
+```text
 import json
 
 # CDX sort=closest returns the single snapshot nearest to the given timestamp
@@ -57,7 +57,7 @@ Timestamp format is always 14-digit `YYYYMMDDHHMMSS`. Pass any prefix — `20230
 
 ### List all monthly snapshots for a URL (collapsed)
 
-```python
+```text
 import json
 
 r = http_get(
@@ -84,7 +84,7 @@ for ts, orig in rows[1:]:
 
 ### List snapshots for an entire domain (all pages)
 
-```python
+```text
 import json
 
 # matchType=domain captures all URLs under that domain
@@ -107,7 +107,7 @@ for row in rows[1:]:
 
 ### Filter snapshots by prefix path
 
-```python
+```text
 import json
 
 # All archived pages under /domains/ path
@@ -126,7 +126,7 @@ for row in rows[1:]:
 
 ### Paginate CDX results with resumeKey
 
-```python
+```text
 import json
 from urllib.parse import quote
 
@@ -159,7 +159,7 @@ for row in cdx_all_snapshots("iana.org", fl="timestamp,original"):
 
 ### Retrieve the actual archived page
 
-```python
+```text
 # Direct snapshot URL: /web/{14-digit-timestamp}/{original-url}
 snap_url = "https://web.archive.org/web/19971210061738/http://www.iana.org:80/"
 content = http_get(snap_url, timeout=30.0)
@@ -173,7 +173,7 @@ content = http_get(snap_url, timeout=30.0)
 
 ### Item metadata (books, video, audio, software, collections)
 
-```python
+```text
 import json
 from urllib.parse import quote
 
@@ -223,7 +223,7 @@ url2 = f"https://archive.org/download/{identifier}/{urlquote(fname)}"
 
 ### Search items (books, audio, video, software)
 
-```python
+```text
 import json
 
 # advancedsearch.php is the correct API — /search returns HTML
@@ -252,7 +252,7 @@ Pagination: use `start=` offset (not `page=`). Max `rows=` is not documented but
 
 ### Search with all supported parameters
 
-```python
+```text
 import json
 
 r = http_get(

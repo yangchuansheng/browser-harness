@@ -2,10 +2,31 @@
 
 `https://letterboxd.com` — film logging, rating, and review site. Film pages and user profile root pages are publicly accessible via `http_get` (~200–350ms). Most sub-pages (reviews, ratings, user film lists, browse/genre pages) return 403 and require the browser.
 
-Repo-local Python snippets below assume the Rust-backed runner shim:
+## Rust-native paths
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+For film-page HTTP reads, use the installed Rust CLI:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://letterboxd.com/film/parasite-2019/","timeout":20.0}
+JSON
+```
+
+For the popular films page, use the guest. This assumes a live browser daemon
+is already attached:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-letterboxd-popular/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-letterboxd-popular/target/wasm32-unknown-unknown/release/rust_letterboxd_popular_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-letterboxd-popular/target/wasm32-unknown-unknown/release/rust_letterboxd_popular_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
+Examples below use helper-style operations such as `http_get()`, `goto()`, `new_tab()`, `page_info()`, `wait()`, and `js()`. Map them to `browser-harness`, `bhrun`, or a guest as needed:
+
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 ```
 
 ## Access path decision table
@@ -36,7 +57,7 @@ Film pages at `letterboxd.com/film/{slug}/` are fully accessible. The JSON-LD bl
 
 **URL slug format:** lowercase title, spaces replaced with hyphens. For disambiguation (same title, different year) append `-{year}`: e.g. `parasite-2019`, `alien-1979`.
 
-```python
+```text
 import json, re, html as htmllib
 
 def extract_film_data(slug):
@@ -122,7 +143,7 @@ def extract_film_data(slug):
 
 ### Verified output (2026-04-18)
 
-```python
+```text
 data = extract_film_data('the-godfather')
 # {
 #   'title': 'The Godfather',
@@ -166,7 +187,7 @@ data = extract_film_data('inception')
 
 Only the user root page `letterboxd.com/{username}/` is accessible. Sub-pages (`/films/`, `/diary/`, `/lists/`) return 403.
 
-```python
+```text
 import re, html as htmllib
 
 def extract_user_profile(username):
@@ -204,7 +225,7 @@ def extract_user_profile(username):
 
 ### Verified output
 
-```python
+```text
 data = extract_user_profile('dave')
 # {
 #   'username': 'dave',
@@ -221,7 +242,7 @@ data = extract_user_profile('dave')
 
 `letterboxd.com/films/` returns the recent global activity feed — approximately 6 full viewing entries, plus many more film slugs from the UI. Use this to discover recently-logged films.
 
-```python
+```text
 import re, html as htmllib
 
 def extract_activity_stream():
@@ -255,7 +276,7 @@ def extract_activity_stream():
 
 These pages require the browser — use `goto()` + `wait_for_load()` + `wait(2)`:
 
-```python
+```text
 import json
 
 # Popular films
@@ -315,7 +336,7 @@ next_page_url = js("""
 ## Gotchas
 
 **JSON-LD is wrapped in CDATA comments** — `json.loads(block)` will fail without stripping the wrapper. Always strip `/* <![CDATA[ */` and `/* ]]> */` first:
-```python
+```text
 cleaned = re.sub(r'/\*\s*<!\[CDATA\[.*?\*/\s*', '', block, flags=re.DOTALL)
 cleaned = re.sub(r'/\*\s*\]\]>.*?\*/', '', cleaned, flags=re.DOTALL)
 data = json.loads(cleaned.strip())
@@ -340,7 +361,7 @@ data = json.loads(cleaned.strip())
 **The official API requires OAuth** — `api.letterboxd.com/api/v0/` returns 401 on all endpoints. Apply for API access at letterboxd.com/api-beta/ to get client credentials.
 
 **Fans count is abbreviated** — `'133K'`, `'175K'`. Parse with:
-```python
+```text
 def parse_abbrev(s):
     s = s.strip().upper()
     if s.endswith('K'): return int(float(s[:-1]) * 1000)

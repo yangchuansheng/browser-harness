@@ -32,9 +32,9 @@ Confirmed working on all tested game pages.
 
 ### Single game page
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def extract_game(slug):
     """
@@ -102,7 +102,7 @@ game = extract_game('the-witcher-3-wild-hunt')
 
 ### Extract specific fields
 
-```python
+```text
 def game_summary(slug):
     g = extract_game(slug)
     if not g:
@@ -141,7 +141,7 @@ print(game_summary('red-dead-redemption-2'))
 The listing page always returns the same ~40 popular games regardless of URL params
 (ordering/search/genres params are client-side only — the server returns the same SSR payload).
 
-```python
+```text
 def top_games():
     """Returns list of 40 game dicts from rawg.io/games listing page."""
     resp = http_get("https://rawg.io/games")
@@ -177,7 +177,7 @@ for g in games[:5]:
 
 ### Bulk / concurrent fetching
 
-```python
+```text
 from concurrent.futures import ThreadPoolExecutor
 
 slugs = ['portal-2', 'dark-souls-iii', 'minecraft', 'hades', 'celeste']
@@ -202,9 +202,9 @@ All endpoints live at `https://api.rawg.io/api/`. Append `&key=YOUR_API_KEY` to 
 
 ### Games list / search
 
-```python
+```text
 import json, os
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 KEY = os.environ['RAWG_API_KEY']
 
@@ -234,7 +234,7 @@ pc_games = json.loads(http_get(
 
 ### Game detail
 
-```python
+```text
 # By ID (faster if you have it)
 game = json.loads(http_get(f"https://api.rawg.io/api/games/3328?key={KEY}"))
 # game['name'], game['rating'], game['metacritic'], game['description_raw'], ...
@@ -266,7 +266,7 @@ metacritic_url, metacritic_platforms
 
 ### Platforms and Genres lists
 
-```python
+```text
 # All platforms
 platforms = json.loads(http_get(f"https://api.rawg.io/api/platforms?key={KEY}"))
 # results: [{id, name, slug, games_count, year_start, year_end, ...}]
@@ -281,7 +281,7 @@ genres = json.loads(http_get(f"https://api.rawg.io/api/genres?key={KEY}"))
 
 ### Pagination
 
-```python
+```text
 def get_all_pages(url_template, max_pages=5):
     """Paginate through API results."""
     results = []

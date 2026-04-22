@@ -17,9 +17,9 @@ Zillow search pages embed all listing data in `<script id="__NEXT_DATA__">`. Thi
 
 **Required headers** — The single-word User-Agent (`"Mozilla/5.0"`) used by `http_get` internally gets 403. You must pass a full Chrome UA plus Accept/Accept-Language headers:
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -75,7 +75,7 @@ The `listResults` array is the canonical source. Each entry includes:
 | `hdpData.homeInfo.lotAreaValue` + `lotAreaUnit` | nested | e.g. `2957.724`, `"sqft"` |
 | `hdpData.homeInfo.priceForHDP` | nested | reliable sold price for recently-sold listings |
 
-```python
+```text
 # Full extraction snippet
 listing = listings[0]
 hi = listing.get('hdpData', {}).get('homeInfo', {})
@@ -101,7 +101,7 @@ record = {
 
 ### Total result count and pagination
 
-```python
+```text
 d = json.loads(re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL).group(1))
 sps = d['props']['pageProps']['searchPageState']
 
@@ -118,9 +118,9 @@ max_pages = (total + 40) // 41
 
 ### Scrape all pages
 
-```python
+```text
 import re, json, time
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -178,7 +178,7 @@ print(f"Fetched {len(all_listings)} of {total} listings")
 
 Rental search pages use the same `__NEXT_DATA__` structure. However, rental listing cards have a **different schema** — individual units are nested, not a flat price:
 
-```python
+```text
 html = http_get("https://www.zillow.com/san-francisco-ca/rentals/", headers=HEADERS)
 listings = extract_listings(html)
 
@@ -207,7 +207,7 @@ else:
 
 Sold pages (`/sold/`) work identically. Key difference: `statusType` is `"RECENTLY_SOLD"` and price comes from `hdpData.homeInfo.priceForHDP` (not the `price` field which is `None` in sold cards):
 
-```python
+```text
 html = http_get("https://www.zillow.com/san-francisco-ca/sold/", headers=HEADERS)
 listings = extract_listings(html)
 
@@ -258,9 +258,9 @@ Redfin allows `http_get` with no blocking for both HTML pages and its internal A
 
 Each Redfin search results page embeds one `<script type="application/ld+json">` per listing with structured property data:
 
-```python
+```text
 import re, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -304,9 +304,9 @@ Note: The JSON-LD schema does NOT include price (Redfin omits `offers` from the 
 
 Redfin's internal GIS/search API returns rich structured data including price, MLS ID, beds, baths, sqft, agent info, and remarks. Responses are prefixed with `{}&&` — strip it before parsing:
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def redfin_search(region_id, region_type=6, num_homes=20, page=1, uipt="1,2,3,4,5,6"):
     """

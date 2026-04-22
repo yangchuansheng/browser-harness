@@ -26,7 +26,7 @@ For every site that has a feed, `http_get` + XML parsing is faster and more reli
 
 Sequential fetch of 7 feeds: **0.70s**. Parallel fetch of same 7 feeds: **0.16s** (4.3x speedup).
 
-```python
+```text
 from concurrent.futures import ThreadPoolExecutor
 import xml.etree.ElementTree as ET
 
@@ -61,7 +61,7 @@ for name, items in results:
 
 The Verge's feed is Atom format, not RSS 2.0. The naive `.//item` selector returns 0 items. The `title` element uses `type="html"` attribute but its `.text` still contains the plain string.
 
-```python
+```text
 import xml.etree.ElementTree as ET
 
 NS = {'atom': 'http://www.w3.org/2005/Atom'}
@@ -92,14 +92,14 @@ Reuters's old RSS feeds (`feeds.reuters.com/reuters/topNews`) resolve to DNS NXD
 
 NYT, Guardian, HN, CNN all return full HTML via `http_get` without issues. The User-Agent header (`Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36`) is not required for these but doesn't hurt.
 
-```python
+```text
 headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
 html = http_get("https://www.nytimes.com", headers=headers)  # 1.1MB, works
 html = http_get("https://news.ycombinator.com")               # 34KB, works without UA
 ```
 
 **HN parsing via regex (no HTML parser needed):**
-```python
+```text
 import re
 html = http_get("https://news.ycombinator.com")
 stories = re.findall(r'class="titleline"><a href="([^"]+)"[^>]*>([^<]+)<', html)
@@ -112,7 +112,7 @@ stories = re.findall(r'class="titleline"><a href="([^"]+)"[^>]*>([^<]+)<', html)
 
 No consent banner in headless browser (US region served; GDPR banner only appears for EU IP). Articles use `article h2` selectors.
 
-```python
+```text
 goto("https://www.bbc.com/news")
 wait_for_load()
 wait(2)
@@ -130,7 +130,7 @@ headlines = js("""
 ```
 
 If running from a EU IP and a consent banner appears:
-```python
+```text
 accept = js("""
   var btns = Array.from(document.querySelectorAll('button'));
   var btn = btns.find(b => /accept all|agree|continue/i.test(b.innerText));
@@ -145,7 +145,7 @@ Confirmed: `h3` elements on BBC are site-chrome labels ("The BBC is in multiple 
 
 `article` and `.post-block` selectors return 0 results — TechCrunch changed their layout. Articles are in `h3` elements.
 
-```python
+```text
 goto("https://techcrunch.com")
 wait_for_load()
 wait(2)
@@ -168,7 +168,7 @@ RSS is almost always faster for TechCrunch: **0.08s vs 3-5s browser** load. Only
 
 `http_get` returns 403. Browser loads but the homepage is heavily JS-rendered with delayed hydration. `h3` selectors only return nav elements after standard `wait_for_load()`. Use `wait(3)` plus scroll:
 
-```python
+```text
 goto("https://www.reuters.com")
 wait_for_load()
 wait(3)

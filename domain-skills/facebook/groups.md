@@ -52,7 +52,7 @@ of this file and update this table — that's the workflow, not a fallback.
 FB virtualizes the feed: scrolled-past posts get unmounted from the DOM. So
 "scroll then collect" misses old posts. Pattern that works: **collect-as-you-go.**
 
-```python
+```text
 seen = {}  # post_url -> dict
 TARGET = 50  # how many posts to collect
 MAX_SCROLLS = 30
@@ -92,7 +92,7 @@ because React hasn't hydrated them yet.
 Every external link gets wrapped in `https://l.facebook.com/l.php?u={URL-encoded real URL}&h=...`.
 You want the real URL, not the redirector.
 
-```python
+```text
 from urllib.parse import urlparse, parse_qs, unquote
 def decode_fb_link(href):
     if not href.startswith("https://l.facebook.com/l.php"):
@@ -107,7 +107,7 @@ Once you have the harvested external list, those URLs are outside FB's walled
 garden — public, scrapable by anything. Firecrawl's schema-native extraction
 shines here because you want typed results across heterogeneous sources.
 
-```python
+```text
 # After the scroll loop:
 external_urls = []
 for p in seen.values():
@@ -151,7 +151,7 @@ to re-verify a phone or confirm a login from a new device. If that happens,
 Paste this into a Harness stdin block to see what anchors currently exist in the
 visible feed. Run it on a group you're a member of.
 
-```python
+```text
 print(js("""
   ({
     articles: document.querySelectorAll('div[role="article"]').length,
@@ -170,15 +170,13 @@ print(js("""
 
 ## Full example — mine one group, emit JSON for downstream tools
 
-This is a legacy helper-shell example. Use it only if you intentionally need
-the deprecated compatibility shell; new work should prefer `browser-harness`
-or `bhrun`.
+Helper-style extraction example. Map these calls to `browser-harness`,
+`bhrun`, or a guest as needed.
 
-```bash
-cd /path/to/browser-harness && python3 <<'PY'
+```text
 import json, sys
 from urllib.parse import urlparse, parse_qs, unquote
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 GROUP = "riceLakeBoating"          # slug or numeric id
 TARGET = 50                         # how many posts to collect
@@ -227,7 +225,6 @@ print(json.dumps({
     "posts": posts,
     "external_urls": all_externals,
 }, ensure_ascii=False))
-PY
 ```
 
 The JSON on stdout is the handoff payload — parse it in the calling agent and

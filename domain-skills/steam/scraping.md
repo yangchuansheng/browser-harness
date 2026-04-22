@@ -6,9 +6,9 @@ Field-tested against store.steampowered.com on 2026-04-18. All code blocks valid
 
 The `appdetails` endpoint is the primary source for all game data. No API key, no cookies, no auth required. Returns clean JSON for any appid.
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_app(appid, cc="US"):
     """
@@ -64,7 +64,7 @@ game = get_app(292030)   # The Witcher 3
 
 Prices are always in **cents** (integer). Use `final_formatted` for display.
 
-```python
+```text
 game = get_app(292030)
 po = game.get("price_overview")
 # po is None for free-to-play games (is_free=True)
@@ -82,7 +82,7 @@ if po:
 **Critical**: `initial_formatted` is an empty string when `discount_percent == 0`.
 Always use `final_formatted` for displaying current price.
 
-```python
+```text
 def price_display(game):
     """Returns (current_price_str, original_price_str_or_None, discount_pct)."""
     if game.get("is_free"):
@@ -103,7 +103,7 @@ def price_display(game):
 
 Pass `cc=` (ISO-3166 country code) to get local currency:
 
-```python
+```text
 get_app(292030, cc="GB")["price_overview"]
 # {"currency": "GBP", "initial": 2499, "final": 2499, ..., "final_formatted": "£24.99"}
 
@@ -117,10 +117,10 @@ get_app(292030, cc="DE")["price_overview"]
 
 10 games in 0.54s with 5 workers — no rate-limit errors observed:
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def fetch_game(appid, cc="US"):
     resp = http_get(
@@ -150,7 +150,7 @@ with ThreadPoolExecutor(max_workers=5) as ex:
 
 Fetch only specific fields to reduce payload size:
 
-```python
+```text
 # Price only (tiny response)
 resp = http_get("https://store.steampowered.com/api/appdetails?appids=292030&filters=price_overview")
 data = json.loads(resp)["292030"]["data"]
@@ -174,7 +174,7 @@ resp = http_get("https://store.steampowered.com/api/appdetails?appids=292030&fil
 
 ### Screenshots
 
-```python
+```text
 game = get_app(292030)
 for ss in game["screenshots"]:       # 18 screenshots for Witcher 3
     print(ss["id"])                  # 0, 1, 2, ...
@@ -184,7 +184,7 @@ for ss in game["screenshots"]:       # 18 screenshots for Witcher 3
 
 ### Movies / trailers
 
-```python
+```text
 for m in game["movies"]:             # 4 trailers for Witcher 3
     print(m["id"])                   # integer
     print(m["name"])                 # trailer title
@@ -203,7 +203,7 @@ for m in game["movies"]:             # 4 trailers for Witcher 3
 
 The `ratings` dict contains per-region rating board data for mature games:
 
-```python
+```text
 game = get_app(292030)
 
 # ESRB (North America)
@@ -254,7 +254,7 @@ GET https://store.steampowered.com/app/292030/
 
 To bypass the age gate on the store page, send the `birthtime` cookie:
 
-```python
+```text
 import urllib.request
 
 def get_store_page(appid):
@@ -281,9 +281,9 @@ def get_store_page(appid):
 
 ### storesearch API (title search, up to 10 results)
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def search_games(term, cc="US", lang="english"):
     """
@@ -325,9 +325,9 @@ results = search_games("witcher")
 
 ## Review scores and user reviews
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_reviews(appid, num=10, language="english", filter="recent",
                 review_type="all", purchase_type="all", cursor="*"):
@@ -378,7 +378,7 @@ result = get_reviews(292030, num=5, language="english")
 
 ### Review object fields
 
-```python
+```text
 review = result["reviews"][0]
 review["recommendationid"]           # "221423937"  — unique review ID
 review["voted_up"]                   # True/False  — positive/negative
@@ -407,9 +407,9 @@ review["author"]["last_played"]          # Unix timestamp
 
 ### Cursor-based pagination
 
-```python
+```text
 import urllib.parse, json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_all_reviews(appid, max_pages=5, num_per_page=100, language="all"):
     """Paginate through reviews using cursor."""
@@ -438,9 +438,9 @@ def get_all_reviews(appid, max_pages=5, num_per_page=100, language="all"):
 
 ### Featured items (rotating store front)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = json.loads(http_get("https://store.steampowered.com/api/featured/"))
 # data["large_capsules"]  -> 1-3 hero banner items
@@ -468,7 +468,7 @@ item = data["featured_win"][0]
 
 ### Featured categories (top sellers, specials, new releases, coming soon)
 
-```python
+```text
 data = json.loads(http_get("https://store.steampowered.com/api/featuredcategories/"))
 
 # Named sections (most useful):
@@ -502,10 +502,10 @@ The `ISteamApps/GetAppList` API endpoint (v1, v2, v0001, v0002) currently return
 
 **Workaround:** Use the featured categories and search APIs to discover appids, then batch-fetch via `appdetails`.
 
-```python
+```text
 # Discover appids from top sellers + new releases
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def get_all_store_appids():
     data = json.loads(http_get("https://store.steampowered.com/api/featuredcategories/"))
@@ -541,7 +541,7 @@ Practical limits (undocumented, inferred from community reports):
 
 **`success: false` with no data field** — When an appid is invalid, removed, or unreleased, the response is `{"999999": {"success": false}}` with no `data` key. Always check `entry["success"]` before accessing `entry["data"]`.
 
-```python
+```text
 entry = json.loads(resp)[str(appid)]
 if not entry["success"]:
     return None   # game removed or never existed

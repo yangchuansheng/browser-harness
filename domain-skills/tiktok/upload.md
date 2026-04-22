@@ -20,7 +20,7 @@ TikTok shows "A video you were editing wasn't saved" if a previous upload was ab
 
 ### 1. Attach file
 
-```python
+```text
 upload_file('input[type="file"]', "/path/to/video.mp4")
 wait(12)  # processing takes ~10s for 5-10MB
 ```
@@ -29,7 +29,7 @@ wait(12)  # processing takes ~10s for 5-10MB
 
 TikTok pre-fills caption with the filename. Clear it first:
 
-```python
+```text
 js("document.querySelector('div[contenteditable=\"true\"][role=\"combobox\"]').focus()")
 press_key("End")
 for _ in range(25): press_key("Backspace")  # clear filename
@@ -43,13 +43,13 @@ Verify: `js('document.querySelector(\'div[contenteditable="true"][role="combobox
 ### 3. Schedule
 
 Click the Schedule radio label:
-```python
+```text
 js("(()=>{var l=document.querySelectorAll('label');for(var i=0;i<l.length;i++){if(l[i].textContent.trim()==='Schedule'){l[i].click();break}}})()")
 ```
 
 **Time picker** — uses a scroll-wheel list, NOT a native select. Each `scroll(dy=32)` steps +1 unit, `dy=-32` steps -1 unit.
 
-```python
+```text
 # 1. ScrollIntoView and open the time picker
 js("...scrollIntoView the time input...")
 click(time_input_x, time_input_y)
@@ -76,7 +76,7 @@ press_key("Escape")
 
 Under "Show more" section. Toggle is `[aria-checked]` inside the "AI-generated content" parent.
 
-```python
+```text
 # Expand settings
 js("...click 'Show more' span...")
 # ScrollIntoView the toggle
@@ -89,7 +89,7 @@ js("...scrollIntoView 'ai-generated content' span...")
 
 Scroll the Schedule button into view, then CDP `click(x, y)`. After success, page redirects to `/tiktokstudio/content`.
 
-```python
+```text
 js("...scrollIntoView Schedule button (offsetWidth > 100)...")
 click(button_x, button_y)
 wait(6)

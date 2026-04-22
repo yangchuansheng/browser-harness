@@ -3,10 +3,31 @@
 Field-tested against `www.etsy.com` on 2026-04-18 using runner-owned `http_get`
 (no browser) and direct `urllib` probes.
 
-Repo-local Python snippets below assume the Rust-backed runner shim:
+## Rust-native paths
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+For the official Etsy API, use the installed Rust CLI with your API key:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://openapi.etsy.com/v3/application/listings/active?limit=25&keywords=handmade+candle","headers":{"x-api-key":"your_key_here"},"timeout":20.0}
+JSON
+```
+
+For real Etsy search result extraction, use the guest. This assumes a live
+browser daemon is already attached:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-etsy-search/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-etsy-search/target/wasm32-unknown-unknown/release/rust_etsy_search_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-etsy-search/target/wasm32-unknown-unknown/release/rust_etsy_search_guest.wasm","granted_operations":["new_tab","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
+Examples below use helper-style operations such as `http_get()`, `goto()`, `new_tab()`, `page_info()`, `wait()`, and `js()`. Map them to `browser-harness`, `bhrun`, or a guest as needed:
+
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 ```
 
 ## Quick summary
@@ -81,7 +102,7 @@ Body (816 bytes — a JavaScript challenge, not a hard block):
 
 ### `robots.txt` (200 OK)
 
-```python
+```text
 text = http_get("https://www.etsy.com/robots.txt")
 # Returns 51 KB plain-text file — no DataDome
 ```
@@ -92,7 +113,7 @@ The robots.txt reveals URL structure, disallowed parameters, and allowed paths. 
 
 The `openapi.etsy.com/v3/` endpoint is NOT DataDome-protected. It returns structured JSON but requires a free API key from [developer.etsy.com](https://developer.etsy.com/).
 
-```python
+```text
 import json
 
 API_KEY = "your_key_here"  # from developer.etsy.com
@@ -165,7 +186,7 @@ Since http_get is blocked, all HTML scraping requires the Chrome browser via CDP
 
 ### Navigation pattern
 
-```python
+```text
 # Always use new_tab() for the first Etsy navigation in a session
 tid = new_tab("https://www.etsy.com/search?q=handmade+candle&explicit=1")
 wait_for_load()
@@ -197,7 +218,7 @@ Parameters:
 
 Etsy renders results as a React SPA. The listing cards use data attributes and consistent class patterns:
 
-```python
+```text
 results = js("""
   Array.from(document.querySelectorAll('[data-listing-id]')).map(el => ({
     listing_id: el.getAttribute('data-listing-id'),
@@ -217,7 +238,7 @@ results = js("""
 
 Etsy's SSR HTML embeds a `<script type="application/ld+json">` with an `ItemList` on search pages. In the browser, extract it via:
 
-```python
+```text
 ld_json_str = js("""
   Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
     .map(s => { try { return JSON.parse(s.textContent); } catch(e) { return null; } })
@@ -242,7 +263,7 @@ Expected output (ItemList typically has 48 items per search page):
 
 ### Listing detail page extraction (browser)
 
-```python
+```text
 goto("https://www.etsy.com/listing/1234567890/product-slug")
 wait_for_load()
 wait(2)
@@ -276,7 +297,7 @@ product = js("""
 
 **Fallback DOM selectors** (when JSON-LD is absent or incomplete):
 
-```python
+```text
 detail = js("""
   ({
     title:   document.querySelector('h1[data-buy-box-listing-title]')?.innerText?.trim()
@@ -294,7 +315,7 @@ detail = js("""
 
 ### Shop/seller page extraction (browser)
 
-```python
+```text
 goto("https://www.etsy.com/shop/ShopName")
 wait_for_load()
 wait(2)
@@ -328,7 +349,7 @@ shop_info = js("""
 
 Pagination for shop listings: Etsy loads more listings via infinite scroll or a "Load more" button. After clicking:
 
-```python
+```text
 # Check for pagination or load-more
 load_more = js("document.querySelector('[data-wt-shop-listings-load-more], button[class*=\"load-more\"]')?.href")
 if load_more:
@@ -342,7 +363,7 @@ wait(2)
 
 ### Pagination (search results)
 
-```python
+```text
 # Etsy uses ?page=N — 48 results per page (standard), up to ~250 pages
 next_url = js("document.querySelector('a[data-wt-search-page-next], .wt-action-group a[rel=\"next\"]')?.href")
 if next_url:
@@ -456,7 +477,7 @@ GET /application/seller-taxonomy/nodes   (full category tree)
 
 ### Pagination with API
 
-```python
+```text
 import json, time
 
 API_KEY = "your_key_here"

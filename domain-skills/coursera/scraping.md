@@ -17,8 +17,8 @@ For bulk enumeration, iterate the catalog list with `start` pagination.
 The default list query (`q=list` implied) returns ALL courses in Coursera's catalog —
 20,659 as of the test date.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 resp = http_get(
@@ -73,7 +73,7 @@ Field notes:
 
 ### Pagination
 
-```python
+```text
 def iter_all_courses(fields=None, page_size=100):
     base_fields = "name,slug,description,primaryLanguages,workload,partnerIds,courseType,domainTypes,photoUrl"
     if fields:
@@ -102,7 +102,7 @@ def iter_all_courses(fields=None, page_size=100):
 
 422 partners (universities, companies) as of test date.
 
-```python
+```text
 resp = http_get(
     "https://api.coursera.org/api/partners.v1"
     "?fields=name,squareLogo,description,shortName&limit=50&start=0"
@@ -126,7 +126,7 @@ partners = data["elements"]
 
 ### Partner by ID (with courseIds)
 
-```python
+```text
 resp = http_get(
     "https://api.coursera.org/api/partners.v1"
     "?ids=6&fields=name,squareLogo,description,shortName,courseIds"
@@ -140,7 +140,7 @@ partner = data["elements"][0]
 
 ## 3. Specializations API (http_get — works)
 
-```python
+```text
 resp = http_get(
     "https://api.coursera.org/api/onDemandSpecializations.v1"
     "?fields=name,slug,description,partnerIds,courseIds,tagline&limit=100&start=0"
@@ -172,7 +172,7 @@ Note: Specializations paging does NOT include `paging.total` — iterate until `
 Only useful for lookups by ID (from course `instructorIds`). The plain list endpoint
 returns many empty records (empty name/bio).
 
-```python
+```text
 # Lookup specific instructors by ID
 resp = http_get(
     "https://api.coursera.org/api/instructors.v1"
@@ -201,7 +201,7 @@ instructor = data["elements"][0]
 
 Fetch multiple courses (or partners/instructors) in one request by passing a comma-separated `ids` list:
 
-```python
+```text
 ids = ",".join(["69Bku0KoEeWZtA4u62x6lQ", "hOzhxVNuEfCW8Q55q1kSNQ", "0HiU7Oe4EeWTAQ4yevf_oQ"])
 resp = http_get(
     f"https://api.coursera.org/api/courses.v1"
@@ -229,7 +229,7 @@ client-side, or use the browser approach below.
 
 ### Browser fallback for keyword search
 
-```python
+```text
 new_tab("https://www.coursera.org/search?query=machine+learning")
 wait_for_load()
 wait(3)  # Results load asynchronously via React
@@ -244,7 +244,7 @@ HTML returned by `http_get` does NOT contain course cards — it's a bare shell 
 
 ## 7. Course Detail HTML Page (http_get — works, limited data)
 
-```python
+```text
 html = http_get("https://www.coursera.org/learn/machine-learning")
 # html is ~980KB of server-rendered HTML (no NEXT_DATA, no Apollo state)
 ```
@@ -252,7 +252,7 @@ html = http_get("https://www.coursera.org/learn/machine-learning")
 The course detail page IS served as full HTML (no JS-gate), but contains very
 little machine-readable course data. What you can extract:
 
-```python
+```text
 import re, json
 
 # Page title (includes course name)
@@ -277,7 +277,7 @@ Use the API (`courses.v1?ids=...`) to get those from the slug.
 
 ### Slug-to-ID lookup pattern
 
-```python
+```text
 # Get course data from slug (need ID first — get it from catalog or search)
 # Pattern: enumerate catalog, match by slug
 resp = http_get("https://api.coursera.org/api/courses.v1?fields=name,slug,description&limit=100&start=0")

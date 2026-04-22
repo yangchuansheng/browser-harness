@@ -6,9 +6,9 @@
 
 **Use the Atom API for any paper search or metadata fetch — one call, XML response, no auth.**
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 NS = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
 
@@ -25,9 +25,9 @@ Use `http_get` on `https://arxiv.org/abs/{id}` + regex for `citation_*` meta tag
 
 ### Search papers (API)
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 NS = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
 
@@ -61,9 +61,9 @@ for e in entries:
 
 ### Fetch single paper by ID (API)
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 NS = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
 
@@ -89,9 +89,9 @@ print("Abstract:", abstract[:200])
 
 Fetching 10 IDs in one call takes ~2s. Prefer this over parallel single-ID fetches.
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 NS = {'atom': 'http://www.w3.org/2005/Atom'}
 
@@ -115,10 +115,10 @@ for e in root.findall('atom:entry', NS):
 
 Use only when IDs are not known upfront or when mixing with other work. For pure batch, single comma-separated `id_list` call is faster.
 
-```python
+```text
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 NS = {'atom': 'http://www.w3.org/2005/Atom'}
 
@@ -146,9 +146,9 @@ for p in papers:
 
 Use this when you want the full abstract or the versionless PDF URL without parsing Atom XML.
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 html = http_get("https://arxiv.org/abs/1706.03762", headers={"User-Agent": "Mozilla/5.0"})
 # HTML page is ~48 KB, fully static, no JS required
@@ -184,9 +184,9 @@ All `citation_*` meta tags present on the abs page:
 
 ### Category search with pagination
 
-```python
+```text
 import xml.etree.ElementTree as ET
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 NS = {
     'atom': 'http://www.w3.org/2005/Atom',
@@ -250,7 +250,7 @@ HTTPS also works: `https://export.arxiv.org/api/query`
 
 ### PDF and abstract URL construction
 
-```python
+```text
 import re
 
 arxiv_id = "1706.03762v7"                        # from API atom:id field

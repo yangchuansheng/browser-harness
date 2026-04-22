@@ -6,7 +6,7 @@
 
 **SEC.gov requires a custom User-Agent on `www.sec.gov` and `data.sec.gov`. Always pass `headers=UA` or you get 403.**
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 # Format required: "CompanyName contact@email.com"
@@ -16,7 +16,7 @@ UA = {"User-Agent": "browser-harness research@example.com"}
 
 Start with `company_tickers.json` to resolve any ticker → CIK in one call, then branch to whichever endpoint you need.
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 tickers = json.loads(http_get("https://www.sec.gov/files/company_tickers.json", headers=UA))
@@ -35,7 +35,7 @@ cik = str(aapl['cik_str']).zfill(10)  # "0000320193"
 
 ### Ticker / name → CIK lookup
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 tickers = json.loads(http_get("https://www.sec.gov/files/company_tickers.json", headers=UA))
@@ -51,7 +51,7 @@ apples = [v for v in tickers.values() if 'APPLE' in v['title'].upper()]
 
 ### Company submissions (metadata + recent filings list)
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 cik = "0000320193"  # Apple - always zero-pad to 10 digits
@@ -84,7 +84,7 @@ filings_10k = [
 
 ### Build direct filing document URL
 
-```python
+```text
 # Given accessionNumber and primaryDocument from submissions JSON:
 accn = "0000320193-25-000079"
 doc  = "aapl-20250927.htm"
@@ -100,7 +100,7 @@ content = http_get(url, headers=UA)  # UA required on www.sec.gov
 
 ### XBRL financial data — single company, one concept over time
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 cik_padded = "0000320193"
@@ -137,7 +137,7 @@ for e in assets[-5:]:
 
 ### XBRL financial data — all US-GAAP metrics for a company
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 
@@ -188,7 +188,7 @@ for concept in ['RevenueFromContractWithCustomerExcludingAssessedTax', 'SalesRev
 
 ### Cross-company financial comparison (XBRL frames)
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 
@@ -223,7 +223,7 @@ data2 = json.loads(http_get(
 
 ### Full-text search across all filings
 
-```python
+```text
 import json
 UA = {"User-Agent": "browser-harness research@example.com"}
 
@@ -268,7 +268,7 @@ top_states   = aggs['biz_states_filter']['buckets']
 
 ### Find a company's CIK by name search (via search aggregations)
 
-```python
+```text
 import json, re
 UA = {"User-Agent": "browser-harness research@example.com"}
 
@@ -292,7 +292,7 @@ for b in buckets[:3]:
 
 ### Parallel fetching (multiple companies)
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 

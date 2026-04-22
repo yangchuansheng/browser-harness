@@ -4,7 +4,7 @@
 
 Both registries expose full JSON APIs with no auth required. Never use a browser — every data point is available over HTTP.
 
-Tested 2026-04-18 with `uv run python` + `http_get`.
+Tested 2026-04-18 with Rust CLI-equivalent helper calls + `http_get`.
 
 ---
 
@@ -28,7 +28,7 @@ Two endpoints — pick based on what you need:
 
 **Full registry document** — includes all version history, time map, author, bugs, homepage, keywords, README (when present). Large for popular packages (react = 6.3MB).
 
-```python
+```text
 import json
 data = json.loads(http_get("https://registry.npmjs.org/react"))
 
@@ -55,7 +55,7 @@ print(len(data['versions']))                 # 2785 — all published versions
 
 **Single version endpoint** — 1–2KB instead of megabytes. Use when you only need one version's data.
 
-```python
+```text
 import json
 # Fetch a specific version
 v = json.loads(http_get("https://registry.npmjs.org/react/19.2.5"))
@@ -68,7 +68,7 @@ print(v['version'])   # '19.2.5'
 
 **Abbreviated document** — skips time map and (in theory) README; versions dict still present. Use `Accept` header.
 
-```python
+```text
 import json, urllib.request, gzip
 
 req = urllib.request.Request(
@@ -93,7 +93,7 @@ Note: abbreviated is still large (react: 2.7MB) — use single-version endpoint 
 
 Scoped packages (`@scope/name`) work with a direct path — no encoding needed:
 
-```python
+```text
 import json
 data = json.loads(http_get("https://registry.npmjs.org/@playwright/test"))
 print(data['name'])                          # '@playwright/test'
@@ -102,7 +102,7 @@ print(len(data['versions']))                 # 3148
 ```
 
 If constructing URLs dynamically, either form works:
-```python
+```text
 # Direct path (preferred)
 url = f"https://registry.npmjs.org/{pkg}"          # '@playwright/test'
 # URL-encoded slash
@@ -115,7 +115,7 @@ The npm downloads API is separate from the registry and very fast (~110ms).
 
 **Point query** — single number for a period:
 
-```python
+```text
 import json
 
 # Supported periods: last-day, last-week, last-month, last-year
@@ -136,7 +136,7 @@ print(stats['package'])     # 'react'
 
 **Bulk point query** — up to ~128 packages in one call, comma-separated:
 
-```python
+```text
 import json
 
 bulk = json.loads(http_get(
@@ -160,7 +160,7 @@ for pkg, info in bulk.items():
 
 **Range query** — downloads per day over a period:
 
-```python
+```text
 import json
 
 resp = json.loads(http_get(
@@ -177,7 +177,7 @@ for entry in resp['downloads']:
 
 ### Search
 
-```python
+```text
 import json
 
 # Fields: text, size (max ~250), from (offset), quality, popularity, maintenance weights
@@ -210,7 +210,7 @@ Score breakdown (all three are 0–1 floats):
 
 ### Error handling
 
-```python
+```text
 import json, urllib.error
 
 try:
@@ -227,7 +227,7 @@ except urllib.error.HTTPError as e:
 
 ### Package metadata
 
-```python
+```text
 import json
 
 # Latest version metadata
@@ -268,7 +268,7 @@ for f in data['urls']:
 
 ### Specific version
 
-```python
+```text
 import json
 
 # Fetch a pinned version (not just latest)
@@ -279,7 +279,7 @@ print(data['info']['version'])   # '2.32.3'
 
 ### Version history and yanked releases
 
-```python
+```text
 import json
 
 data = json.loads(http_get("https://pypi.org/pypi/requests/json"))
@@ -309,7 +309,7 @@ print(data['info']['yanked_reason'])     # None
 
 PyPI does not expose download counts in its own JSON API. Use pypistats.org.
 
-```python
+```text
 import json
 
 # Recent (last day/week/month) — fastest, single call
@@ -353,7 +353,7 @@ by_minor = json.loads(http_get(
 
 ### Parallel fetch for multiple packages
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -382,7 +382,7 @@ for r in results:
 
 ### Error handling
 
-```python
+```text
 import json, urllib.error
 
 try:
@@ -398,7 +398,7 @@ except urllib.error.HTTPError as e:
 
 ### Mixed registry + stats in one shot
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -417,7 +417,7 @@ for r in results:
 
 ### npm bulk downloads (most efficient for many packages)
 
-```python
+```text
 import json
 
 # Up to ~128 packages in one HTTP call

@@ -6,9 +6,9 @@
 
 **All `api.nasa.gov` endpoints share the same rate-limit pool under DEMO_KEY. EPIC and Exoplanet Archive are on separate domains with no rate limit.**
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Simplest call: today's Astronomy Picture of the Day
 apod = json.loads(http_get("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY"))
@@ -36,9 +36,9 @@ Rate limit headers on every `api.nasa.gov` response:
 
 ### APOD — single day
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 apod = json.loads(http_get("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY"))
 print(apod['date'])        # '2026-04-18'
@@ -55,9 +55,9 @@ print(apod.get('copyright'))  # None if public domain
 
 ### APOD — date range (array response)
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 apods = json.loads(http_get(
     "https://api.nasa.gov/planetary/apod"
@@ -80,9 +80,9 @@ Optional params: `date=YYYY-MM-DD` (specific day), `count=N` (N random entries),
 
 ### APOD — random sample
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 apods = json.loads(http_get(
     "https://api.nasa.gov/planetary/apod?count=5&api_key=DEMO_KEY"
@@ -94,9 +94,9 @@ for a in apods:
 
 ### NEO — Near Earth Objects feed
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 data = json.loads(http_get(
     "https://api.nasa.gov/neo/rest/v1/feed"
@@ -128,9 +128,9 @@ Date range is capped at **7 days per request**. For longer ranges, paginate with
 
 ### NEO — single asteroid lookup
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Asteroid ID comes from the feed's `id` field
 neo = json.loads(http_get(
@@ -143,9 +143,9 @@ print(neo['orbital_data']['orbit_class']['orbit_class_description'])
 
 ### Mars Rover photos — Curiosity by sol
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # sol = Martian solar day since landing
 data = json.loads(http_get(
@@ -173,7 +173,7 @@ data = json.loads(http_get(
 Available cameras for Curiosity: `fhaz`, `rhaz`, `mast`, `chemcam`, `mahli`, `mardi`, `navcam`. Other rovers: `opportunity`, `spirit`, `perseverance`.
 
 Use `latest_photos` to get the most recent available:
-```python
+```text
 data = json.loads(http_get(
     "https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/latest_photos"
     "?api_key=DEMO_KEY"
@@ -187,9 +187,9 @@ Add `&page=N` for pagination (25 photos/page by default).
 
 EPIC images are served from `epic.gsfc.nasa.gov` — **no `api_key` required, no rate limit.**
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Latest available images (natural color)
 images = json.loads(http_get("https://epic.gsfc.nasa.gov/api/natural"))
@@ -210,7 +210,7 @@ print(png_url)
 # Confirmed: https://epic.gsfc.nasa.gov/archive/natural/2026/04/16/png/epic_1b_20260416162050.png
 ```
 
-```python
+```text
 # Images for a specific date
 images = json.loads(http_get("https://epic.gsfc.nasa.gov/api/natural/date/2024-01-15"))
 print(len(images))   # 14 images on 2024-01-15
@@ -235,9 +235,9 @@ print(all_dates[-1])  # {'date': '2015-06-13'}  (oldest)
 
 No API key or rate limit. SQL-like ADQL queries over the full archive.
 
-```python
+```text
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 # Short-period planets with known radii
 planets = json.loads(http_get(
@@ -250,7 +250,7 @@ print(planets[0])
 # {'pl_name': 'GJ 1214 b', 'hostname': 'GJ 1214', 'pl_orbper': 1.58040482}
 ```
 
-```python
+```text
 # Use 'pscomppars' for one row per planet (composite best-estimate params)
 planets = json.loads(http_get(
     "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"

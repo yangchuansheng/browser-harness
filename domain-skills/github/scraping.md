@@ -2,18 +2,38 @@
 
 `https://github.com` — public data, mix of REST API (fast, rate-limited) and browser (trending page only).
 
+## Rust-native paths
+
+Use the installed Rust CLI for API reads:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://api.github.com/repos/browser-use/browser-use","timeout":20.0}
+JSON
+```
+
+For the trending page, use the guest. This assumes a live browser daemon is
+already attached:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-github-trending/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ## Do this first
 
 **Use the REST API for repo/user/release data — it's one call, no browser, fully parsed JSON.**
 
-Python snippets below assume the direct `browser-harness` wrappers from
-`docs/python-integration.md`:
+Examples below use helper-style operations such as `http_get()`, `goto()`, `new_tab()`, `page_info()`, `wait()`, and `js()`. Map them to `browser-harness`, `bhrun`, or a guest as needed:
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 ```
 
-```python
+```text
 import json
 data = json.loads(http_get("https://api.github.com/repos/{owner}/{repo}"))
 # Key fields: stargazers_count, forks_count, description, language, topics,
@@ -24,7 +44,7 @@ data = json.loads(http_get("https://api.github.com/repos/{owner}/{repo}"))
 
 Use `raw.githubusercontent.com` for file contents — no rate limit, no auth, no base64 decode:
 
-```python
+```text
 readme = http_get("https://raw.githubusercontent.com/owner/repo/main/README.md")
 content = http_get("https://raw.githubusercontent.com/owner/repo/main/pyproject.toml")
 ```
@@ -35,7 +55,7 @@ Use the browser **only** for the trending page — it's server-side rendered HTM
 
 ### Repo metadata (API)
 
-```python
+```text
 import json
 data = json.loads(http_get("https://api.github.com/repos/browser-use/browser-use"))
 print(data['stargazers_count'], data['forks_count'], data['description'])
@@ -44,7 +64,7 @@ print(data['stargazers_count'], data['forks_count'], data['description'])
 
 ### User / org profile (API)
 
-```python
+```text
 import json
 user = json.loads(http_get("https://api.github.com/users/browser-use"))
 print(user['type'], user['followers'], user['public_repos'], user['blog'])
@@ -55,7 +75,7 @@ print(user['type'], user['followers'], user['public_repos'], user['blog'])
 
 The trending page is JS-rendered. `article.Box-row` selector confirmed working (15 results for today/all-languages, 12 for filtered). All fields work in a single JS call — **must navigate and wait in the same script run**, as each run is a separate exec context.
 
-```python
+```text
 import json
 goto("https://github.com/trending")          # or /trending/python?since=weekly
 wait_for_load()
@@ -95,7 +115,7 @@ Supported URL params:
 
 ### Search repositories (API)
 
-```python
+```text
 import json
 results = json.loads(http_get(
     "https://api.github.com/search/repositories?q=browser+automation+language:python&sort=stars&per_page=10"
@@ -109,7 +129,7 @@ Search API rate limit is **10 req/min** unauthenticated (separate from the 60/ho
 
 ### Commits, releases, issues (API)
 
-```python
+```text
 import json
 # Commits
 commits = json.loads(http_get("https://api.github.com/repos/owner/repo/commits?per_page=10"))
@@ -130,7 +150,7 @@ contribs = json.loads(http_get("https://api.github.com/repos/owner/repo/contribu
 
 ### File contents via API (base64)
 
-```python
+```text
 import json, base64
 resp = json.loads(http_get("https://api.github.com/repos/owner/repo/contents/path/to/file.py"))
 content = base64.b64decode(resp['content']).decode()
@@ -140,7 +160,7 @@ content = base64.b64decode(resp['content']).decode()
 
 ### Parallel fetching (multiple repos)
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -159,7 +179,7 @@ with ThreadPoolExecutor(max_workers=3) as ex:
 - **Rate limits are per IP, unauthenticated** — Core API: 60 req/hour. Search API: 10 req/min. These are separate pools. Check `/rate_limit` endpoint: `http_get("https://api.github.com/rate_limit")`. With a `GITHUB_TOKEN`, both limits increase to 5,000/hour.
 
 - **Token header format** — Use `Authorization: Bearer <token>` (not `token <token>`), plus `X-GitHub-Api-Version: 2022-11-28`:
-  ```python
+  ```text
   import os
   token = os.environ.get('GITHUB_TOKEN', '')
   headers = {"Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28"} if token else {}
@@ -167,7 +187,7 @@ with ThreadPoolExecutor(max_workers=3) as ex:
   ```
 
 - **404 raises HTTPError, not a JSON error** — Wrap API calls for missing repos:
-  ```python
+  ```text
   try:
       data = json.loads(http_get("https://api.github.com/repos/owner/repo"))
   except Exception as e:
