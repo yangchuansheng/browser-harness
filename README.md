@@ -26,7 +26,6 @@ Browser Harness is now Rust-native:
 - installed binaries are now Rust-only
 - the default installed command is `browser-harness`
 - the repo-local fallback is `cargo run --quiet --bin browser-harness -- ...`
-- the rewrite/migration work is complete; remaining work is normal product work
 
 ## Quick Start
 
@@ -79,35 +78,22 @@ Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card
 - Grab a key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
 - Or let the agent sign up itself via [docs.browser-use.com/llms.txt](https://docs.browser-use.com/llms.txt) (setup flow + challenge context included).
 
-## Runtime Shape
+## Docs
 
-- `install.md` — first-time install and browser bootstrap
-- `SKILL.md` — day-to-day usage
-- `rust/bins/browser-harness-cli` — Rust-native top-level CLI facade
-- `rust/bins/bhctl` — admin/control plane
-- `rust/bins/bhrun` — typed browser operations, waits, and guest runner
-- `rust/bins/bhd` — daemon/runtime core
+- [install.md](install.md) — first-time install and browser bootstrap
+- [SKILL.md](SKILL.md) — day-to-day operator/agent guide
+- [docs/architecture.md](docs/architecture.md) — runtime layout and core components
+- [docs/development.md](docs/development.md) — workspace commands and verification
+- [docs/future-wasm.md](docs/future-wasm.md) — long-term guest direction
+- [docs/python-integration.md](docs/python-integration.md) — optional Python subprocess wrappers
 
-## Legacy Compatibility
+## Project Structure
 
-The active repo workflow is now Rust-native:
-
-- `browser-harness` — top-level CLI facade
-- `bhctl` — admin/control plane
-- `bhrun` — typed browser operations and guest runner
-- `bhsmoke` — repo-owned smoke coverage
-
-The old repo-local Python shims have been removed from the repository.
-
-If you intentionally want Python around the Rust CLI, use the direct
-`subprocess` helpers in [docs/python-cli-helpers.md](docs/python-cli-helpers.md)
-instead of reviving the archived shim files.
-
-Current policy:
-
-- installed packages no longer ship any Python entrypoint
-- the active source tree ships no repo-local Python shim
-- the legacy Python shim layer has been removed
+- `rust/` — binaries, crates, guest modules, and workspace metadata
+- `domain-skills/` — site-specific knowledge gathered from real tasks
+- `interaction-skills/` — reusable browser mechanics
+- `docs/` — architecture, development, and future design notes
+- `scripts/` — repo maintenance helpers such as leak scanning
 
 ## Contributing
 

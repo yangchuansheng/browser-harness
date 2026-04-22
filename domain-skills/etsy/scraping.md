@@ -6,7 +6,7 @@ Field-tested against `www.etsy.com` on 2026-04-18 using runner-owned `http_get`
 Repo-local Python snippets below assume the Rust-backed runner shim:
 
 ```python
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 ```
 
 ## Quick summary

@@ -25,7 +25,7 @@ Construct the iframe URL directly — no need to fetch the main page first.
 
 ```python
 import json, re
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 def get_stock_ohlcv(ticker: str, years_back: int = None) -> list[dict]:
     """
@@ -99,7 +99,7 @@ Different PHP files depending on metric. Construct directly.
 
 ```python
 import json, re
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 def get_market_cap(ticker: str, years_back: int = 15) -> list[dict]:
     url = f"https://www.macrotrends.net/production/stocks/desktop/PRODUCTION/market_cap.php?t={ticker}&yb={years_back}"
@@ -123,7 +123,7 @@ data = get_market_cap('AAPL')
 
 ```python
 import json, re
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 def get_fundamental(ticker: str, metric_type: str, statement: str,
                     freq: str = 'Q', years_back: int = 15) -> list[dict]:
@@ -234,7 +234,7 @@ These pages embed chart data via `chart_iframe_comp.php`. The variable is `origi
 
 ```python
 import json, re
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 def extract_index_chart(page_id: int, url_slug: str) -> list[dict]:
     """
@@ -287,7 +287,7 @@ def get_page_pattern(page_url: str) -> str:
 
 ```python
 import re
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 page_url = "https://www.macrotrends.net/2577/sp500-pe-ratio-price-to-earnings-chart"
 html = http_get(page_url)
@@ -313,7 +313,7 @@ This endpoint requires a `Referer` header matching the page URL.
 
 ```python
 import json, datetime, gzip, urllib.request
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 def get_economic_data(page_id: int, referer_url: str, freq: str = 'D') -> dict:
     """
@@ -422,7 +422,7 @@ One function that handles all three embedded-JS patterns:
 
 ```python
 import json, re
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 
 def extract_chart_var(html: str, var_name: str) -> list:
     """Extract a JS array variable from Macrotrends iframe HTML."""
