@@ -83,18 +83,20 @@ Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card
 
 ## Legacy Compatibility
 
-The old Python shell still exists, but it is no longer the default path:
+The old Python shell now exists only in the source tree, not in installed
+packages:
 
-- `browser-harness-py` — explicit legacy heredoc shell
-- `run.py` + `runner_cli.py` + `admin_cli.py` — compatibility layer behind that shell
-- `helpers.py` and `admin.py` — deprecated repo-local compatibility import paths; they are no longer shipped in installed packages
+- `python3 run.py` — deprecated repo-local heredoc shell
+- `run.py` + `runner_cli.py` + `admin_cli.py` — repo-local compatibility layer
+- `helpers.py` and `admin.py` — deprecated repo-local compatibility import paths
 
 Use it only when you intentionally need old helper-preloaded behavior. New
 docs, smokes, and guest work should land on `browser-harness` / `bhrun` first.
 
 Deprecation details:
 
-- `browser-harness-py` now warns on invocation
+- installed packages no longer ship any Python entrypoint
+- `run.py` now warns on invocation
 - `helpers.py` now warns on import in the source tree; use `runner_cli.py` for stable Python helpers
 - `admin.py` now warns on import in the source tree; use `admin_cli.py` for Python admin shims
 - set `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` only if you need to suppress

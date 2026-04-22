@@ -1,13 +1,8 @@
 import json
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
-
-
-SUPPRESS_ENV = "BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION"
 
 
 def _run(cmd, *, cwd=None, env=None):
@@ -33,66 +28,52 @@ def import_status(name):
         return "missing"
     return "present"
 
-run = importlib.import_module("run")
-run._preload_helpers()
 print(json.dumps({
+    "run_status": import_status("run"),
     "admin_status": import_status("admin"),
+    "admin_cli_status": import_status("admin_cli"),
     "helpers_status": import_status("helpers"),
-    "has_cdp": callable(getattr(run, "cdp", None)),
-    "has_goto": callable(getattr(run, "goto", None)),
-    "has_wait": callable(getattr(run, "wait", None)),
-    "wait_module": getattr(getattr(run, "wait", None), "__module__", None),
+    "runner_cli_status": import_status("runner_cli"),
+    "legacy_warnings_status": import_status("legacy_warnings"),
 }))
 """
     result = _run([python_executable, "-c", code], cwd=cwd)
     payload = json.loads(result.stdout)
+    if payload["run_status"] != "missing":
+        raise AssertionError(f"run should be absent from the installed package: {payload}")
     if payload["admin_status"] != "missing":
         raise AssertionError(f"admin should be absent from the installed package: {payload}")
+    if payload["admin_cli_status"] != "missing":
+        raise AssertionError(f"admin_cli should be absent from the installed package: {payload}")
     if payload["helpers_status"] != "missing":
         raise AssertionError(f"helpers should be absent from the installed package: {payload}")
-    if not payload["has_cdp"] or not payload["has_goto"] or not payload["has_wait"]:
-        raise AssertionError(f"run.py did not preload the expected fallback helper surface: {payload}")
-    if payload["wait_module"] != "runner_cli":
-        raise AssertionError(f"unexpected wait binding after fallback preload: {payload}")
+    if payload["runner_cli_status"] != "missing":
+        raise AssertionError(f"runner_cli should be absent from the installed package: {payload}")
+    if payload["legacy_warnings_status"] != "missing":
+        raise AssertionError(f"legacy_warnings should be absent from the installed package: {payload}")
     return payload
-
-
-def _legacy_shell_warning_checks(browser_harness_py, cwd):
-    help_proc = _run([browser_harness_py, "--help"], cwd=cwd)
-    if "`browser-harness-py` is deprecated" not in help_proc.stderr:
-        raise AssertionError(f"missing browser-harness-py warning: {help_proc.stderr}")
-
-    suppressed_env = os.environ.copy()
-    suppressed_env[SUPPRESS_ENV] = "1"
-    suppressed_proc = _run([browser_harness_py, "--help"], cwd=cwd, env=suppressed_env)
-    if "`browser-harness-py` is deprecated" in suppressed_proc.stderr:
-        raise AssertionError(f"suppressed browser-harness-py warning still present: {suppressed_proc.stderr}")
 
 
 def main():
     python_executable = sys.executable
-    candidates = [
-        Path(python_executable).with_name("browser-harness-py"),
-    ]
-    which_candidate = shutil.which("browser-harness-py")
-    if which_candidate is not None:
-        candidates.append(Path(which_candidate))
-    browser_harness_py = next((str(path) for path in candidates if path.exists()), None)
-    if browser_harness_py is None:
-        raise SystemExit("browser-harness-py is not installed in the current environment")
+    browser_harness_py = shutil.which("browser-harness-py")
+    if browser_harness_py is not None:
+        raise AssertionError(f"browser-harness-py should be absent from the installed package: {browser_harness_py}")
 
     with tempfile.TemporaryDirectory(prefix="bh-installed-compat-") as tempdir:
         payload = _python_import_check(python_executable, tempdir)
-        _legacy_shell_warning_checks(browser_harness_py, tempdir)
 
     print(
         json.dumps(
             {
                 "success": True,
+                "run_status": payload["run_status"],
                 "admin_status": payload["admin_status"],
+                "admin_cli_status": payload["admin_cli_status"],
                 "helpers_status": payload["helpers_status"],
-                "has_cdp": payload["has_cdp"],
-                "browser_harness_py": browser_harness_py,
+                "runner_cli_status": payload["runner_cli_status"],
+                "legacy_warnings_status": payload["legacy_warnings_status"],
+                "browser_harness_py": None,
             }
         )
     )

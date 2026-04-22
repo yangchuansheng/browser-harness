@@ -175,7 +175,7 @@ the deprecated compatibility shell; new work should prefer `browser-harness`
 or `bhrun`.
 
 ```bash
-cd /path/to/browser-harness && uv run browser-harness-py <<'PY'
+cd /path/to/browser-harness && uv run python run.py <<'PY'
 import json, sys
 from urllib.parse import urlparse, parse_qs, unquote
 

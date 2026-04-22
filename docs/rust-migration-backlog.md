@@ -120,7 +120,8 @@ enough to be high-value early migration work.
   and the raw fallback wrappers that still matter).
 - [x] move the stable helper implementation path behind `runner_cli.py`;
   `helpers.py` now keeps the legacy names plus raw-CDP fallback behavior
-- [x] replace the final public Python entrypoint; `browser-harness` now installs the Rust-native CLI and the Python shell is explicit legacy `browser-harness-py`
+- [x] replace the final public Python entrypoint; `browser-harness` now
+  installs the Rust-native CLI and the legacy Python shell is repo-local only
 - [x] move repo-owned smoke/verification scripts off `helpers.py`; remaining
   direct `helpers.py` usage is now limited to explicit compatibility coverage
   like `tests/test_rust_mode_contract.py`
@@ -129,9 +130,9 @@ enough to be high-value early migration work.
   coverage; the legacy `run.py` shell now imports the Rust-native
   `admin_cli.py` shim
 - [x] add installed-package regression coverage for deprecated Python surfaces;
-  installed packages now intentionally keep `browser-harness-py` but omit
-  `helpers.py` and `admin.py`; source-tree compatibility/tests still cover the
-  deprecated modules, and the installed-package smoke verifies that absence is
+  installed packages now omit the Python shell and compatibility modules
+  entirely; source-tree compatibility/tests still cover the deprecated repo-
+  local modules, and the installed-package smoke verifies that absence is
   intentional
 
 ## Secondary Track: Capability Pull List

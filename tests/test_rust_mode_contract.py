@@ -105,7 +105,7 @@ class RustModeContractTests(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertIn("`browser-harness-py` is deprecated", help_proc.stderr)
+        self.assertIn("`run.py` is deprecated and repo-local only", help_proc.stderr)
 
         suppressed_env = os.environ.copy()
         suppressed_env["BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION"] = "1"
@@ -117,7 +117,7 @@ class RustModeContractTests(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertNotIn("`browser-harness-py` is deprecated", suppressed_proc.stderr)
+        self.assertNotIn("`run.py` is deprecated and repo-local only", suppressed_proc.stderr)
 
     def test_stable_helper_utilities_route_through_runner_cli(self):
         self.assertEqual(self.helpers.drain_events.__module__, "runner_cli")

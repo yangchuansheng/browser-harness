@@ -37,7 +37,7 @@ the deprecated compatibility shell; new work should prefer `browser-harness`
 or `bhrun`.
 
 ````bash
-browser-harness-py <<'PY'
+python3 run.py <<'PY'
 new_tab("https://medium.com/@user/slug-abc123")
 wait_for_load()
 wait(2.0)  # Medium hydrates more UI after readyState=complete
