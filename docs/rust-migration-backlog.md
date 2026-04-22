@@ -118,6 +118,9 @@ enough to be high-value early migration work.
   compatibility-only and remaining conveniences like `drain_events()` and
   screenshot file writing are intentionally legacy.
 - [x] replace the final public Python entrypoint; `browser-harness` now installs the Rust-native CLI and the Python shell is explicit legacy `browser-harness-py`
+- [x] move repo-owned smoke/verification scripts off `helpers.py`; remaining
+  direct `helpers.py` usage is now limited to explicit compatibility coverage
+  like `tests/test_rust_mode_contract.py`
 
 ## Secondary Track: Capability Pull List
 

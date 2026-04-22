@@ -9,11 +9,11 @@ The agent writes what's missing, mid-task. No framework, no recipes, no rails. O
 ```
   ● agent: wants to upload a file
   │
-  ● helpers.py → upload_file() missing
+  ● browser-harness / bhrun already exposes upload-file
   │
-  ● agent edits the harness and writes it    helpers.py   192 → 199 lines
-  │                                                       + upload_file()
-  ✓ file uploaded
+  ● if a capability is missing, the agent extends the harness mid-task
+  │   in Rust or the legacy shell, depending on the migration stage
+  ✓ task completed
 ```
 
 **You will never use the browser again.**
