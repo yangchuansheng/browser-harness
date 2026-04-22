@@ -196,8 +196,12 @@ print(js("""
 
 ## Full example — mine one Page, emit JSON for downstream tools
 
+This is a legacy helper-shell example. Use it only if you intentionally need
+the deprecated compatibility shell; new work should prefer `browser-harness`
+or `bhrun`.
+
 ```bash
-cd ~/Developer/browser-harness && uv run browser-harness <<'PY'
+cd /path/to/browser-harness && uv run browser-harness-py <<'PY'
 import json, sys
 from urllib.parse import urlparse, parse_qs, unquote
 

@@ -32,8 +32,12 @@ Safe pattern: take the extracted markdown, then drop leading paragraphs that are
 
 ## Extractor
 
+This is a legacy helper-shell example. Use it only if you intentionally need
+the deprecated compatibility shell; new work should prefer `browser-harness`
+or `bhrun`.
+
 ````bash
-browser-harness <<'PY'
+browser-harness-py <<'PY'
 new_tab("https://medium.com/@user/slug-abc123")
 wait_for_load()
 wait(2.0)  # Medium hydrates more UI after readyState=complete

@@ -254,7 +254,7 @@ Works with plain `http_get`. Returns up to 10 most recent posts. Full article HT
 
 ```python
 import re
-from helpers import http_get
+from runner_cli import http_get
 
 def parse_rss_items(rss_xml):
     """Extract items from Medium RSS feed. Returns list of dicts."""

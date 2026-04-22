@@ -8,7 +8,7 @@
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 # Search by title
 results = json.loads(http_get("https://openlibrary.org/search.json?q=dune&limit=5"))
@@ -27,7 +27,7 @@ The search API is your entry point for everything. It returns work-level records
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 # Free-text search
 r = json.loads(http_get("https://openlibrary.org/search.json?q=dune+frank+herbert&limit=5"))
@@ -113,7 +113,7 @@ r = json.loads(http_get("https://openlibrary.org/search.json?isbn=9780743273565"
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 from concurrent.futures import ThreadPoolExecutor
 
 isbns = ['9780743273565', '9780451524935', '9780618346257']
@@ -143,7 +143,7 @@ Returns all metadata for a work (all editions combined). Get the work ID from `k
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 work_id = 'OL893415W'  # from search doc['key'] = '/works/OL893415W'
 work = json.loads(http_get(f"https://openlibrary.org/works/{work_id}.json"))
@@ -206,7 +206,7 @@ Two sub-APIs: direct JSON for raw data, or `api/books` for enriched data.
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 edition_id = 'OL7353617M'  # from editions list e['key'] or cover_edition_key in search
 edition = json.loads(http_get(f"https://openlibrary.org/books/{edition_id}.json"))
@@ -272,7 +272,7 @@ item = r2['ISBN:9780743273565']
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 # Lookup by known author key
 author = json.loads(http_get("https://openlibrary.org/authors/OL26320A.json"))
@@ -352,7 +352,7 @@ def cover_url(cover_id: int, size: str = 'M') -> str:
     return f"https://covers.openlibrary.org/b/id/{cover_id}-{size}.jpg"
 
 # Usage:
-from helpers import http_get
+from runner_cli import http_get
 import json
 work = json.loads(http_get("https://openlibrary.org/works/OL893415W.json"))
 if work.get('covers'):
@@ -375,7 +375,7 @@ url_safe = f"https://covers.openlibrary.org/b/isbn/{isbn}-M.jpg?default=false"
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 # Subject slugs: lowercase, underscores for spaces
 r = json.loads(http_get("https://openlibrary.org/subjects/science_fiction.json?limit=5"))
@@ -416,7 +416,7 @@ r3 = json.loads(http_get("https://openlibrary.org/subjects/science_fiction.json?
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 for period in ['daily', 'weekly', 'monthly']:
     r = json.loads(http_get(f"https://openlibrary.org/trending/{period}.json?limit=10"))

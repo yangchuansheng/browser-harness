@@ -21,7 +21,7 @@
 
 ```python
 import json, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 def ddg_instant(query: str) -> dict:
     q = urllib.parse.quote(query)
@@ -55,7 +55,7 @@ img_url = f"https://duckduckgo.com{data['Image']}" if data['Image'] else None
 
 ```python
 import json, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 def ddg_answer(query: str) -> tuple[str, str]:
     """Returns (answer_text, answer_type). answer_text is '' if no result."""
@@ -290,7 +290,7 @@ In practice, C and N types are rare. A, D, E, and empty cover nearly all queries
 
 ```python
 import json, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 def ddg_entity(query: str) -> dict | None:
     """

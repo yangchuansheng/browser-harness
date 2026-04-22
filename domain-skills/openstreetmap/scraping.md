@@ -13,7 +13,7 @@ Two fully public, no-auth APIs. Everything is a direct HTTP call — never need 
 
 ```python
 import json, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 UA = {"User-Agent": "browser-harness/1.0"}
 
@@ -49,7 +49,7 @@ results = geocode("Eiffel Tower")
 
 ```python
 import json, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 UA = {"User-Agent": "browser-harness/1.0"}
 
@@ -161,7 +161,7 @@ Overpass is a read-only query engine over the full OSM planet. It supports findi
 
 ```python
 import json, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 UA = {"User-Agent": "browser-harness/1.0"}
 OVERPASS = "https://overpass.openstreetmap.fr/api/interpreter"
@@ -200,7 +200,7 @@ for rest in r['elements']:
 
 ```python
 import json, urllib.parse, urllib.request, gzip
-from helpers import http_get  # http_get is GET-only; use urllib for POST
+from runner_cli import http_get  # http_get is GET-only; use urllib for POST
 
 OVERPASS = "https://overpass.openstreetmap.fr/api/interpreter"
 
@@ -374,7 +374,7 @@ def overpass_get_with_retry(query: str, max_retries: int = 3) -> dict:
 
 ```python
 import json, time, urllib.parse, urllib.request, gzip
-from helpers import http_get
+from runner_cli import http_get
 
 UA = {"User-Agent": "browser-harness/1.0"}
 NOMINATIM = "https://nominatim.openstreetmap.org"
