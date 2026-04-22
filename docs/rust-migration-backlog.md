@@ -1,6 +1,8 @@
 # Rust Migration Backlog
 
 This backlog tracks the Rust/Wasm migration work for this repository.
+That migration is now complete. This file remains as a historical record of the
+rewrite sequence and the capability wave that landed during the port.
 
 The primary track is now `domain-skills/`, not `interaction-skills/`.
 Real domain workflows are the best way to prove the Rust guest boundary,
@@ -17,6 +19,13 @@ The backlog now also has an explicit Python sunset track:
 - keep Python compatibility only as a temporary shim
 - allow some interaction-skill work to land after that interface shift instead
   of treating it as a pre-sunset blocker
+
+Current status:
+
+- the Rust rewrite is done
+- the Python sunset is done
+- installed packages are Rust-only
+- remaining work should be treated as normal product work, not migration debt
 
 ## Global Rules
 
