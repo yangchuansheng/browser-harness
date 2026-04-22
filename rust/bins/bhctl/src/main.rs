@@ -128,7 +128,10 @@ fn ensure_daemon_output() -> Result<Value, String> {
     }
 
     let mut command = daemon_launch_command()?;
-    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     if options.name.is_some() {
         command.env("BU_NAME", &config.name);
     }

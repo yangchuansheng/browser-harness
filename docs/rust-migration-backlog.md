@@ -145,9 +145,11 @@ domain migrations make the guidance concrete enough to stabilize.
 - [ ] `interaction-skills/dropdowns.md`
 - [ ] `interaction-skills/shadow-dom.md`
 - [x] `interaction-skills/network-requests.md`
-  Refreshed around runner-owned `http_get`, `wait_for_response`, and `watch_events`,
-  with local acceptance via `scripts/bhrun_response_smoke.py` and
-  `scripts/bhrun_watch_events_smoke.py`
+  Refreshed around runner-owned `http_get`, `wait_for_event`, `watch_events`,
+  `wait_for_response`, and the matching `bh-guest-sdk` wrappers, with local
+  acceptance via `scripts/bhrun_response_smoke.py`,
+  `scripts/bhrun_watch_events_smoke.py`, and
+  `scripts/bhrun_event_waits_guest_smoke.py`
 - [x] `interaction-skills/screenshots.md`
   Refreshed around `bhrun screenshot`, `bh_guest_sdk::screenshot(full)`, and
   local acceptance via `scripts/bhrun_screenshot_smoke.py`
