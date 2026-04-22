@@ -52,10 +52,10 @@ After `set-cookies`, verify one or more of:
 
 ## Local Acceptance
 
-- `scripts/bhrun_cookies_smoke.py`
+- `rust/bins/bhsmoke` with the `cookies` scenario
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_cookies_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- cookies
 ```
 
 That smoke:

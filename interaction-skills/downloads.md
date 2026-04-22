@@ -47,10 +47,10 @@ Do not replace it with only DOM checks or only `page_info()`.
 
 ## Local Acceptance
 
-- `scripts/bhrun_download_smoke.py`
+- `rust/bins/bhsmoke` with the `wait-for-download` scenario
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_download_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-download
 ```
 
 That smoke:

@@ -1,0 +1,13 @@
+[package]
+name = "bhsmoke"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base64 = "0.22"
+serde_json.workspace = true
+
+[[bin]]
+name = "bhsmoke"
+path = "src/main.rs"

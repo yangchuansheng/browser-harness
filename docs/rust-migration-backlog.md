@@ -187,13 +187,13 @@ domain migrations make the guidance concrete enough to stabilize.
 - [x] `interaction-skills/network-requests.md`
   Refreshed around runner-owned `http_get`, `wait_for_event`, `watch_events`,
   `wait_for_request`, `wait_for_response`, and the matching `bh-guest-sdk`
-  wrappers, with local acceptance via `scripts/bhrun_request_smoke.py`,
-  `scripts/bhrun_response_smoke.py`,
-  `scripts/bhrun_watch_events_smoke.py`, and
+  wrappers, with local acceptance via `bhsmoke wait-for-request`,
+  `bhsmoke wait-for-response`,
+  `bhsmoke watch-events`, and
   `scripts/bhrun_event_waits_guest_smoke.py`
 - [x] `interaction-skills/screenshots.md`
   Refreshed around `bhrun screenshot`, `bh_guest_sdk::screenshot(full)`, and
-  local acceptance via `scripts/bhrun_screenshot_smoke.py`
+  local acceptance via `bhsmoke screenshot`
 
 ### Interaction Skills Waiting On New Typed Host Work
 
@@ -207,22 +207,22 @@ migration pulls one forward.
   `scripts/bhrun_event_waits_guest_smoke.py`
 - [x] `interaction-skills/uploads.md`
   Refreshed around `bhrun upload-file`, `bh_guest_sdk::upload_file(...)`, and
-  local acceptance via `scripts/bhrun_upload_smoke.py`
+  local acceptance via `bhsmoke upload-file`
 - [x] `interaction-skills/viewport.md`
   Refreshed around `bhrun set-viewport`, `bh_guest_sdk::set_viewport(...)`,
-  and local acceptance via `scripts/bhrun_viewport_smoke.py`
+  and local acceptance via `bhsmoke set-viewport`
 - [x] `interaction-skills/print-as-pdf.md`
   Refreshed around `bhrun print-pdf`, `bh_guest_sdk::print_pdf(...)`, and local
-  acceptance via `scripts/bhrun_print_pdf_smoke.py`
+  acceptance via `bhsmoke print-pdf`
 - [x] `interaction-skills/downloads.md`
   Refreshed around `configure-downloads`, `wait-for-download`, and local
-  acceptance via `scripts/bhrun_download_smoke.py`
+  acceptance via `bhsmoke wait-for-download`
 - [x] `interaction-skills/cookies.md`
   Refreshed around `get-cookies`, `set-cookies`, and local acceptance via
-  `scripts/bhrun_cookies_smoke.py`
+  `bhsmoke cookies`
 - [x] `interaction-skills/drag-and-drop.md`
   Refreshed around `mouse-move`, `mouse-down`, `mouse-up`, and local
-  acceptance via `scripts/bhrun_drag_smoke.py`
+  acceptance via `bhsmoke drag`
 
 ### Special Case
 

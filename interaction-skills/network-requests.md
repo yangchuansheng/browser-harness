@@ -67,16 +67,16 @@ The current Rust runner path already supports this:
 - `bh_guest_sdk::wait_for_response(...)` for Rust/Wasm guests
 - `bh_guest_sdk::wait_for_console(...)` for Rust/Wasm guests
 
-The repository acceptance scripts that prove the full two-process pattern are:
+The repository acceptance runner for the full two-process pattern is:
 
-- `scripts/bhrun_request_smoke.py`
-- `scripts/bhrun_response_smoke.py`
+- `rust/bins/bhsmoke` with the `wait-for-request` and `wait-for-response`
+  scenarios
 
 Use local mode for reliable verification:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_request_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_response_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-request
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-response
 ```
 
 Use request waits when outbound intent is the real success signal:
@@ -110,15 +110,15 @@ iframe does not satisfy the watch accidentally.
 
 The repository smoke for this path is:
 
-- `scripts/bhrun_request_smoke.py`
-- `scripts/bhrun_watch_events_smoke.py`
+- `rust/bins/bhsmoke` with the `wait-for-request` and `watch-events`
+  scenarios
 - `scripts/bhrun_event_waits_guest_smoke.py` for the Rust/Wasm guest wrapper path
 
 Local verification:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_request_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_watch_events_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-request
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- watch-events
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
 ```
 
