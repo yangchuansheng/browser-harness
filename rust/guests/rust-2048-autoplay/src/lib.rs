@@ -1,14 +1,17 @@
 use std::cmp::Ordering;
 
-use bh_guest_sdk::{cdp_raw, goto, js, page_info, wait, wait_for_load};
+use bh_guest_sdk::{cdp_raw, goto, js, page_info, press_key as cdp_press_key, wait, wait_for_load};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
 const TARGET_URL: &str = "https://play2048.co/?via=rust-2048-autoplay-guest";
 const TARGET_URL_PREFIX: &str = "https://play2048.co/";
+const CLASSIC_URL: &str = "https://classic.play2048.co/";
+const CLASSIC_URL_PREFIX: &str = "https://classic.play2048.co/";
 const POST_NAVIGATION_WAIT_MS: u64 = 3_000;
 const TARGET_POLL_WAIT_MS: u64 = 250;
 const MOVE_SETTLE_WAIT_MS: u64 = 120;
+const CLASSIC_MOVE_SETTLE_WAIT_MS: u64 = 20;
 const MAX_MOVE_SETTLE_POLLS: usize = 20;
 const MAX_ATTEMPTS: usize = 8;
 const MAX_TURNS_PER_ATTEMPT: usize = 4_000;
@@ -435,6 +438,17 @@ struct DomState {
     game_over: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClassicState {
+    ready: bool,
+    score: u32,
+    over: bool,
+    won: bool,
+    keep_playing: bool,
+    board: Vec<Vec<u32>>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Move {
     Up,
@@ -473,6 +487,21 @@ impl Board {
         for (y, row) in snapshot.board.iter().enumerate() {
             for (x, tile) in row.iter().enumerate() {
                 cells[y * 4 + x] = tile.as_ref().map(|tile| tile.value).unwrap_or(0);
+            }
+        }
+
+        Ok(Self { cells })
+    }
+
+    fn from_rows(rows: &[Vec<u32>]) -> Result<Self, i32> {
+        if rows.len() != 4 || rows.iter().any(|row| row.len() != 4) {
+            return Err(63);
+        }
+
+        let mut cells = [0u32; 16];
+        for (y, row) in rows.iter().enumerate() {
+            for (x, value) in row.iter().enumerate() {
+                cells[y * 4 + x] = *value;
             }
         }
 
@@ -648,6 +677,16 @@ fn run_game_loop() -> Result<(), i32> {
     ensure_target_prefix()?;
     let target = wait_for_target_input()?;
     cleanup_ads()?;
+
+    if run_modern_game_loop(target).is_ok() {
+        cleanup_ads()?;
+        return Ok(());
+    }
+
+    run_classic_game_loop(target)
+}
+
+fn run_modern_game_loop(target: u32) -> Result<(), i32> {
     for _ in 0..MAX_ATTEMPTS {
         cleanup_ads()?;
         let dom_state = read_dom_state()?;
@@ -707,6 +746,51 @@ fn run_game_loop() -> Result<(), i32> {
     Err(7)
 }
 
+fn run_classic_game_loop(target: u32) -> Result<(), i32> {
+    goto(CLASSIC_URL).map_err(|_| 64)?;
+    let _ = wait_for_load(20.0).map_err(|_| 65)?;
+    let slept = wait(1_000).map_err(|_| 66)?;
+    if slept.elapsed_ms < 1_000 {
+        return Err(67);
+    }
+    ensure_classic_prefix()?;
+
+    let mut state = read_classic_state(target)?;
+    if !state.ready {
+        return Err(68);
+    }
+
+    for _ in 0..MAX_ATTEMPTS {
+        for _ in 0..MAX_TURNS_PER_ATTEMPT {
+            if state.score >= target {
+                return Ok(());
+            }
+
+            if state.won && !state.keep_playing && state.score < target {
+                state = read_classic_state(target)?;
+                continue;
+            }
+
+            if state.over {
+                state = restart_classic_game(target)?;
+                continue;
+            }
+
+            let board = Board::from_rows(&state.board)?;
+            let chosen_move = choose_best_move(&board).ok_or(69)?;
+            state = apply_classic_move(chosen_move, target)?;
+        }
+
+        if state.score >= target {
+            return Ok(());
+        }
+
+        state = restart_classic_game(target)?;
+    }
+
+    Err(70)
+}
+
 fn install_runtime() -> Result<(), i32> {
     let status: String = js(INSTALL_RUNTIME_SCRIPT).map_err(|_| 16)?;
     if status != "ready" {
@@ -722,6 +806,15 @@ fn ensure_target_prefix() -> Result<(), i32> {
         return Ok(());
     }
     Err(19)
+}
+
+fn ensure_classic_prefix() -> Result<(), i32> {
+    let page = page_info().map_err(|_| 71)?;
+    let url = page.get("url").and_then(Value::as_str).unwrap_or("");
+    if url.starts_with(CLASSIC_URL_PREFIX) {
+        return Ok(());
+    }
+    Err(72)
 }
 
 fn cleanup_ads() -> Result<(), i32> {
@@ -784,6 +877,177 @@ fn read_dom_state() -> Result<DomState, i32> {
     serde_json::from_str(&raw).map_err(|_| 35)
 }
 
+fn read_classic_state(target: u32) -> Result<ClassicState, i32> {
+    let raw: String = js(&format!(
+        r#"
+JSON.stringify((() => {{
+  if (!window.__bhClassicGM) {{
+    if (
+      typeof window.GameManager !== "function" ||
+      typeof window.KeyboardInputManager !== "function" ||
+      typeof window.HTMLActuator !== "function" ||
+      typeof window.LocalStorageManager !== "function"
+    ) {{
+      return {{
+        ready: false,
+        score: 0,
+        over: false,
+        won: false,
+        keepPlaying: false,
+        board: [],
+      }};
+    }}
+    window.__bhClassicGM = new window.GameManager(
+      4,
+      window.KeyboardInputManager,
+      window.HTMLActuator,
+      window.LocalStorageManager
+    );
+  }}
+
+  const gm = window.__bhClassicGM;
+  if (gm.won && !gm.keepPlaying && gm.score < {target}) {{
+    gm.keepPlaying = true;
+    if (typeof gm.actuate === "function") {{
+      gm.actuate();
+    }}
+  }}
+
+  const board = [];
+  for (let y = 0; y < 4; y += 1) {{
+    const row = [];
+    for (let x = 0; x < 4; x += 1) {{
+      const column = gm.grid && Array.isArray(gm.grid.cells) ? gm.grid.cells[x] : null;
+      const cell = column && column[y] ? column[y] : null;
+      row.push(cell ? cell.value : 0);
+    }}
+    board.push(row);
+  }}
+
+  return {{
+    ready: true,
+    score: Number(gm.score) || 0,
+    over: !!gm.over,
+    won: !!gm.won,
+    keepPlaying: !!gm.keepPlaying,
+    board,
+  }};
+}})())
+"#,
+    ))
+    .map_err(|_| 73)?;
+    serde_json::from_str(&raw).map_err(|_| 74)
+}
+
+fn apply_classic_move(direction: Move, target: u32) -> Result<ClassicState, i32> {
+    let index = match direction {
+        Move::Up => 0,
+        Move::Right => 1,
+        Move::Down => 2,
+        Move::Left => 3,
+    };
+
+    let raw: String = js(&format!(
+        r#"
+JSON.stringify((() => {{
+  const gm = window.__bhClassicGM;
+  if (!gm) {{
+    return {{
+      ready: false,
+      score: 0,
+      over: false,
+      won: false,
+      keepPlaying: false,
+      board: [],
+    }};
+  }}
+
+  if (gm.won && !gm.keepPlaying && gm.score < {target}) {{
+    gm.keepPlaying = true;
+  }}
+  gm.move({index});
+
+  const board = [];
+  for (let y = 0; y < 4; y += 1) {{
+    const row = [];
+    for (let x = 0; x < 4; x += 1) {{
+      const column = gm.grid && Array.isArray(gm.grid.cells) ? gm.grid.cells[x] : null;
+      const cell = column && column[y] ? column[y] : null;
+      row.push(cell ? cell.value : 0);
+    }}
+    board.push(row);
+  }}
+
+  return {{
+    ready: true,
+    score: Number(gm.score) || 0,
+    over: !!gm.over,
+    won: !!gm.won,
+    keepPlaying: !!gm.keepPlaying,
+    board,
+  }};
+}})())
+"#,
+    ))
+    .map_err(|_| 75)?;
+    let waited = wait(CLASSIC_MOVE_SETTLE_WAIT_MS).map_err(|_| 76)?;
+    if waited.elapsed_ms < CLASSIC_MOVE_SETTLE_WAIT_MS {
+        return Err(77);
+    }
+    serde_json::from_str(&raw).map_err(|_| 78)
+}
+
+fn restart_classic_game(target: u32) -> Result<ClassicState, i32> {
+    let raw: String = js(&format!(
+        r#"
+JSON.stringify((() => {{
+  const gm = window.__bhClassicGM;
+  if (!gm) {{
+    return {{
+      ready: false,
+      score: 0,
+      over: false,
+      won: false,
+      keepPlaying: false,
+      board: [],
+    }};
+  }}
+
+  gm.restart();
+  if (gm.won && !gm.keepPlaying && gm.score < {target}) {{
+    gm.keepPlaying = true;
+  }}
+
+  const board = [];
+  for (let y = 0; y < 4; y += 1) {{
+    const row = [];
+    for (let x = 0; x < 4; x += 1) {{
+      const column = gm.grid && Array.isArray(gm.grid.cells) ? gm.grid.cells[x] : null;
+      const cell = column && column[y] ? column[y] : null;
+      row.push(cell ? cell.value : 0);
+    }}
+    board.push(row);
+  }}
+
+  return {{
+    ready: true,
+    score: Number(gm.score) || 0,
+    over: !!gm.over,
+    won: !!gm.won,
+    keepPlaying: !!gm.keepPlaying,
+    board,
+  }};
+}})())
+"#,
+    ))
+    .map_err(|_| 79)?;
+    let waited = wait(120).map_err(|_| 80)?;
+    if waited.elapsed_ms < 120 {
+        return Err(81);
+    }
+    serde_json::from_str(&raw).map_err(|_| 82)
+}
+
 fn bootstrap_snapshot() -> Result<GuestSnapshot, i32> {
     for _ in 0..3 {
         for direction in Move::ordered() {
@@ -819,9 +1083,10 @@ fn restart_game() -> Result<(), i32> {
         return Ok(());
     }
 
-    let _ = press_key("r");
-    wait(600).map_err(|_| 41)?;
-    Ok(())
+        let _ = cdp_press_key("r", 0);
+        let _ = js_press_key("r");
+        wait(600).map_err(|_| 41)?;
+        Ok(())
 }
 
 fn is_game_over(update: &GameUpdate) -> bool {
@@ -835,15 +1100,12 @@ fn click_button(text: &str) -> Result<bool, bh_guest_sdk::GuestError> {
     ))
 }
 
-fn press_key(key: &str) -> Result<bool, bh_guest_sdk::GuestError> {
+fn js_press_key(key: &str) -> Result<bool, bh_guest_sdk::GuestError> {
     js(&format!("window.__bh2048Guest.press({})", json!(key)))
 }
 
 fn press_move(direction: Move) -> Result<(), i32> {
-    let pressed = press_key(direction.key()).map_err(|_| 42)?;
-    if !pressed {
-        return Err(43);
-    }
+    cdp_press_key(direction.key(), 0).map_err(|_| 42)?;
     Ok(())
 }
 
