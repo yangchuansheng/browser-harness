@@ -10,7 +10,7 @@ No authentication required for any approach documented here.
 `http_get` uses `User-Agent: Mozilla/5.0` (bare string). Genius returns HTTP 403 for that UA on both HTML pages and internal API endpoints. Adding any OS token (e.g. `(Macintosh; Intel Mac OS X 10_15_7)`) immediately lifts the block — no cookies, no session, no JavaScript required.
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 
 def genius_get(url, extra_headers=None):
     """Drop-in replacement for http_get on genius.com endpoints."""
@@ -43,7 +43,7 @@ a browser-like User-Agent. They return rich structured JSON in ~0.13s.
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 def genius_get(url, extra_headers=None):
     headers = {
@@ -172,7 +172,7 @@ Each div can contain nested child divs for annotation highlights — including a
 
 ```python
 import re, json
-from helpers import http_get
+from runner_cli import http_get
 
 def genius_get(url, extra_headers=None):
     headers = {
@@ -298,7 +298,7 @@ one HTML call for lyrics. Song ID can be derived several ways.
 
 ```python
 import json, re, urllib.parse
-from helpers import http_get
+from runner_cli import http_get
 
 def genius_get(url, extra_headers=None):
     headers = {
@@ -450,7 +450,7 @@ If you have a token (free registration at genius.com/developers):
 def genius_api(path, token):
     """Call the official public API. path example: '/songs/1063'"""
     import json
-    from helpers import http_get
+    from runner_cli import http_get
     url = f"https://api.genius.com{path}"
     return json.loads(http_get(url, headers={"Authorization": f"Bearer {token}"}))
 

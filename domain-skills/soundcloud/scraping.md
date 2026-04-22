@@ -12,7 +12,7 @@ No authentication required for any approach documented here. All code uses `http
 Returns JSON in ~0.3s. Works for **tracks, playlists/sets, and user profiles**. No key required.
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 import json
 
 def soundcloud_oembed(resource_url):
@@ -72,7 +72,7 @@ user = soundcloud_oembed("https://soundcloud.com/forss")
 Every SoundCloud page embeds a JSON array in a `<script>` tag as `window.__sc_hydration`. This contains full API-grade metadata with no key required.
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 import json, re
 
 def extract_hydration(page_url):
@@ -152,7 +152,7 @@ playlist = get_hydration_by_type("https://soundcloud.com/forss/sets/soulhack", "
 The `client_id` lives in every page's `__sc_hydration` under the `apiClient` key. It is **stable across all pages and sessions** — extract once and reuse.
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 import json, re
 
 def get_client_id(page_url="https://soundcloud.com"):

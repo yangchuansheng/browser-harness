@@ -24,7 +24,7 @@ https://oaipmh.arxiv.org/oai
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 OAI_NS = {
     'oai': 'http://www.openarchives.org/OAI/2.0/',
@@ -137,7 +137,7 @@ Subset sets use `topic:topic:SUBCATEGORY` notation, e.g. `cs:cs:LG` for Machine 
 
 ```python
 import xml.etree.ElementTree as ET
-from helpers import http_get
+from runner_cli import http_get
 
 RAW_NS = {
     'oai': 'http://www.openarchives.org/OAI/2.0/',
@@ -178,7 +178,7 @@ Base URL: `https://api.semanticscholar.org/graph/v1/`
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 paper = json.loads(http_get(
     "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762"
@@ -201,7 +201,7 @@ The ID format `arXiv:NNNN.NNNNN` is accepted directly — no conversion needed.
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 import urllib.request
 
 ids = ["arXiv:1706.03762", "arXiv:1810.04805", "arXiv:2005.14165"]
@@ -231,7 +231,7 @@ Note: `helpers.http_get` only does GET. For POST use `urllib.request.Request` di
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 results = json.loads(http_get(
     "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -317,7 +317,7 @@ download_pdf('1706.03762', '/tmp/attention.pdf')
 
 - **OAI-PMH `set` param uses colon-separated hierarchy, not dot.** The Atom API uses `cat:cs.LG`; OAI-PMH uses `set=cs:cs:LG`. Using `set=cs.LG` returns zero results.
 
-- **`http_get` in helpers.py does NOT follow HTTP redirects.** If you must use it with the old OAI URL, you'll get an empty body. Either update the URL to the canonical one or use `urllib.request.urlopen` with a redirect handler.
+- **Prefer the canonical OAI URL instead of relying on redirects.** The current `runner_cli.http_get` path goes through the Rust HTTP client, but you should still use the canonical OAI endpoint directly rather than depending on redirect behavior.
 
 ---
 

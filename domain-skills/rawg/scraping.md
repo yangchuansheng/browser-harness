@@ -34,7 +34,7 @@ Confirmed working on all tested game pages.
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 def extract_game(slug):
     """
@@ -204,7 +204,7 @@ All endpoints live at `https://api.rawg.io/api/`. Append `&key=YOUR_API_KEY` to 
 
 ```python
 import json, os
-from helpers import http_get
+from runner_cli import http_get
 
 KEY = os.environ['RAWG_API_KEY']
 

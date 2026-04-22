@@ -12,7 +12,7 @@ No authentication required for any approach documented here.
 Returns JSON in ~0.25s. Works for tracks, albums, playlists, and artists. Does **not** work for episodes/shows.
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 import json
 
 def spotify_oembed(resource_type, resource_id):
@@ -61,7 +61,7 @@ pl = spotify_oembed("playlist", "37i9dQZF1DXcBWIGoYBM5M")
 ```python
 from concurrent.futures import ThreadPoolExecutor
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 track_ids = [
     "4PTG3Z6ehGkBFwjybzWkR8",
@@ -90,7 +90,7 @@ Every open.spotify.com page (track, album, playlist, artist) serves full HTML wi
 ### Track page — all extractable fields
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 import json, re
 
 def scrape_track(track_id):
@@ -182,7 +182,7 @@ def scrape_artist(artist_id):
 `https://open.spotify.com/embed/{type}/{id}` returns a small Next.js SSR page. Its `__NEXT_DATA__` script tag contains a fully-parsed entity object. This is the only no-auth route that returns track listings for albums, playlists, and artists.
 
 ```python
-from helpers import http_get
+from runner_cli import http_get
 import json, re
 
 def scrape_embed(resource_type, resource_id):

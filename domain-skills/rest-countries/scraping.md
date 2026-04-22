@@ -8,7 +8,7 @@
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/all?fields=name,cca2,capital,population,area,region")
 countries = json.loads(data)
@@ -35,7 +35,7 @@ Use the `?fields=` query param to limit response size — essential when fetchin
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 # Single code — returns a list (one element)
 data = http_get("https://restcountries.com/v3.1/alpha/DE")
@@ -65,7 +65,7 @@ Use `/alpha?codes=` for fetching a known list of countries — always returns a 
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 codes = ["US", "GB", "FR", "DE", "JP", "CN", "IN", "BR", "AU", "CA"]
 data = http_get(f"https://restcountries.com/v3.1/alpha?codes={','.join(codes)}&fields=name,cca2,population")
@@ -80,7 +80,7 @@ for c in countries:
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 # Partial match (default) — may return multiple results
 data = http_get("https://restcountries.com/v3.1/name/united")
@@ -98,7 +98,7 @@ print(results2[0]["name"]["common"])  # United Kingdom
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/region/europe?fields=name,cca2,population")
 countries = json.loads(data)
@@ -117,7 +117,7 @@ Valid region values: `africa`, `americas`, `asia`, `europe`, `oceania`, `antarct
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/subregion/Western%20Europe?fields=name,cca2")
 countries = json.loads(data)
@@ -129,7 +129,7 @@ print([c["cca2"] for c in countries])
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/lang/arabic")
 countries = json.loads(data)
@@ -144,7 +144,7 @@ print(f"Arabic-speaking countries: {len(countries)}")
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/currency/EUR")
 countries = json.loads(data)
@@ -159,7 +159,7 @@ print(names[:5])
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/capital/berlin?fields=name,cca2,capital")
 result = json.loads(data)
@@ -172,7 +172,7 @@ print(result[0]["name"]["common"], result[0]["capital"])
 
 ```python
 import json
-from helpers import http_get
+from runner_cli import http_get
 
 data = http_get("https://restcountries.com/v3.1/alpha/US")
 c = json.loads(data)[0]

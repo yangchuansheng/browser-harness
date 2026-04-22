@@ -1010,7 +1010,7 @@ jobs = collect_indeed_jobs("machine learning engineer", max_results=30, fromage=
 
 - **Glassdoor location IDs for `locT=C&locId=`** — Programmatic location filtering by ID requires a separate city-ID lookup (Glassdoor's internal city registry). For basic scraping, omit `locId` and use `locKeyword=` with the city name instead — results are less precise but don't require a lookup step.
 
-- **User-agent matters** — `http_get` uses `Mozilla/5.0` by default (see `helpers.py`). For Indeed `http_get`, also set `Accept-Language: en-US,en;q=0.9` to avoid getting German or localized results based on IP geolocation.
+- **User-agent matters** — `http_get` uses `Mozilla/5.0` by default through the current runner path. For Indeed `http_get`, also set `Accept-Language: en-US,en;q=0.9` to avoid getting German or localized results based on IP geolocation.
 
 - **Stepstone cookie modal is fullscreen** — On first load, Stepstone shows a fullscreen consent overlay that blocks the entire page. Always call `dismiss_cookie_banner()` before any extraction. If the overlay cannot be dismissed with the generic pattern, use a coordinate click: `screenshot()` first to find the "Alle akzeptieren" (Accept all) button position, then `click(x, y)`.
 
