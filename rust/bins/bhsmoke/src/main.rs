@@ -28,6 +28,9 @@ const SCENARIOS: &[&str] = &[
     "letterboxd-popular-guest",
     "spotify-search-guest",
     "etsy-search-guest",
+    "metacritic-game-scores-guest",
+    "walmart-search-guest",
+    "tradingview-symbol-search-guest",
     "wait-for-load-event",
     "watch-events",
     "wait-for-request",
@@ -62,6 +65,13 @@ const PRODUCTHUNT_TARGET_URL_PREFIX: &str = "https://www.producthunt.com";
 const LETTERBOXD_TARGET_URL_PREFIX: &str = "https://letterboxd.com/films/popular/";
 const SPOTIFY_TARGET_URL_PREFIX: &str = "https://open.spotify.com/search";
 const ETSY_TARGET_URL_PREFIX: &str = "https://www.etsy.com/search";
+const METACRITIC_PRODUCT_URL: &str =
+    "https://backend.metacritic.com/games/metacritic/the-last-of-us/web?componentName=product&componentType=Product&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u";
+const METACRITIC_USER_URL: &str =
+    "https://backend.metacritic.com/reviews/metacritic/user/games/the-last-of-us/stats/web?componentName=user-score-summary&componentType=ScoreSummary&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u";
+const WALMART_SEARCH_TARGET_URL: &str = "https://www.walmart.com/search?q=laptop";
+const TRADINGVIEW_SYMBOL_SEARCH_TARGET_URL: &str =
+    "https://symbol-search.tradingview.com/symbol_search/v3/?text=AAPL&hl=1&exchange=NASDAQ&lang=en&search_type=stock&domain=production";
 const PRODUCTHUNT_DIAGNOSTIC_SCRIPT: &str = r#"JSON.stringify({
   readyState: document.readyState,
   title: document.title,
@@ -166,6 +176,9 @@ fn run() -> Result<Value, String> {
         "letterboxd-popular-guest" => smoke_letterboxd_popular_guest(),
         "spotify-search-guest" => smoke_spotify_search_guest(),
         "etsy-search-guest" => smoke_etsy_search_guest(),
+        "metacritic-game-scores-guest" => smoke_metacritic_game_scores_guest(),
+        "walmart-search-guest" => smoke_walmart_search_guest(),
+        "tradingview-symbol-search-guest" => smoke_tradingview_symbol_search_guest(),
         "wait-for-load-event" => smoke_wait_for_load_event(),
         "watch-events" => smoke_watch_events(),
         "wait-for-request" => smoke_wait_for_request(),
@@ -3085,6 +3098,424 @@ fn smoke_etsy_search_guest() -> Result<Value, String> {
     finalize_smoke(&options, remote_browser, &mut result, run_result)
 }
 
+fn smoke_metacritic_game_scores_guest() -> Result<Value, String> {
+    let name =
+        env::var("BU_NAME").unwrap_or_else(|_| "bhrun-metacritic-game-scores-guest-smoke".into());
+    let guest_manifest = rust_metacritic_game_scores_guest_manifest_path();
+    let default_guest_path = rust_metacritic_game_scores_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    let mut result = Map::new();
+    result.insert("name".into(), Value::String(name.clone()));
+    result.insert(
+        "daemon_impl".into(),
+        Value::String(env::var("BU_DAEMON_IMPL").unwrap_or_else(|_| "rust".into())),
+    );
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/metacritic/scraping.md".to_string()),
+    );
+    result.insert("mode".into(), Value::String("http_only".to_string()));
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Metacritic game scores",
+        &mut result,
+    )?;
+
+    let config = build_http_guest_config(&name, &guest_path)?;
+    result.insert("guest_config".into(), config.clone());
+    let guest_run = runner_json_with_args(
+        "run-guest",
+        Some(config),
+        &[guest_path.display().to_string()],
+        Duration::from_secs(60),
+    )?;
+    let calls = guest_run
+        .get("calls")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| "guest run missing calls array".to_string())?;
+    let operations = collect_guest_operations(&guest_run)?;
+    result.insert(
+        "guest_run".into(),
+        json!({
+            "exit_code": guest_run.get("exit_code").cloned().unwrap_or(Value::Null),
+            "success": guest_run.get("success").cloned().unwrap_or(Value::Null),
+            "trap": guest_run.get("trap").cloned().unwrap_or(Value::Null),
+        }),
+    );
+    result.insert(
+        "guest_operations".into(),
+        Value::Array(operations.iter().cloned().map(Value::String).collect()),
+    );
+    result.insert(
+        "guest_calls".into(),
+        Value::Array(summarize_http_guest_calls(&calls)),
+    );
+
+    validate_guest_result_success(&guest_run, "guest run")?;
+    if operations != ["http_get", "http_get"] {
+        return Err(format!(
+            "unexpected guest operation sequence: {operations:?}"
+        ));
+    }
+
+    let product_call = calls
+        .first()
+        .ok_or_else(|| "Metacritic product call missing".to_string())?;
+    let user_call = calls
+        .get(1)
+        .ok_or_else(|| "Metacritic user call missing".to_string())?;
+    if product_call.pointer("/request/url").and_then(Value::as_str) != Some(METACRITIC_PRODUCT_URL)
+    {
+        return Err("Metacritic product request URL mismatch".to_string());
+    }
+    if user_call.pointer("/request/url").and_then(Value::as_str) != Some(METACRITIC_USER_URL) {
+        return Err("Metacritic user request URL mismatch".to_string());
+    }
+
+    let product_payload = parse_json_string(
+        product_call
+            .get("response")
+            .ok_or_else(|| "Metacritic product response missing".to_string())?,
+        "Metacritic product response",
+    )?;
+    let user_payload = parse_json_string(
+        user_call
+            .get("response")
+            .ok_or_else(|| "Metacritic user response missing".to_string())?,
+        "Metacritic user response",
+    )?;
+    let product_item = product_payload
+        .pointer("/data/item")
+        .ok_or_else(|| "Metacritic product item missing".to_string())?;
+    let user_item = user_payload
+        .pointer("/data/item")
+        .ok_or_else(|| "Metacritic user item missing".to_string())?;
+    let score_summary = json!({
+        "title": product_item.get("title").cloned().unwrap_or(Value::Null),
+        "platform": product_item.get("platform").cloned().unwrap_or(Value::Null),
+        "metascore": product_item.pointer("/criticScoreSummary/score").cloned().unwrap_or(Value::Null),
+        "critic_reviews": product_item.pointer("/criticScoreSummary/reviewCount").cloned().unwrap_or(Value::Null),
+        "user_score": user_item.get("score").cloned().unwrap_or(Value::Null),
+        "user_reviews": user_item.get("reviewCount").cloned().unwrap_or(Value::Null),
+    });
+    result.insert("score_summary".into(), score_summary.clone());
+
+    if score_summary.get("title").and_then(Value::as_str) != Some("The Last of Us") {
+        return Err("unexpected Metacritic title".to_string());
+    }
+    if score_summary
+        .get("metascore")
+        .and_then(Value::as_i64)
+        .unwrap_or_default()
+        < 90
+    {
+        return Err("unexpected Metacritic critic score".to_string());
+    }
+    if score_summary
+        .get("user_score")
+        .and_then(Value::as_f64)
+        .unwrap_or_default()
+        < 8.0
+    {
+        return Err("unexpected Metacritic user score".to_string());
+    }
+
+    Ok(Value::Object(result))
+}
+
+fn smoke_walmart_search_guest() -> Result<Value, String> {
+    let name = env::var("BU_NAME").unwrap_or_else(|_| "bhrun-walmart-search-guest-smoke".into());
+    let guest_manifest = rust_walmart_search_guest_manifest_path();
+    let default_guest_path = rust_walmart_search_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    let mut result = Map::new();
+    result.insert("name".into(), Value::String(name.clone()));
+    result.insert(
+        "daemon_impl".into(),
+        Value::String(env::var("BU_DAEMON_IMPL").unwrap_or_else(|_| "rust".into())),
+    );
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/walmart/scraping.md".to_string()),
+    );
+    result.insert("mode".into(), Value::String("http_only".to_string()));
+    result.insert(
+        "target_url".into(),
+        Value::String(WALMART_SEARCH_TARGET_URL.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Walmart search",
+        &mut result,
+    )?;
+
+    let config = build_http_guest_config(&name, &guest_path)?;
+    result.insert("guest_config".into(), config.clone());
+    let guest_run = runner_json_with_args(
+        "run-guest",
+        Some(config),
+        &[guest_path.display().to_string()],
+        Duration::from_secs(60),
+    )?;
+    let calls = guest_run
+        .get("calls")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| "guest run missing calls array".to_string())?;
+    let operations = collect_guest_operations(&guest_run)?;
+    result.insert(
+        "guest_run".into(),
+        json!({
+            "exit_code": guest_run.get("exit_code").cloned().unwrap_or(Value::Null),
+            "success": guest_run.get("success").cloned().unwrap_or(Value::Null),
+            "trap": guest_run.get("trap").cloned().unwrap_or(Value::Null),
+        }),
+    );
+    result.insert(
+        "guest_operations".into(),
+        Value::Array(operations.iter().cloned().map(Value::String).collect()),
+    );
+    result.insert(
+        "guest_calls".into(),
+        Value::Array(summarize_http_guest_calls(&calls)),
+    );
+
+    validate_guest_result_success(&guest_run, "guest run")?;
+    if operations != ["http_get"] {
+        return Err(format!(
+            "unexpected guest operation sequence: {operations:?}"
+        ));
+    }
+
+    let call = calls
+        .first()
+        .ok_or_else(|| "Walmart http_get call missing".to_string())?;
+    if call.pointer("/request/url").and_then(Value::as_str) != Some(WALMART_SEARCH_TARGET_URL) {
+        return Err("Walmart request URL mismatch".to_string());
+    }
+
+    let html = call
+        .get("response")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Walmart response was not a string".to_string())?;
+    if !html.contains("__NEXT_DATA__") {
+        return Err("Walmart response did not contain __NEXT_DATA__".to_string());
+    }
+    let next_data = extract_next_data_script(html)?;
+    let search_result = next_data
+        .pointer("/props/pageProps/initialData/searchResult")
+        .ok_or_else(|| "Walmart searchResult missing".to_string())?;
+    let mut items = Vec::new();
+    if let Some(stacks) = search_result.get("itemStacks").and_then(Value::as_array) {
+        for stack in stacks {
+            if let Some(stack_items) = stack.get("items").and_then(Value::as_array) {
+                items.extend(stack_items.iter().cloned());
+            }
+        }
+    }
+    let product_items = items
+        .iter()
+        .filter(|item| value_has_nonempty_text(item.get("usItemId")))
+        .cloned()
+        .collect::<Vec<_>>();
+    let first = product_items
+        .first()
+        .ok_or_else(|| "Walmart product items were empty".to_string())?;
+    let search_summary = json!({
+        "aggregated_count": search_result.get("aggregatedCount").cloned().unwrap_or(Value::Null),
+        "max_page": search_result.pointer("/paginationV2/maxPage").cloned().unwrap_or(Value::Null),
+        "item_count": items.len(),
+        "product_item_count": product_items.len(),
+        "first_item": {
+            "usItemId": first.get("usItemId").cloned().unwrap_or(Value::Null),
+            "name": first.get("name").cloned().unwrap_or(Value::Null),
+            "price": first.get("price").cloned().unwrap_or(Value::Null),
+            "canonicalUrl": first.get("canonicalUrl").cloned().unwrap_or(Value::Null),
+        }
+    });
+    result.insert("search_summary".into(), search_summary.clone());
+
+    if search_summary
+        .get("aggregated_count")
+        .and_then(Value::as_i64)
+        .unwrap_or_default()
+        < 1000
+    {
+        return Err("unexpected Walmart aggregatedCount".to_string());
+    }
+    if search_summary
+        .get("product_item_count")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
+        < 20
+    {
+        return Err("unexpected Walmart product item count".to_string());
+    }
+    if !search_summary
+        .pointer("/first_item/canonicalUrl")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .starts_with("/ip/")
+    {
+        return Err("unexpected Walmart canonicalUrl".to_string());
+    }
+
+    Ok(Value::Object(result))
+}
+
+fn smoke_tradingview_symbol_search_guest() -> Result<Value, String> {
+    let name = env::var("BU_NAME")
+        .unwrap_or_else(|_| "bhrun-tradingview-symbol-search-guest-smoke".into());
+    let guest_manifest = rust_tradingview_symbol_search_guest_manifest_path();
+    let default_guest_path = rust_tradingview_symbol_search_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    let mut result = Map::new();
+    result.insert("name".into(), Value::String(name.clone()));
+    result.insert(
+        "daemon_impl".into(),
+        Value::String(env::var("BU_DAEMON_IMPL").unwrap_or_else(|_| "rust".into())),
+    );
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/tradingview/scraping.md".to_string()),
+    );
+    result.insert("mode".into(), Value::String("http_only".to_string()));
+    result.insert(
+        "target_url".into(),
+        Value::String(TRADINGVIEW_SYMBOL_SEARCH_TARGET_URL.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "TradingView symbol search",
+        &mut result,
+    )?;
+
+    let config = build_http_guest_config(&name, &guest_path)?;
+    result.insert("guest_config".into(), config.clone());
+    let guest_run = runner_json_with_args(
+        "run-guest",
+        Some(config),
+        &[guest_path.display().to_string()],
+        Duration::from_secs(30),
+    )?;
+    let calls = guest_run
+        .get("calls")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| "guest run missing calls array".to_string())?;
+    let operations = collect_guest_operations(&guest_run)?;
+    result.insert(
+        "guest_run".into(),
+        json!({
+            "exit_code": guest_run.get("exit_code").cloned().unwrap_or(Value::Null),
+            "success": guest_run.get("success").cloned().unwrap_or(Value::Null),
+            "trap": guest_run.get("trap").cloned().unwrap_or(Value::Null),
+        }),
+    );
+    result.insert(
+        "guest_operations".into(),
+        Value::Array(operations.iter().cloned().map(Value::String).collect()),
+    );
+    result.insert(
+        "guest_calls".into(),
+        Value::Array(summarize_http_guest_calls(&calls)),
+    );
+
+    validate_guest_result_success(&guest_run, "guest run")?;
+    if operations != ["http_get"] {
+        return Err(format!(
+            "unexpected guest operation sequence: {operations:?}"
+        ));
+    }
+
+    let call = calls
+        .first()
+        .ok_or_else(|| "TradingView http_get call missing".to_string())?;
+    let request = call
+        .get("request")
+        .ok_or_else(|| "TradingView request missing".to_string())?;
+    if request.get("url").and_then(Value::as_str) != Some(TRADINGVIEW_SYMBOL_SEARCH_TARGET_URL) {
+        return Err("TradingView request URL mismatch".to_string());
+    }
+    if request.pointer("/headers/Origin").and_then(Value::as_str)
+        != Some("https://www.tradingview.com")
+    {
+        return Err("TradingView Origin header mismatch".to_string());
+    }
+
+    let payload = parse_json_string(
+        call.get("response")
+            .ok_or_else(|| "TradingView response missing".to_string())?,
+        "TradingView response",
+    )?;
+    let symbols = payload
+        .get("symbols")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let first = symbols
+        .first()
+        .ok_or_else(|| "unexpected TradingView symbol count".to_string())?;
+    let search_summary = json!({
+        "symbols_remaining": payload.get("symbols_remaining").cloned().unwrap_or(Value::Null),
+        "symbol_count": symbols.len(),
+        "first_symbol": {
+            "symbol": first.get("symbol").cloned().unwrap_or(Value::Null),
+            "description": first.get("description").cloned().unwrap_or(Value::Null),
+            "type": first.get("type").cloned().unwrap_or(Value::Null),
+            "exchange": first.get("exchange").cloned().unwrap_or(Value::Null),
+            "isin": first.get("isin").cloned().unwrap_or(Value::Null),
+            "currency_code": first.get("currency_code").cloned().unwrap_or(Value::Null),
+            "is_primary_listing": first.get("is_primary_listing").cloned().unwrap_or(Value::Null),
+        }
+    });
+    result.insert("search_summary".into(), search_summary.clone());
+
+    if search_summary
+        .get("symbol_count")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
+        < 1
+    {
+        return Err("unexpected TradingView symbol count".to_string());
+    }
+    if search_summary
+        .pointer("/first_symbol/description")
+        .and_then(Value::as_str)
+        != Some("Apple Inc.")
+    {
+        return Err("unexpected TradingView first symbol description".to_string());
+    }
+    if search_summary
+        .pointer("/first_symbol/exchange")
+        .and_then(Value::as_str)
+        != Some("NASDAQ")
+    {
+        return Err("unexpected TradingView first symbol exchange".to_string());
+    }
+
+    Ok(Value::Object(result))
+}
+
 fn env_guest_path(default_path: PathBuf) -> PathBuf {
     match env::var("BU_GUEST_PATH") {
         Ok(value) if !value.trim().is_empty() => PathBuf::from(value),
@@ -3200,6 +3631,36 @@ fn rust_etsy_search_guest_default_path() -> PathBuf {
     )
 }
 
+fn rust_metacritic_game_scores_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-metacritic-game-scores/Cargo.toml")
+}
+
+fn rust_metacritic_game_scores_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-metacritic-game-scores/target/wasm32-unknown-unknown/release/rust_metacritic_game_scores_guest.wasm",
+    )
+}
+
+fn rust_walmart_search_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-walmart-search/Cargo.toml")
+}
+
+fn rust_walmart_search_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-walmart-search/target/wasm32-unknown-unknown/release/rust_walmart_search_guest.wasm",
+    )
+}
+
+fn rust_tradingview_symbol_search_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-tradingview-symbol-search/Cargo.toml")
+}
+
+fn rust_tradingview_symbol_search_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-tradingview-symbol-search/target/wasm32-unknown-unknown/release/rust_tradingview_symbol_search_guest.wasm",
+    )
+}
+
 fn maybe_build_default_guest(
     guest_path: &Path,
     default_guest_path: &Path,
@@ -3250,6 +3711,67 @@ fn build_guest_module(guest_manifest: &Path, guest_label: &str) -> Result<(), St
     Err(format!(
         "failed to build the Rust {guest_label} guest; ensure the stable wasm target is installed via `rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown`\n{detail}"
     ))
+}
+
+fn build_http_guest_config(daemon_name: &str, guest_path: &Path) -> Result<Value, String> {
+    let mut config = build_guest_config(daemon_name, guest_path, &["http_get"], true)?;
+    config
+        .as_object_mut()
+        .ok_or_else(|| "guest config was not a JSON object".to_string())?
+        .insert("allow_http".into(), Value::Bool(true));
+    Ok(config)
+}
+
+fn summarize_http_guest_calls(calls: &[Value]) -> Vec<Value> {
+    calls
+        .iter()
+        .map(|call| {
+            let request = call.get("request").cloned().unwrap_or(Value::Null);
+            let response = call.get("response").cloned().unwrap_or(Value::Null);
+            let mut entry = Map::new();
+            entry.insert(
+                "operation".into(),
+                call.get("operation").cloned().unwrap_or(Value::Null),
+            );
+            entry.insert(
+                "url".into(),
+                request.get("url").cloned().unwrap_or(Value::Null),
+            );
+            entry.insert(
+                "timeout".into(),
+                request.get("timeout").cloned().unwrap_or(Value::Null),
+            );
+            entry.insert(
+                "response_length".into(),
+                match response {
+                    Value::String(ref body) => Value::from(body.len() as u64),
+                    _ => Value::Null,
+                },
+            );
+            if let Some(headers) = request.get("headers") {
+                entry.insert("headers".into(), headers.clone());
+            }
+            Value::Object(entry)
+        })
+        .collect()
+}
+
+fn extract_next_data_script(html: &str) -> Result<Value, String> {
+    let start_marker = "<script id=\"__NEXT_DATA__\"";
+    let start = html
+        .find(start_marker)
+        .ok_or_else(|| "Walmart __NEXT_DATA__ was not present in the smoke response".to_string())?;
+    let after_start = &html[start..];
+    let tag_end = after_start
+        .find('>')
+        .ok_or_else(|| "Walmart __NEXT_DATA__ start tag was malformed".to_string())?;
+    let content_start = start + tag_end + 1;
+    let after_tag = &html[content_start..];
+    let end_rel = after_tag
+        .find("</script>")
+        .ok_or_else(|| "Walmart __NEXT_DATA__ closing tag was not present".to_string())?;
+    let json_text = &after_tag[..end_rel];
+    serde_json::from_str(json_text).map_err(|err| format!("parse Walmart __NEXT_DATA__: {err}"))
 }
 
 fn capture_page_info_snapshot(result: &mut Map<String, Value>, name: &str, base_key: &str) {
@@ -5058,20 +5580,20 @@ fn finish_ndjson(child: Child, timeout: Duration) -> Result<Vec<Value>, String> 
 }
 
 fn wait_for_output(mut child: Child, timeout: Duration) -> Result<CommandOutput, String> {
+    let stdout_reader = child
+        .stdout
+        .take()
+        .map(|pipe| spawn_pipe_reader(pipe, "stdout"));
+    let stderr_reader = child
+        .stderr
+        .take()
+        .map(|pipe| spawn_pipe_reader(pipe, "stderr"));
     let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let mut stdout = String::new();
-                let mut stderr = String::new();
-                if let Some(mut pipe) = child.stdout.take() {
-                    pipe.read_to_string(&mut stdout)
-                        .map_err(|err| format!("read command stdout: {err}"))?;
-                }
-                if let Some(mut pipe) = child.stderr.take() {
-                    pipe.read_to_string(&mut stderr)
-                        .map_err(|err| format!("read command stderr: {err}"))?;
-                }
+                let stdout = finish_pipe_reader(stdout_reader, "stdout")?;
+                let stderr = finish_pipe_reader(stderr_reader, "stderr")?;
                 if !status.success() {
                     return Err(stderr
                         .trim()
@@ -5092,12 +5614,42 @@ fn wait_for_output(mut child: Child, timeout: Duration) -> Result<CommandOutput,
                 if Instant::now() >= deadline {
                     let _ = child.kill();
                     let _ = child.wait();
+                    let _ = finish_pipe_reader(stdout_reader, "stdout");
+                    let _ = finish_pipe_reader(stderr_reader, "stderr");
                     return Err(format!("command timed out after {}ms", timeout.as_millis()));
                 }
                 thread::sleep(Duration::from_millis(20));
             }
             Err(err) => return Err(format!("wait for child process: {err}")),
         }
+    }
+}
+
+fn spawn_pipe_reader<R>(
+    mut pipe: R,
+    label: &'static str,
+) -> thread::JoinHandle<Result<String, String>>
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut text = String::new();
+        pipe.read_to_string(&mut text)
+            .map_err(|err| format!("read command {label}: {err}"))?;
+        Ok(text)
+    })
+}
+
+fn finish_pipe_reader(
+    handle: Option<thread::JoinHandle<Result<String, String>>>,
+    label: &str,
+) -> Result<String, String> {
+    match handle {
+        Some(handle) => match handle.join() {
+            Ok(result) => result,
+            Err(_) => Err(format!("join command {label} reader thread")),
+        },
+        None => Ok(String::new()),
     }
 }
 
