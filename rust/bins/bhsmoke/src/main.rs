@@ -19,6 +19,9 @@ const SCENARIOS: &[&str] = &[
     "guest-serve",
     "persistent-guest",
     "persistent-guest-browser",
+    "tab-response-guest",
+    "event-waits-guest",
+    "raw-cdp-guest",
     "wait-for-load-event",
     "watch-events",
     "wait-for-request",
@@ -38,6 +41,15 @@ const SAMPLE_GUEST_TARGET_URL: &str = "https://example.com/?via=bhrun-guest-samp
 const PERSISTENT_BROWSER_GUEST_TARGET_URL: &str =
     "https://example.com/?via=bhrun-serve-guest-remote-smoke";
 const PERSISTENT_BROWSER_GUEST_MARKER: &str = "phase-1";
+const TAB_RESPONSE_GUEST_TARGET_URL: &str =
+    "https://example.com/?via=bhrun-tab-response-guest-smoke";
+const EVENT_WAIT_TOKEN: &str = "bhrun-event-wait";
+const EVENT_WATCH_TOKEN_ONE: &str = "bhrun-event-watch-1";
+const EVENT_WATCH_TOKEN_TWO: &str = "bhrun-event-watch-2";
+const EVENT_CONSOLE_TOKEN: &str = "bhrun-event-console";
+const EVENT_DIALOG_TOKEN: &str = "bhrun-event-dialog";
+const RAW_CDP_CLI_TOKEN: &str = "bhrun-raw-cdp-cli";
+const RAW_CDP_GUEST_TOKEN: &str = "bhrun-raw-cdp-guest";
 
 fn main() {
     match run() {
@@ -77,6 +89,9 @@ fn run() -> Result<Value, String> {
         "guest-serve" => smoke_guest_serve(),
         "persistent-guest" => smoke_persistent_guest(),
         "persistent-guest-browser" => smoke_persistent_guest_browser(),
+        "tab-response-guest" => smoke_tab_response_guest(),
+        "event-waits-guest" => smoke_event_waits_guest(),
+        "raw-cdp-guest" => smoke_raw_cdp_guest(),
         "wait-for-load-event" => smoke_wait_for_load_event(),
         "watch-events" => smoke_watch_events(),
         "wait-for-request" => smoke_wait_for_request(),
@@ -699,19 +714,13 @@ fn smoke_persistent_guest_browser() -> Result<Value, String> {
         Value::String(PERSISTENT_BROWSER_GUEST_TARGET_URL.to_string()),
     );
 
-    if env::var("BU_SKIP_GUEST_BUILD").ok().as_deref() != Some("1")
-        && guest_path == default_guest_path
-    {
-        build_guest_module(&guest_manifest)?;
-        result.insert(
-            "guest_manifest".into(),
-            Value::String(guest_manifest.display().to_string()),
-        );
-        result.insert(
-            "guest_build_mode".into(),
-            Value::String("cargo+stable".to_string()),
-        );
-    }
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "persistent browser-state",
+        &mut result,
+    )?;
 
     let remote_browser = setup_browser(&options, true, true, &mut result)?;
     let run_result = (|| {
@@ -941,6 +950,734 @@ fn smoke_persistent_guest_browser() -> Result<Value, String> {
     finalize_smoke(&options, remote_browser, &mut result, run_result)
 }
 
+fn smoke_tab_response_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-tab-response-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_tab_response_guest_manifest_path();
+    let default_guest_path = rust_tab_response_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "target_url".into(),
+        Value::String(TAB_RESPONSE_GUEST_TARGET_URL.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "tab-response",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &[
+                "current_tab",
+                "list_tabs",
+                "new_tab",
+                "switch_tab",
+                "current_session",
+                "goto",
+                "wait_for_response",
+                "page_info",
+                "js",
+            ],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(25),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        validate_guest_result_success(&guest_run, "guest run")?;
+
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+        let expected_operations = [
+            "current_tab",
+            "list_tabs",
+            "new_tab",
+            "current_tab",
+            "current_session",
+            "js",
+            "switch_tab",
+            "current_session",
+            "current_tab",
+            "switch_tab",
+            "current_session",
+            "current_tab",
+            "goto",
+            "wait_for_response",
+            "page_info",
+            "js",
+            "list_tabs",
+        ];
+        if operations != expected_operations {
+            return Err(format!(
+                "unexpected guest operation sequence: {operations:?}"
+            ));
+        }
+
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let initial_tab = calls
+            .get(0)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest initial current_tab response missing".to_string())?;
+        let initial_tabs = calls
+            .get(1)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest initial list_tabs response missing".to_string())?;
+        let current_after_new = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest current_tab after new_tab missing".to_string())?;
+        let new_session = calls
+            .get(4)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest current_session after new_tab missing".to_string())?;
+        let switch_back = calls
+            .get(6)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest switch-tab back response missing".to_string())?;
+        let session_after_switch_back = calls
+            .get(7)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest current_session after switch-back missing".to_string())?;
+        let current_after_switch_back = calls
+            .get(8)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest current_tab after switch-back missing".to_string())?;
+        let switch_forward = calls
+            .get(9)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest switch-tab forward response missing".to_string())?;
+        let session_after_switch_forward = calls
+            .get(10)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest current_session after switch-forward missing".to_string())?;
+        let current_after_switch_forward = calls
+            .get(11)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest current_tab after switch-forward missing".to_string())?;
+        let wait_result = calls
+            .get(13)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest wait_for_response response missing".to_string())?;
+        let final_page = calls
+            .get(14)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest final page_info response missing".to_string())?;
+        let final_tabs = calls
+            .get(16)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest final list_tabs response missing".to_string())?;
+
+        let initial_target_id = required_string_field(initial_tab, "targetId")?;
+        let new_target_id = calls
+            .get(2)
+            .and_then(|call| call.get("response"))
+            .and_then(|response| response.get("target_id"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| "guest new_tab response did not include target_id".to_string())?
+            .to_string();
+        let active_session_id = required_string_field(session_after_switch_forward, "session_id")?;
+        let blank_href = calls
+            .get(5)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_str);
+        let final_href = calls
+            .get(15)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_str);
+
+        if new_target_id == initial_target_id {
+            return Err("guest new_tab target_id matched the initial target".to_string());
+        }
+        if current_after_new.get("targetId").and_then(Value::as_str) != Some(new_target_id.as_str())
+        {
+            return Err(
+                "guest current_tab after new_tab did not move to the new target".to_string(),
+            );
+        }
+        if new_session
+            .get("session_id")
+            .and_then(Value::as_str)
+            .is_none()
+        {
+            return Err("guest current_session after new_tab was empty".to_string());
+        }
+        if blank_href != Some("about:blank") {
+            return Err(format!(
+                "guest js after new_tab did not report about:blank: {blank_href:?}"
+            ));
+        }
+        if session_after_switch_back
+            .get("session_id")
+            .and_then(Value::as_str)
+            != switch_back.get("session_id").and_then(Value::as_str)
+        {
+            return Err(
+                "guest current_session did not match switch_tab after switching back".to_string(),
+            );
+        }
+        if current_after_switch_back
+            .get("targetId")
+            .and_then(Value::as_str)
+            != Some(initial_target_id.as_str())
+        {
+            return Err("guest current_tab did not return to the initial target".to_string());
+        }
+        if session_after_switch_forward
+            .get("session_id")
+            .and_then(Value::as_str)
+            != switch_forward.get("session_id").and_then(Value::as_str)
+        {
+            return Err(
+                "guest current_session did not match switch_tab after switching forward"
+                    .to_string(),
+            );
+        }
+        if current_after_switch_forward
+            .get("targetId")
+            .and_then(Value::as_str)
+            != Some(new_target_id.as_str())
+        {
+            return Err("guest current_tab did not move back to the new target".to_string());
+        }
+
+        let event = wait_result
+            .get("event")
+            .ok_or_else(|| "guest wait_for_response event missing".to_string())?;
+        let response = event
+            .get("params")
+            .and_then(|params| params.get("response"))
+            .ok_or_else(|| "guest wait_for_response response params missing".to_string())?;
+        if !wait_result
+            .get("matched")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("guest wait_for_response returned matched=false".to_string());
+        }
+        if event.get("method").and_then(Value::as_str) != Some("Network.responseReceived") {
+            return Err(format!(
+                "unexpected wait_for_response method: {:?}",
+                event.get("method").and_then(Value::as_str)
+            ));
+        }
+        if event.get("session_id").and_then(Value::as_str) != Some(active_session_id.as_str()) {
+            return Err(
+                "guest wait_for_response event did not match the active session".to_string(),
+            );
+        }
+        if response.get("url").and_then(Value::as_str) != Some(TAB_RESPONSE_GUEST_TARGET_URL) {
+            return Err("guest wait_for_response URL did not match the target URL".to_string());
+        }
+        if response
+            .get("status")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            != 200
+        {
+            return Err(format!(
+                "unexpected wait_for_response status: {:?}",
+                response.get("status")
+            ));
+        }
+        if final_page.get("url").and_then(Value::as_str) != Some(TAB_RESPONSE_GUEST_TARGET_URL) {
+            return Err("guest final page_info did not match the target URL".to_string());
+        }
+        if final_href != Some(TAB_RESPONSE_GUEST_TARGET_URL) {
+            return Err("guest final js href did not match the target URL".to_string());
+        }
+        if !final_tabs
+            .iter()
+            .any(|tab| tab.get("targetId").and_then(Value::as_str) == Some(new_target_id.as_str()))
+        {
+            return Err("guest final list_tabs result lost the new target".to_string());
+        }
+        if final_tabs.len() < initial_tabs.len() + 1 {
+            return Err(
+                "guest final list_tabs result did not grow after creating a new tab".to_string(),
+            );
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if page_after_guest.get("url").and_then(Value::as_str)
+            != Some(TAB_RESPONSE_GUEST_TARGET_URL)
+        {
+            return Err("runner page-info after guest did not match the target URL".to_string());
+        }
+
+        let current_tab_after_guest = current_tab(options.name.as_str())?;
+        result.insert(
+            "current_tab_after_guest".into(),
+            current_tab_after_guest.clone(),
+        );
+        if current_tab_after_guest
+            .get("targetId")
+            .and_then(Value::as_str)
+            != Some(new_target_id.as_str())
+        {
+            return Err(
+                "runner current-tab after guest did not stay on the new target".to_string(),
+            );
+        }
+
+        let current_session_after_guest = current_session(options.name.as_str())?;
+        result.insert(
+            "current_session_after_guest".into(),
+            current_session_after_guest.clone(),
+        );
+        if current_session_after_guest
+            .get("session_id")
+            .and_then(Value::as_str)
+            != Some(active_session_id.as_str())
+        {
+            return Err(
+                "runner current-session after guest did not match the guest session".to_string(),
+            );
+        }
+
+        let tabs_after_guest = list_tabs(options.name.as_str())?;
+        result.insert(
+            "tabs_after_guest".into(),
+            Value::Array(tabs_after_guest.clone()),
+        );
+        if !tabs_after_guest
+            .iter()
+            .any(|tab| tab.get("targetId").and_then(Value::as_str) == Some(new_target_id.as_str()))
+        {
+            return Err(
+                "runner list-tabs after guest did not include the new tab target".to_string(),
+            );
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_event_waits_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-event-waits-guest-smoke", BrowserMode::Local)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_event_waits_guest_manifest_path();
+    let default_guest_path = rust_event_waits_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "event-waits",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let prewarm_request = named_payload(options.name.as_str(), json!({"url": "about:blank"}))?;
+        result.insert("prewarm_tab_request".into(), prewarm_request.clone());
+        let prewarm_tab = runner_json("new-tab", Some(prewarm_request), Duration::from_secs(10))?;
+        result.insert("prewarm_tab".into(), prewarm_tab);
+
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &[
+                "current_session",
+                "wait_for_event",
+                "watch_events",
+                "wait_for_console",
+                "wait_for_dialog",
+                "handle_dialog",
+                "js",
+            ],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(30),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        validate_guest_result_success(&guest_run, "guest run")?;
+
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+        let expected_operations = [
+            "current_session",
+            "js",
+            "wait_for_event",
+            "js",
+            "watch_events",
+            "js",
+            "wait_for_console",
+            "js",
+            "wait_for_dialog",
+            "handle_dialog",
+        ];
+        if operations != expected_operations {
+            return Err(format!(
+                "unexpected guest operation sequence: {operations:?}"
+            ));
+        }
+
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let session_id = calls
+            .get(0)
+            .and_then(|call| call.get("response"))
+            .and_then(|response| response.get("session_id"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| "guest current_session response did not include session_id".to_string())?
+            .to_string();
+
+        let wait_event = calls
+            .get(2)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest wait_for_event response missing".to_string())?;
+        if !wait_event
+            .get("matched")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("guest wait_for_event returned matched=false".to_string());
+        }
+        if wait_event.pointer("/event/method").and_then(Value::as_str)
+            != Some("Runtime.consoleAPICalled")
+        {
+            return Err("guest wait_for_event did not return Runtime.consoleAPICalled".to_string());
+        }
+        if wait_event
+            .pointer("/event/session_id")
+            .and_then(Value::as_str)
+            != Some(session_id.as_str())
+        {
+            return Err("guest wait_for_event session mismatch".to_string());
+        }
+        let wait_token = wait_event
+            .pointer("/event/params/args/0/value")
+            .and_then(Value::as_str);
+        if wait_token != Some(EVENT_WAIT_TOKEN) {
+            return Err(format!(
+                "guest wait_for_event token mismatch: {wait_token:?}"
+            ));
+        }
+
+        let watched = calls
+            .get(4)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(|| "guest watch_events response missing".to_string())?;
+        result.insert("watched_lines".into(), Value::Array(watched.clone()));
+        if watched.len() != 3 {
+            return Err(format!(
+                "guest watch_events returned unexpected line count: {}",
+                watched.len()
+            ));
+        }
+        if watched[0].get("kind").and_then(Value::as_str) != Some("event")
+            || watched[1].get("kind").and_then(Value::as_str) != Some("event")
+        {
+            return Err("guest watch_events did not return event lines first".to_string());
+        }
+        let watch_one = watched[0]
+            .pointer("/event/params/args/0/value")
+            .and_then(Value::as_str);
+        let watch_two = watched[1]
+            .pointer("/event/params/args/0/value")
+            .and_then(Value::as_str);
+        if [watch_one, watch_two] != [Some(EVENT_WATCH_TOKEN_ONE), Some(EVENT_WATCH_TOKEN_TWO)] {
+            return Err(format!(
+                "guest watch_events tokens did not match: {:?}",
+                [watch_one, watch_two]
+            ));
+        }
+        let end_line = &watched[2];
+        if end_line.get("kind").and_then(Value::as_str) != Some("end") {
+            return Err("guest watch_events did not end with an end line".to_string());
+        }
+        if end_line.get("matched_events").and_then(Value::as_u64) != Some(2)
+            || !end_line
+                .get("reached_max_events")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        {
+            return Err(format!(
+                "guest watch_events end summary was unexpected: {end_line}"
+            ));
+        }
+
+        let console_wait = calls
+            .get(6)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest wait_for_console response missing".to_string())?;
+        let console_event = console_wait
+            .get("event")
+            .ok_or_else(|| "guest wait_for_console event missing".to_string())?;
+        if !console_wait
+            .get("matched")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("guest wait_for_console returned matched=false".to_string());
+        }
+        if console_event.get("session_id").and_then(Value::as_str) != Some(session_id.as_str()) {
+            return Err("guest wait_for_console session mismatch".to_string());
+        }
+        let console_text = if console_event.get("method").and_then(Value::as_str)
+            == Some("Console.messageAdded")
+        {
+            console_event
+                .pointer("/params/message/text")
+                .and_then(Value::as_str)
+        } else {
+            console_event
+                .pointer("/params/args/0/value")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    console_event
+                        .pointer("/params/args/0/description")
+                        .and_then(Value::as_str)
+                })
+        };
+        if console_text != Some(EVENT_CONSOLE_TOKEN) {
+            return Err(format!(
+                "guest wait_for_console token mismatch: {console_text:?}"
+            ));
+        }
+
+        let dialog_wait = calls
+            .get(8)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest wait_for_dialog response missing".to_string())?;
+        let dialog_event = dialog_wait
+            .get("event")
+            .ok_or_else(|| "guest wait_for_dialog event missing".to_string())?;
+        if !dialog_wait
+            .get("matched")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("guest wait_for_dialog returned matched=false".to_string());
+        }
+        if dialog_event.get("method").and_then(Value::as_str)
+            != Some("Page.javascriptDialogOpening")
+        {
+            return Err("guest wait_for_dialog did not return dialog opening".to_string());
+        }
+        if dialog_event.get("session_id").and_then(Value::as_str) != Some(session_id.as_str()) {
+            return Err("guest wait_for_dialog session mismatch".to_string());
+        }
+        if dialog_event
+            .pointer("/params/message")
+            .and_then(Value::as_str)
+            != Some(EVENT_DIALOG_TOKEN)
+        {
+            return Err("guest wait_for_dialog message mismatch".to_string());
+        }
+
+        let handle_dialog_response = calls
+            .get(9)
+            .and_then(|call| call.get("response"))
+            .cloned()
+            .ok_or_else(|| "guest handle_dialog response missing".to_string())?;
+        result.insert("handle_dialog_response".into(), handle_dialog_response);
+
+        let post_run_page_info = page_info(options.name.as_str())?;
+        result.insert("post_run_page_info".into(), post_run_page_info.clone());
+        if post_run_page_info.get("dialog").is_some() {
+            return Err("dialog was still pending after guest handle_dialog".to_string());
+        }
+        Ok(())
+    })();
+    if !result.contains_key("post_run_page_info") {
+        let cleanup = cleanup_dialog_best_effort(options.name.as_str());
+        if cleanup
+            .as_object()
+            .map(|object| !object.is_empty())
+            .unwrap_or(false)
+        {
+            result.insert("page_after_cleanup_attempt".into(), cleanup);
+        }
+    }
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_raw_cdp_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-raw-cdp-guest-smoke", BrowserMode::Local)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_raw_cdp_guest_manifest_path();
+    let default_guest_path = rust_raw_cdp_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "raw CDP",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let current_session_value = current_session(options.name.as_str())?;
+        let session_id = required_string_field(&current_session_value, "session_id")?;
+        result.insert("current_session".into(), current_session_value);
+
+        let cli_raw_request = named_payload(
+            options.name.as_str(),
+            json!({
+                "method": "Runtime.evaluate",
+                "session_id": session_id,
+                "params": {
+                    "expression": format!("window.__bhrunRawCdpCli = {token:?}; window.__bhrunRawCdpCli", token = RAW_CDP_CLI_TOKEN),
+                    "returnByValue": true,
+                    "awaitPromise": true,
+                }
+            }),
+        )?;
+        result.insert("cli_raw_request".into(), cli_raw_request.clone());
+        let cli_raw_result =
+            runner_json("cdp-raw", Some(cli_raw_request), Duration::from_secs(10))?;
+        result.insert("cli_raw_result".into(), cli_raw_result.clone());
+        if cli_raw_result
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            != Some(RAW_CDP_CLI_TOKEN)
+        {
+            return Err(format!("unexpected cli cdp-raw result: {cli_raw_result}"));
+        }
+
+        let guest_config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &["current_session", "cdp_raw"],
+            true,
+        )?;
+        result.insert("guest_config".into(), guest_config.clone());
+        let disabled_run = runner_json_with_args(
+            "run-guest",
+            Some(guest_config.clone()),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(20),
+        )?;
+        result.insert("guest_run_disabled".into(), disabled_run.clone());
+        if disabled_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("guest unexpectedly succeeded with allow_raw_cdp=false".to_string());
+        }
+        if !disabled_run
+            .get("trap")
+            .map(Value::to_string)
+            .unwrap_or_default()
+            .contains("cdp_raw disabled")
+        {
+            return Err(format!(
+                "guest did not report the raw CDP gate: {disabled_run}"
+            ));
+        }
+
+        let mut enabled_config = guest_config;
+        enabled_config
+            .as_object_mut()
+            .ok_or_else(|| "guest config was not a JSON object".to_string())?
+            .insert("allow_raw_cdp".into(), Value::Bool(true));
+        result.insert("guest_config_enabled".into(), enabled_config.clone());
+        let enabled_run = runner_json_with_args(
+            "run-guest",
+            Some(enabled_config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(20),
+        )?;
+        result.insert("guest_run_enabled".into(), enabled_run.clone());
+        validate_guest_result_success(&enabled_run, "guest run with allow_raw_cdp=true")?;
+
+        let operations = collect_guest_operations(&enabled_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+        if operations != ["current_session", "cdp_raw"] {
+            return Err(format!(
+                "unexpected guest operation sequence: {operations:?}"
+            ));
+        }
+        let calls = enabled_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest enabled run missing calls array".to_string())?;
+        let guest_response = calls
+            .get(1)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest raw CDP response missing".to_string())?;
+        if guest_response
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            != Some(RAW_CDP_GUEST_TOKEN)
+        {
+            return Err(format!(
+                "unexpected guest raw CDP response: {guest_response}"
+            ));
+        }
+        if calls
+            .get(1)
+            .and_then(|call| call.get("request"))
+            .and_then(|request| request.get("session_id"))
+            .and_then(Value::as_str)
+            != calls
+                .get(0)
+                .and_then(|call| call.get("response"))
+                .and_then(|response| response.get("session_id"))
+                .and_then(Value::as_str)
+        {
+            return Err("guest cdp_raw did not use the active session_id".to_string());
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
 fn env_guest_path(default_path: PathBuf) -> PathBuf {
     match env::var("BU_GUEST_PATH") {
         Ok(value) if !value.trim().is_empty() => PathBuf::from(value),
@@ -966,7 +1703,60 @@ fn rust_persistent_guest_default_path() -> PathBuf {
     )
 }
 
-fn build_guest_module(guest_manifest: &Path) -> Result<(), String> {
+fn rust_tab_response_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-tab-response-workflow/Cargo.toml")
+}
+
+fn rust_tab_response_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-tab-response-workflow/target/wasm32-unknown-unknown/release/rust_tab_response_workflow_guest.wasm",
+    )
+}
+
+fn rust_event_waits_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-event-waits-sdk/Cargo.toml")
+}
+
+fn rust_event_waits_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-event-waits-sdk/target/wasm32-unknown-unknown/release/rust_event_waits_sdk_guest.wasm",
+    )
+}
+
+fn rust_raw_cdp_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-raw-cdp-smoke/Cargo.toml")
+}
+
+fn rust_raw_cdp_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-raw-cdp-smoke/target/wasm32-unknown-unknown/release/rust_raw_cdp_smoke_guest.wasm",
+    )
+}
+
+fn maybe_build_default_guest(
+    guest_path: &Path,
+    default_guest_path: &Path,
+    guest_manifest: &Path,
+    guest_label: &str,
+    result: &mut Map<String, Value>,
+) -> Result<(), String> {
+    if env::var("BU_SKIP_GUEST_BUILD").ok().as_deref() != Some("1")
+        && guest_path == default_guest_path
+    {
+        build_guest_module(guest_manifest, guest_label)?;
+        result.insert(
+            "guest_manifest".into(),
+            Value::String(guest_manifest.display().to_string()),
+        );
+        result.insert(
+            "guest_build_mode".into(),
+            Value::String("cargo+stable".to_string()),
+        );
+    }
+    Ok(())
+}
+
+fn build_guest_module(guest_manifest: &Path, guest_label: &str) -> Result<(), String> {
     let output = Command::new("cargo")
         .args([
             "+stable",
@@ -991,7 +1781,7 @@ fn build_guest_module(guest_manifest: &Path) -> Result<(), String> {
         .if_empty_then(stdout)
         .if_empty_then("guest build failed".to_string());
     Err(format!(
-        "failed to build the Rust persistent guest; ensure the stable wasm target is installed via `rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown`\n{detail}"
+        "failed to build the Rust {guest_label} guest; ensure the stable wasm target is installed via `rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown`\n{detail}"
     ))
 }
 
@@ -2956,6 +3746,53 @@ fn handle_dialog(name: &str, action: &str) -> Result<Value, String> {
         Some(named_payload(name, json!({"action": action}))?),
         Duration::from_secs(10),
     )
+}
+
+fn cleanup_dialog_best_effort(name: &str) -> Value {
+    let mut result = Map::new();
+    let handle_dialog_request = match named_payload(name, json!({"action": "accept"})) {
+        Ok(request) => request,
+        Err(err) => {
+            result.insert("handle_dialog_error".into(), Value::String(err));
+            return Value::Object(result);
+        }
+    };
+    result.insert(
+        "handle_dialog_request".into(),
+        handle_dialog_request.clone(),
+    );
+    match runner_json(
+        "handle-dialog",
+        Some(handle_dialog_request),
+        Duration::from_secs(5),
+    ) {
+        Ok(handle_dialog_result) => {
+            result.insert("handle_dialog_result".into(), handle_dialog_result);
+        }
+        Err(err) => {
+            result.insert("handle_dialog_error".into(), Value::String(err));
+            return Value::Object(result);
+        }
+    }
+
+    sleep_ms(200);
+    let page_info_request = match named_payload(name, Value::Null) {
+        Ok(request) => request,
+        Err(err) => {
+            result.insert("page_info_error".into(), Value::String(err));
+            return Value::Object(result);
+        }
+    };
+    result.insert("page_info_request".into(), page_info_request.clone());
+    match runner_json("page-info", Some(page_info_request), Duration::from_secs(5)) {
+        Ok(page_info) => {
+            result.insert("page_info".into(), page_info);
+        }
+        Err(err) => {
+            result.insert("page_info_error".into(), Value::String(err));
+        }
+    }
+    Value::Object(result)
 }
 
 fn mouse_move(name: &str, x: f64, y: f64, buttons: i64) -> Result<Value, String> {

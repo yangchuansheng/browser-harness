@@ -190,7 +190,7 @@ domain migrations make the guidance concrete enough to stabilize.
   wrappers, with local acceptance via `bhsmoke wait-for-request`,
   `bhsmoke wait-for-response`,
   `bhsmoke watch-events`, and
-  `scripts/bhrun_event_waits_guest_smoke.py`
+  `bhsmoke event-waits-guest`
 - [x] `interaction-skills/screenshots.md`
   Refreshed around `bhrun screenshot`, `bh_guest_sdk::screenshot(full)`, and
   local acceptance via `bhsmoke screenshot`
@@ -204,7 +204,7 @@ migration pulls one forward.
 - [x] `interaction-skills/dialogs.md`
   Refreshed around `bhrun handle-dialog`, `bh_guest_sdk::handle_dialog(...)`,
   `wait-for-dialog`, and the local acceptance path in
-  `scripts/bhrun_event_waits_guest_smoke.py`
+  `bhsmoke event-waits-guest`
 - [x] `interaction-skills/uploads.md`
   Refreshed around `bhrun upload-file`, `bh_guest_sdk::upload_file(...)`, and
   local acceptance via `bhsmoke upload-file`
