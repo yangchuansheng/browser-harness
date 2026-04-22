@@ -17,6 +17,7 @@ guest modules.
 
 - [../docs/architecture.md](../docs/architecture.md)
 - [../docs/development.md](../docs/development.md)
+- [../docs/wasm-guests.md](../docs/wasm-guests.md)
 - [../docs/future-wasm.md](../docs/future-wasm.md)
 - [../docs/python-integration.md](../docs/python-integration.md)
 
