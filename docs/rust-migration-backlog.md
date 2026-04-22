@@ -109,7 +109,7 @@ enough to be high-value early migration work.
 
 ## Python Sunset Track
 
-- [x] sunset the Python daemon path; `admin.py` now uses Rust control-plane commands only
+- [x] sunset the Python daemon path; `admin_cli.py` now uses Rust control-plane commands only and `admin.py` is only an alias
 - [x] add a Rust-native top-level CLI facade: `rust/bins/browser-harness-cli`
 - [x] make the Rust-native CLI the primary documented/default repo-local interface
 - [x] decide which remaining `helpers.py` conveniences are intentionally legacy versus worth moving to guests/runner
@@ -117,13 +117,16 @@ enough to be high-value early migration work.
   `bhrun cdp-raw` / `bh_guest_sdk::cdp_raw(...)`; `helpers.py` is now
   compatibility-only and remaining conveniences like `drain_events()` and
   screenshot file writing are intentionally legacy.
+- [x] move the stable helper implementation path behind `runner_cli.py`;
+  `helpers.py` now keeps the legacy names plus raw-CDP fallback behavior
 - [x] replace the final public Python entrypoint; `browser-harness` now installs the Rust-native CLI and the Python shell is explicit legacy `browser-harness-py`
 - [x] move repo-owned smoke/verification scripts off `helpers.py`; remaining
   direct `helpers.py` usage is now limited to explicit compatibility coverage
   like `tests/test_rust_mode_contract.py`
 - [x] move repo-owned smoke/verification scripts off `admin.py`; remaining
-  direct `admin.py` usage is now limited to explicit compatibility coverage;
-  the legacy `run.py` shell now imports the Rust-native `admin_cli.py` shim
+  direct `admin.py` usage is now limited to explicit compatibility alias
+  coverage; the legacy `run.py` shell now imports the Rust-native
+  `admin_cli.py` shim
 
 ## Secondary Track: Capability Pull List
 
