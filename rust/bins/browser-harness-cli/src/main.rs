@@ -4,6 +4,7 @@ use std::process::{Command, Stdio};
 
 const ADMIN_COMMANDS: &[&str] = &[
     "create-browser",
+    "list-browsers",
     "stop-browser",
     "list-cloud-profiles",
     "resolve-profile-name",

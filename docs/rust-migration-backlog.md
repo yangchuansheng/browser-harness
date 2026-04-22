@@ -121,6 +121,9 @@ enough to be high-value early migration work.
 - [x] move repo-owned smoke/verification scripts off `helpers.py`; remaining
   direct `helpers.py` usage is now limited to explicit compatibility coverage
   like `tests/test_rust_mode_contract.py`
+- [x] move repo-owned smoke/verification scripts off `admin.py`; remaining
+  direct `admin.py` usage is now limited to the legacy `run.py` shell and
+  explicit compatibility coverage
 
 ## Secondary Track: Capability Pull List
 
