@@ -78,6 +78,10 @@ class RustModeContractTests(unittest.TestCase):
         self.assertIs(self.admin.ensure_daemon, self.admin_alias.ensure_daemon)
         self.assertIs(self.admin.restart_daemon, self.admin_alias.restart_daemon)
 
+    def test_stable_helper_utilities_route_through_runner_cli(self):
+        self.assertEqual(self.helpers.drain_events.__module__, "runner_cli")
+        self.assertEqual(self.helpers.http_get.__module__, "runner_cli")
+
     def test_rust_mode_daemon_lifecycle_contract(self):
         self.assertFalse(self.admin.daemon_alive(self.name))
 
