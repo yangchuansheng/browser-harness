@@ -12,17 +12,20 @@ Current status:
 - first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, low-level input primitives, DOM key dispatch, and file upload
 - remote-browser shutdown parity is implemented in the Rust daemon
 - local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and Python Rust-mode compatibility paths
-- site-dependent domain-skill acceptance now has passing local browser smokes via `DevToolsActivePort`, including the GitHub trending and Reddit post guest slices
-- Browser Use remote remains useful for simple runner/plumbing smokes, but site-dependent guest verification against origins such as GitHub and Reddit is currently best-effort because cloud navigation to those sites has been intermittently unreliable
+- site-dependent domain-skill acceptance now has passing local browser smokes via `DevToolsActivePort`, including the GitHub trending, Reddit post, Product Hunt homepage, Letterboxd popular, Spotify search, and Etsy search guest slices
+- Browser Use remote remains useful for simple runner/plumbing smokes, but site-dependent guest verification against origins such as GitHub, Reddit, Product Hunt, and Letterboxd is currently best-effort because cloud navigation to those sites has been intermittently unreliable
 - the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](../docs/wasm-runner-design.md)
 - `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
 - the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
 - the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
 - `bh-guest-sdk` now also covers typed tab/session control and response waits, with a compiled workflow sample in `guests/rust-tab-response-workflow`
-- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, and `scroll`
+- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `type_text`, `press_key`, `scroll`, and runner-owned `http_get`
 - the first skill-shaped Rust/Wasm guest now exists via `guests/rust-github-trending`, which ports the browser-trending slice of `domain-skills/github/scraping.md`
 - a second skill-shaped Rust/Wasm guest now exists via `guests/rust-reddit-post-scrape`, which ports the browser DOM extraction slice of `domain-skills/reddit/scraping.md`
-- the GitHub REST/API half of that skill still remains dynamic today because `http_get()` has not moved into the runner boundary yet
+- a third skill-shaped Rust/Wasm guest now exists via `guests/rust-producthunt-homepage`, which ports the homepage feed slice of `domain-skills/producthunt/scraping.md` with a `new_tab()`-first flow and a fallback extractor for the current homepage DOM
+- a fourth skill-shaped Rust/Wasm guest now exists via `guests/rust-letterboxd-popular`, which ports the browser-only popular browse slice of `domain-skills/letterboxd/scraping.md`
+- a fifth and sixth browser-first skill-shaped guests now exist via `guests/rust-spotify-search` and `guests/rust-etsy-search`
+- the first HTTP-owned skill-shaped guests now exist via `guests/rust-metacritic-game-scores`, `guests/rust-walmart-search`, and `guests/rust-tradingview-symbol-search`
 
 Compatibility contract:
 
@@ -51,6 +54,9 @@ cargo run --quiet --bin bhrun -- run-guest guests/rust-navigate-and-read/target/
 JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
+JSON
+cargo run --quiet --bin bhrun -- http-get <<'JSON'
+{"url":"https://open.spotify.com/oembed?url=https://open.spotify.com/track/4PTG3Z6ehGkBFwjybzWkR8","timeout":20.0}
 JSON
 cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/persistent_counter.wat
 {"command":"start","config":{"daemon_name":"default","guest_module":"guests/persistent_counter.wat","granted_operations":["wait"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}}
@@ -212,6 +218,18 @@ Local `bhrun` domain-skill guest smokes:
 ```bash
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_github_trending_guest_smoke.py
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_reddit_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_producthunt_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_letterboxd_popular_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_spotify_search_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_etsy_search_guest_smoke.py
+```
+
+Runner-local `http_get` domain-skill guest smokes:
+
+```bash
+python3 scripts/bhrun_metacritic_game_scores_guest_smoke.py
+python3 scripts/bhrun_walmart_search_guest_smoke.py
+python3 scripts/bhrun_tradingview_symbol_search_guest_smoke.py
 ```
 
 Live `bhrun serve-guest` smoke:

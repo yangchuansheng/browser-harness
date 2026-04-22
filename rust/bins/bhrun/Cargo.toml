@@ -7,6 +7,8 @@ license.workspace = true
 [dependencies]
 bh-protocol = { path = "../../crates/bh-protocol" }
 bh-wasm-host = { path = "../../crates/bh-wasm-host" }
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
 wasmtime.workspace = true

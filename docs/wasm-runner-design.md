@@ -120,7 +120,7 @@ Current scaffold goals:
 - define a sample runner configuration
 - define the first guest authoring SDK layer above the raw `bh.call_json` import
 - keep the implementation small until the runtime boundary is more proven
-- keep pure network helpers such as `http_get` outside the guest boundary until the runner-side transport story is intentionally designed
+- keep pure network helpers narrow and capability-gated; `http_get` is now live as the first runner-owned transport utility for HTTP-only guests
 
 Current commands:
 
@@ -151,6 +151,9 @@ cargo run --quiet --bin bhrun -- run-guest guests/rust-reddit-post-scrape/target
 JSON
 cargo run --quiet --bin bhrun -- wait <<'JSON'
 {"duration_ms":1}
+JSON
+cargo run --quiet --bin bhrun -- http-get <<'JSON'
+{"url":"https://backend.metacritic.com/games/metacritic/the-last-of-us/web?componentName=product&componentType=Product&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u","timeout":20.0}
 JSON
 cat <<'NDJSON' | cargo run --quiet --bin bhrun -- serve-guest guests/persistent_counter.wat
 {"command":"start","config":{"daemon_name":"default","guest_module":"guests/persistent_counter.wat","granted_operations":["wait"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}}
@@ -239,7 +242,15 @@ onto the guest boundary.
 `guests/rust-reddit-post-scrape` is the next skill-shaped guest, porting the
 browser DOM extraction slice of `domain-skills/reddit/scraping.md` onto the
 same helper surface.
-Those two guest slices now have passing local browser acceptance through
+`guests/rust-producthunt-homepage` is the third domain-skill-shaped guest,
+porting the Product Hunt homepage feed from `domain-skills/producthunt/scraping.md`
+onto the same guest boundary with a `new_tab()`-first flow and a fallback
+extractor for the current homepage DOM.
+`guests/rust-letterboxd-popular` is the fourth domain-skill-shaped guest,
+porting the popular browse page from `domain-skills/letterboxd/scraping.md`
+onto the same guest boundary while intentionally leaving the fast `http_get`
+film/profile paths in the dynamic layer.
+Those four guest slices now have passing local browser acceptance through
 `DevToolsActivePort`, which is the primary gate for site-dependent skill
 migration right now.
 `serve-guest` is the first persistent runner preview. It keeps one Wasm
@@ -269,16 +280,16 @@ That helper is now exercised through `bh-guest-sdk` in a compiled Rust/Wasm
 workflow guest, not only through direct CLI smokes.
 `wait-for-console` is the first console/debugging helper layered on the same event contract.
 `wait-for-dialog` is the first dialog helper layered on the same event contract.
-Pure HTTP utilities such as `http_get` still remain intentionally outside the
-guest boundary today, which is why the GitHub guest currently ports only the
-browser-trending half of that skill.
+`http_get` is now the first pure-network utility on the guest boundary, and it
+already powers the public Metacritic, Walmart, and TradingView guests without
+needing a browser session.
 Browser Use cloud remains useful for simple runner and daemon plumbing smokes,
-but external-site guest acceptance against origins such as GitHub and Reddit is
-currently best-effort because cloud navigation to those sites has intermittently
-failed.
-The next migration target should therefore stay browser-first and public, such
-as `domain-skills/producthunt/scraping.md`, rather than API-first skills like
-Hacker News or dev.to that would add less signal to the guest boundary.
+but external-site guest acceptance against origins such as GitHub, Reddit,
+Product Hunt, Letterboxd, Spotify, and Etsy is currently best-effort because
+cloud navigation to those sites has intermittently failed.
+That is why local browser acceptance remains the primary gate for site-shaped
+browser guests even though the current public HTTP-owned guest wave is now
+complete.
 
 ## Current Event Contract
 

@@ -1,0 +1,15 @@
+[package]
+name = "rust-spotify-search-guest"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+name = "rust_spotify_search_guest"
+
+[dependencies]
+bh-guest-sdk = { path = "../../crates/bh-guest-sdk" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[workspace]

@@ -14,13 +14,16 @@ use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
     operation_names, ClickRequest, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
     EnsureRealTabRequest, GotoRequest, GuestCallRecord, GuestRunResult, GuestServeRequest,
-    GuestServeResponse, IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest,
-    NewTabResult, PageInfoRequest, PressKeyRequest, RunnerConfig, ScrollRequest, SwitchTabRequest,
-    SwitchTabResult, TabSummary, TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest,
-    WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest,
-    WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine, WatchEventsRequest,
+    GuestServeResponse, HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest,
+    NewTabRequest, NewTabResult, PageInfoRequest, PressKeyRequest, RunnerConfig, ScrollRequest,
+    SwitchTabRequest, SwitchTabResult, TabSummary, TypeTextRequest, WaitForConsoleRequest,
+    WaitForDialogRequest, WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest,
+    WaitForLoadRequest, WaitForResponseRequest, WaitRequest, WaitResult, WatchEventsLine,
+    WatchEventsRequest,
 };
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde_json::{json, Value};
+use tokio::runtime::Builder;
 use wasmtime::{Caller, Engine, Linker, Module, Store, TypedFunc};
 
 const DEFAULT_DAEMON_READ_TIMEOUT: Duration = Duration::from_secs(30);
@@ -28,7 +31,7 @@ const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|scroll|wait|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|scroll|wait|http-get|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
@@ -63,7 +66,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live scroll=live wait=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live scroll=live wait=live http_get=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -160,6 +163,11 @@ where
         Some("wait") => {
             let request = read_optional_json::<WaitRequest, _>(&mut stdin)?.unwrap_or_default();
             let result = wait(request);
+            write_json(&mut stdout, &result)
+        }
+        Some("http-get") => {
+            let request = read_json::<HttpGetRequest, _>(&mut stdin)?;
+            let result = http_get(request)?;
             write_json(&mut stdout, &result)
         }
         Some("current-session") => {
@@ -271,6 +279,52 @@ fn wait(request: WaitRequest) -> WaitResult {
     WaitResult {
         elapsed_ms: start.elapsed().as_millis() as u64,
     }
+}
+
+fn http_get(request: HttpGetRequest) -> Result<String, String> {
+    let request = request.normalized();
+    let runtime = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|err| format!("build tokio runtime for http_get: {err}"))?;
+    runtime.block_on(async move {
+        let timeout = Duration::from_secs_f64(request.timeout);
+        let client = reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|err| format!("build http client: {err}"))?;
+        let headers = merged_http_headers(request.headers.as_ref())?;
+        let response = client
+            .get(&request.url)
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|err| format!("http GET {}: {err}", request.url))?;
+        let response = response
+            .error_for_status()
+            .map_err(|err| format!("http GET {}: {err}", request.url))?;
+        response
+            .text()
+            .await
+            .map_err(|err| format!("decode HTTP response {}: {err}", request.url))
+    })
+}
+
+fn merged_http_headers(
+    extra_headers: Option<&std::collections::BTreeMap<String, String>>,
+) -> Result<HeaderMap, String> {
+    let mut headers = HeaderMap::new();
+    headers.insert(USER_AGENT, HeaderValue::from_static("Mozilla/5.0"));
+    if let Some(extra_headers) = extra_headers {
+        for (name, value) in extra_headers {
+            let name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|err| format!("invalid HTTP header name {name:?}: {err}"))?;
+            let value = HeaderValue::from_str(value)
+                .map_err(|err| format!("invalid HTTP header value for {name}: {err}"))?;
+            headers.insert(name, value);
+        }
+    }
+    Ok(headers)
 }
 
 #[derive(Debug)]
@@ -976,6 +1030,9 @@ fn dispatch_guest_operation(
     {
         return Err(format!("operation denied by runner config: {operation}"));
     }
+    if operation == "http_get" && !state.config.allow_http {
+        return Err("operation denied by runner config: http_get disabled".to_string());
+    }
 
     let request = inject_daemon_name(request_text, &state.config.daemon_name)?;
     let response = match operation {
@@ -1017,6 +1074,7 @@ fn dispatch_guest_operation(
         }
         "scroll" => serialize_guest_result(scroll(parse_request_value(&request)?), "scroll")?,
         "wait" => serialize_guest_result(Ok(wait(parse_request_value(&request)?)), "wait")?,
+        "http_get" => serialize_guest_result(http_get(parse_request_value(&request)?), "http_get")?,
         "wait_for_event" => serialize_guest_result(
             wait_for_event(parse_request_value(&request)?),
             "wait_for_event",
@@ -1208,7 +1266,7 @@ mod tests {
     use super::{
         click_with_sender, current_session_with_sender, current_tab_with_sender,
         daemon_read_timeout, dispatch_guest_operation, ensure_real_tab_with_sender,
-        goto_with_sender, iframe_target_with_sender, inject_daemon_name, js_with_sender,
+        goto_with_sender, http_get, iframe_target_with_sender, inject_daemon_name, js_with_sender,
         list_tabs_with_sender, new_tab_with_sender, page_info_with_sender, press_key_with_sender,
         run_cli, scroll_with_sender, serialize_guest_result, switch_tab_with_sender,
         type_text_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
@@ -1217,19 +1275,22 @@ mod tests {
         META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
         META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_WAIT_FOR_LOAD,
     };
+    use std::collections::BTreeMap;
     use std::collections::VecDeque;
-    use std::io;
+    use std::io::{self, Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
     use std::time::Duration;
 
     use bh_protocol::DaemonRequest;
     use bh_wasm_host::{
         default_runner_config, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
         CurrentTabRequest, EnsureRealTabRequest, EventFilter, GotoRequest, GuestServeResponse,
-        IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest,
-        PressKeyRequest, RunnerConfig, ScrollRequest, SwitchTabRequest, TypeTextRequest,
-        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
-        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WaitRequest,
-        WatchEventsRequest,
+        HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest,
+        PageInfoRequest, PressKeyRequest, RunnerConfig, ScrollRequest, SwitchTabRequest,
+        TypeTextRequest, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
+        WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest,
+        WaitRequest, WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -1238,6 +1299,40 @@ mod tests {
             "{}/../../guests/persistent_counter.wat",
             env!("CARGO_MANIFEST_DIR")
         )
+    }
+
+    fn spawn_http_fixture_server(
+        response_body: &'static str,
+    ) -> (String, thread::JoinHandle<String>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind HTTP fixture");
+        let address = listener.local_addr().expect("local addr");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept connection");
+            let mut request = Vec::new();
+            let mut chunk = [0u8; 1024];
+            loop {
+                let read = stream.read(&mut chunk).expect("read request");
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&chunk[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n{}",
+                response_body.len(),
+                response_body
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("write response");
+            String::from_utf8(request).expect("request utf-8")
+        });
+
+        (format!("http://{address}"), handle)
     }
 
     #[test]
@@ -1386,6 +1481,26 @@ mod tests {
     fn wait_returns_elapsed_time() {
         let result = wait(WaitRequest { duration_ms: 1 });
         assert!(result.elapsed_ms >= 1);
+    }
+
+    #[test]
+    fn http_get_merges_default_and_custom_headers() {
+        let (base_url, handle) = spawn_http_fixture_server("fixture-body");
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Test".to_string(), "value".to_string());
+
+        let body = http_get(HttpGetRequest {
+            url: format!("{base_url}/headers"),
+            headers: Some(headers),
+            timeout: 5.0,
+        })
+        .expect("http get body");
+        let request_text = handle.join().expect("server request");
+
+        assert_eq!(body, "fixture-body");
+        assert!(request_text.starts_with("GET /headers HTTP/1.1\r\n"));
+        assert!(request_text.contains("user-agent: Mozilla/5.0\r\n"));
+        assert!(request_text.contains("x-test: value\r\n"));
     }
 
     #[test]
@@ -1887,6 +2002,7 @@ mod tests {
         assert!(text.contains("press_key=live"));
         assert!(text.contains("scroll=live"));
         assert!(text.contains("wait=live"));
+        assert!(text.contains("http_get=live"));
         assert!(text.contains("current_session=live"));
         assert!(text.contains("wait_for_event=live"));
         assert!(text.contains("watch_events=live"));
@@ -2447,6 +2563,95 @@ mod tests {
 
         let text = serde_json::to_string(&result).expect("serialize result");
         assert_eq!(text, r#"{"session_id":"session-9"}"#);
+    }
+
+    #[test]
+    fn cli_http_get_prints_json_result() {
+        let (base_url, handle) = spawn_http_fixture_server("cli-body");
+        let input = serde_json::to_vec(&json!({
+            "url": format!("{base_url}/cli"),
+            "headers": {"X-Test":"cli"},
+            "timeout": 5.0
+        }))
+        .expect("serialize request");
+        let mut stdout = Vec::new();
+
+        run_cli(
+            vec!["http-get".to_string()].into_iter(),
+            io::Cursor::new(input),
+            &mut stdout,
+        )
+        .expect("http-get cli");
+
+        let request_text = handle.join().expect("server request");
+        let body: String = serde_json::from_slice(&stdout).expect("parse stdout");
+
+        assert_eq!(body, "cli-body");
+        assert!(request_text.contains("GET /cli HTTP/1.1\r\n"));
+        assert!(request_text.contains("x-test: cli\r\n"));
+    }
+
+    #[test]
+    fn dispatch_guest_operation_rejects_http_get_when_http_disabled() {
+        let mut state = GuestHostState {
+            config: RunnerConfig {
+                daemon_name: "runner".to_string(),
+                guest_module: None,
+                granted_operations: vec!["http_get".to_string()],
+                allow_http: false,
+                allow_raw_cdp: false,
+                persistent_guest_state: true,
+            },
+            calls: Vec::new(),
+            error: None,
+        };
+
+        let err =
+            dispatch_guest_operation(&mut state, "http_get", r#"{"url":"https://example.com"}"#)
+                .expect_err("http_get should be denied");
+
+        assert_eq!(err, "operation denied by runner config: http_get disabled");
+        assert!(state.calls.is_empty());
+    }
+
+    #[test]
+    fn dispatch_guest_operation_executes_http_get_when_enabled() {
+        let (base_url, handle) = spawn_http_fixture_server("guest-body");
+        let mut state = GuestHostState {
+            config: RunnerConfig {
+                daemon_name: "runner".to_string(),
+                guest_module: None,
+                granted_operations: vec!["http_get".to_string()],
+                allow_http: true,
+                allow_raw_cdp: false,
+                persistent_guest_state: true,
+            },
+            calls: Vec::new(),
+            error: None,
+        };
+
+        let response = dispatch_guest_operation(
+            &mut state,
+            "http_get",
+            &format!(
+                r#"{{"url":"{base_url}/guest","headers":{{"X-Test":"guest"}},"timeout":5.0}}"#
+            ),
+        )
+        .expect("dispatch http_get");
+        let request_text = handle.join().expect("server request");
+        let body: String = serde_json::from_slice(&response).expect("parse response");
+
+        assert_eq!(body, "guest-body");
+        assert!(request_text.contains("GET /guest HTTP/1.1\r\n"));
+        assert!(request_text.contains("x-test: guest\r\n"));
+        assert_eq!(state.calls.len(), 1);
+        assert_eq!(state.calls[0].operation, "http_get");
+        let expected_url = format!("{base_url}/guest");
+        assert_eq!(
+            state.calls[0].request.get("url").and_then(Value::as_str),
+            Some(expected_url.as_str())
+        );
+        assert_eq!(state.calls[0].response.as_str(), Some("guest-body"));
     }
 
     fn run_wait_for_event_cli<F>(input: &str, drain: F) -> Result<WaitForEventResult, String>
