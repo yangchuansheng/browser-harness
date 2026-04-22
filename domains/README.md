@@ -38,9 +38,17 @@ Guest-backed sites:
 
 Knowledge-only sites:
 
+- [`archive-org/skill.md`](archive-org/skill.md)
+- [`wayback-machine/skill.md`](wayback-machine/skill.md)
+- [`arxiv/skill.md`](arxiv/skill.md)
+- [`arxiv-bulk/skill.md`](arxiv-bulk/skill.md)
 - [`amazon/skill.md`](amazon/skill.md)
+- [`crossref/skill.md`](crossref/skill.md)
 - [`ebay/skill.md`](ebay/skill.md)
 - [`stackoverflow/skill.md`](stackoverflow/skill.md)
+- [`open-library/skill.md`](open-library/skill.md)
+- [`openalex/skill.md`](openalex/skill.md)
+- [`pubmed/skill.md`](pubmed/skill.md)
 - [`tiktok/skill.md`](tiktok/skill.md)
 - [`weather/skill.md`](weather/skill.md)
 - [`linkedin/skill.md`](linkedin/skill.md) (stub; guide not written yet)
