@@ -88,8 +88,8 @@ archived repo-local shim modules.
 
 ## Legacy compatibility
 
-The deprecated helper-loaded shell, shim modules, and import aliases now live
-under `archive/python-legacy/` for historical reference only.
+The deprecated helper-loaded shell, shim modules, and import aliases have been
+removed from the repository.
 
 ## Search first
 
@@ -172,9 +172,8 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 - **Connect to the user's running Chrome.** Don't launch your own browser.
 - **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
 - **The Rust CLI stays thin.** `browser-harness` is only a facade over `bhctl` and `bhrun`.
-- **Legacy helpers are archived.** Use `browser-harness`, `bhrun`, `bhctl`,
-  or the thin subprocess wrappers in `docs/python-cli-helpers.md`. The old
-  helper-loaded shell and shim modules live under `archive/python-legacy/`.
+- **Legacy helpers are removed.** Use `browser-harness`, `bhrun`, `bhctl`, or
+  the thin subprocess wrappers in `docs/python-cli-helpers.md`.
 - **Don't add a manager layer.** No retries framework, session manager, daemon supervisor, config system, or logging framework.
 
 ## Architecture

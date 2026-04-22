@@ -7,7 +7,7 @@ Rust-host-plus-WASM-guest direction.
 
 Current status:
 
-- The runtime rewrite is complete: Rust owns the daemon/runtime core and the remaining repo-local Python shims have been archived
+- The runtime rewrite is complete: Rust owns the daemon/runtime core and the repo no longer carries the old Python shim layer
 - Rust daemon connects to local or remote CDP and serves the existing Unix socket contract
 - first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, viewport control, PDF export, cookie read/write, download configuration, low-level input primitives, drag primitives, DOM key dispatch, and file upload
 - remote-browser shutdown parity is implemented in the Rust daemon
@@ -164,8 +164,7 @@ JSON
 ```
 
 Optional Python wrappers should now call `browser-harness` through the thin
-helpers in [docs/python-cli-helpers.md](../docs/python-cli-helpers.md). The old
-shim files live under `archive/python-legacy/`.
+helpers in [docs/python-cli-helpers.md](../docs/python-cli-helpers.md).
 
 Live remote smoke test:
 

@@ -163,6 +163,6 @@ instead of the archived repo-local shims.
 Current source-tree policy:
 
 - the active source tree ships no repo-local Python shim
-- the deprecated shell/import aliases live in `archive/python-legacy/`
+- the deprecated shell/import aliases have been removed
 - new setup, verification, and guest flows should use `browser-harness`,
   `bhrun`, or `bhsmoke`
