@@ -7,7 +7,6 @@ The Rust-native path is:
 - `bhrun upload-file`
 - `browser-harness upload-file`
 - `bh_guest_sdk::upload_file(...)`
-- `scripts._runner_cli.upload_file(...)` for repo-local Python examples
 
 ## Preferred Flow
 
@@ -21,16 +20,16 @@ The Rust-native path is:
 
 ## Example
 
-```python
-from scripts._runner_cli import upload_file
-
-upload_file("#resume", ["/tmp/resume.pdf"])
+```bash
+browser-harness upload-file <<'JSON'
+{"daemon_name":"default","selector":"#resume","files":["/tmp/resume.pdf"]}
+JSON
 ```
 
 Iframe-scoped example:
 
 ```bash
-bhrun upload-file <<'JSON'
+browser-harness upload-file <<'JSON'
 {"daemon_name":"default","selector":"input[type=file]","files":["/tmp/resume.pdf"],"target_id":"<iframe-target-id>"}
 JSON
 ```

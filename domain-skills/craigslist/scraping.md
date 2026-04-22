@@ -136,7 +136,7 @@ URL pattern: `https://{city}.craigslist.org/{area}/{category_code}/d/{slug}/{pos
 
 ```python
 import re
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def search_craigslist(city, category, query, min_price=None, max_price=None):
     params = f"query={query.replace(' ', '+')}&sort=rel"
@@ -284,7 +284,7 @@ structured data (price as float, geo coordinates) without regex parsing of HTML:
 
 ```python
 import json, re
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 html = http_get("https://sfbay.craigslist.org/search/sss?query=laptop", headers={"User-Agent": "Mozilla/5.0"})
 ld_blocks = re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL)

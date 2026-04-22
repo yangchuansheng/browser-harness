@@ -7,7 +7,6 @@ The Rust-native path is:
 - `bhrun print-pdf`
 - `browser-harness print-pdf`
 - `bh_guest_sdk::print_pdf(landscape)`
-- `scripts._runner_cli.print_pdf(...)`
 
 ## Preferred Path
 
@@ -22,15 +21,9 @@ That is the right tool when:
 
 ## Example
 
-```python
-from scripts._runner_cli import print_pdf
-
-print_pdf("/tmp/page.pdf", landscape=False)
-```
-
 ```bash
-bhrun print-pdf <<'JSON'
-{"daemon_name":"default","landscape":true}
+browser-harness print-pdf <<'JSON' | jq -r . | base64 --decode > /tmp/page.pdf
+{"daemon_name":"default","landscape":false}
 JSON
 ```
 

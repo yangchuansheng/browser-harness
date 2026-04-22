@@ -82,20 +82,14 @@ and map to:
 - `browser-harness list-local-profiles`
 - `browser-harness sync-local-profile`
 
-The old `start_remote_daemon(...)` and Python admin helpers remain available
-only in the legacy shell.
+If you intentionally want Python around the Rust CLI, use the small
+`subprocess` wrappers in `docs/python-cli-helpers.md`. Do not depend on
+archived repo-local shim modules.
 
 ## Legacy compatibility
 
-Use this only when you intentionally need the old helper-loaded shell:
-
-- `python3 run.py` (deprecated repo-local shell; installed packages no longer ship it)
-- `runner_cli.py` and `admin_cli.py` (repo-local Python compatibility shims)
-- `helpers.py` and `admin.py` (deprecated import paths; warn on import)
-- Python admin helpers like `start_remote_daemon(...)`
-
-If a legacy script needs to stay quiet for now, set
-`BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1`.
+The deprecated helper-loaded shell, shim modules, and import aliases now live
+under `archive/python-legacy/` for historical reference only.
 
 ## Search first
 
@@ -161,7 +155,9 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 
 - **Screenshots first**: use `screenshot()` to understand the current page quickly, find visible targets, and decide whether you need a click, a selector, or more navigation.
 - **Clicking**: `screenshot()` → look → `click(x, y)` → `screenshot()` again to verify the result. Coordinate clicks pass through iframes/shadow/cross-origin at the compositor level.
-- **Bulk HTTP**: `http_get(url)` + `ThreadPoolExecutor`. No browser for static pages (249 Netflix pages in 2.8s).
+- **Bulk HTTP**: `browser-harness http-get` or a thin subprocess wrapper +
+  `ThreadPoolExecutor`. No browser for static pages (249 Netflix pages in
+  2.8s).
 - **After goto**: `wait_for_load()`.
 - **Wrong/stale tab**: `ensure_real_tab()`. Use it when the current tab is stale or internal; the daemon also auto-recovers from stale sessions on the next call.
 - **Verification**: `print(page_info())` is the simplest "is this alive?" check, but screenshots are the default way to verify whether a visible action actually worked.
@@ -176,7 +172,9 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 - **Connect to the user's running Chrome.** Don't launch your own browser.
 - **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
 - **The Rust CLI stays thin.** `browser-harness` is only a facade over `bhctl` and `bhrun`.
-- **Legacy helpers stay compatibility-only.** Stable browser helper calls now route through `runner_cli.py`; `helpers.py` is deprecated and keeps only the legacy names plus raw-CDP fallback behavior. Daemon/bootstrap and remote session admin live in `admin_cli.py`; `admin.py` is deprecated and only a compatibility alias now.
+- **Legacy helpers are archived.** Use `browser-harness`, `bhrun`, `bhctl`,
+  or the thin subprocess wrappers in `docs/python-cli-helpers.md`. The old
+  helper-loaded shell and shim modules live under `archive/python-legacy/`.
 - **Don't add a manager layer.** No retries framework, session manager, daemon supervisor, config system, or logging framework.
 
 ## Architecture

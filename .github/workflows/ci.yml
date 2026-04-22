@@ -20,11 +20,6 @@ jobs:
       - name: Check Out
         uses: actions/checkout@v4
 
-      - name: Set Up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Set Up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -35,12 +30,6 @@ jobs:
 
       - name: Test Rust Workspace
         run: cargo test --workspace --manifest-path rust/Cargo.toml
-
-      - name: Test Python Compatibility Contract
-        run: python -m unittest tests/test_rust_mode_contract.py
-
-      - name: Byte-Compile Python Files
-        run: python -m py_compile run.py helpers.py admin.py admin_cli.py runner_cli.py tests/test_rust_mode_contract.py scripts/*.py
 
       - name: Install Rust CLI Binaries
         run: cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install --root "${RUNNER_TEMP}/browser-harness"

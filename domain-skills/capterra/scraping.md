@@ -11,7 +11,7 @@ Capterra serves a fully structured Markdown representation of every page to AI b
 With the default `Mozilla/5.0` UA (or any realistic browser UA), Capterra returns HTTP 403 with `Cf-Mitigated: challenge` — Cloudflare blocks all browser UA requests. There is no bypass via HTTP; those pages require a real browser session.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re, json
 
 # Works everywhere:
@@ -32,7 +32,7 @@ print(m.group(1), m.group(2))   # 4.7  24059
 All key metrics — overall rating, review count, sub-ratings, pagination — come from the `/reviews/` endpoint in a single request.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re, json
 
 def get_product_summary(product_id, slug):
@@ -97,7 +97,7 @@ print(json.dumps(summary, indent=2))
 25 reviews per page. Use `?page=N` for pagination.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re
 
 def get_reviews_page(product_id, slug, page=1):
@@ -177,7 +177,7 @@ print(result["reviews"][0])
 10 pages in ~2s with 5 workers. No rate limiting observed during testing.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -234,7 +234,7 @@ print(f"Fetched {len(reviews)} reviews")
 ### Get a product's full overview (rating breakdown, sentiment, pricing)
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re, json
 
 def get_product_overview(product_id, slug):
@@ -304,7 +304,7 @@ print(json.dumps(overview, indent=2))
 Each category page returns up to 40 products on page 1, then ~24–25 per subsequent page. Pagination works via `?page=N`.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re
 
 def get_category_products(category_slug, page=1):
@@ -354,7 +354,7 @@ for p in products[:3]:
 ### Get all 1000+ software categories
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re
 
 def get_all_categories():

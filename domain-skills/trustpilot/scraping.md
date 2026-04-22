@@ -14,7 +14,7 @@ metadata, all 20 reviews for the current page, pagination info, and rating distr
 
 ```python
 import re, json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def get_trustpilot_page(domain, page=1, stars=None, languages='en', verified=False):
     """
@@ -136,7 +136,7 @@ This cap applies per filter combination, so `stars=1` gives 200 reviews, `stars=
 
 ```python
 import re, json, time
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def collect_reviews(domain, stars=None, languages='en', max_pages=10, delay=0.5):
     """
@@ -298,7 +298,7 @@ Consumer API, so if you have an API key, you can use it directly without a separ
 
 ```python
 import re, json, time
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def scrape_trustpilot(domain, max_unique=200):
     """

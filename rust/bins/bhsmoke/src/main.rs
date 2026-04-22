@@ -28,6 +28,7 @@ const SCENARIOS: &[&str] = &[
     "letterboxd-popular-guest",
     "spotify-search-guest",
     "etsy-search-guest",
+    "2048-guest",
     "metacritic-game-scores-guest",
     "walmart-search-guest",
     "tradingview-symbol-search-guest",
@@ -65,6 +66,9 @@ const PRODUCTHUNT_TARGET_URL_PREFIX: &str = "https://www.producthunt.com";
 const LETTERBOXD_TARGET_URL_PREFIX: &str = "https://letterboxd.com/films/popular/";
 const SPOTIFY_TARGET_URL_PREFIX: &str = "https://open.spotify.com/search";
 const ETSY_TARGET_URL_PREFIX: &str = "https://www.etsy.com/search";
+const GUEST_2048_TARGET_URL: &str = "https://play2048.co/?via=bhrun-2048-guest-smoke";
+const GUEST_2048_TARGET_URL_PREFIX: &str = "https://play2048.co/";
+const GUEST_2048_CLASSIC_URL_PREFIX: &str = "https://classic.play2048.co/";
 const METACRITIC_PRODUCT_URL: &str =
     "https://backend.metacritic.com/games/metacritic/the-last-of-us/web?componentName=product&componentType=Product&apiKey=1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u";
 const METACRITIC_USER_URL: &str =
@@ -128,6 +132,35 @@ const ETSY_DIAGNOSTIC_SCRIPT: &str = r#"JSON.stringify({
     title: el.querySelector('h3, h2')?.innerText?.trim() || null
   }))
 })"#;
+const GUEST_2048_SCORE_SCRIPT: &str = r#"JSON.stringify((() => {
+  const bodyText = document.body ? (document.body.innerText || "") : "";
+  const lines = bodyText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const parseLabelValue = (label) => {
+    const index = lines.findIndex((line) => line.toUpperCase() === label);
+    if (index < 0 || index + 1 >= lines.length) {
+      return 0;
+    }
+    const digits = String(lines[index + 1] || "").replace(/[^\d]/g, "");
+    return digits ? Number.parseInt(digits, 10) : 0;
+  };
+  const hook = window.__bh2048Hook || null;
+  const latestUpdate = hook && hook.latestUpdate ? hook.latestUpdate : null;
+  const hookScore = latestUpdate && Number.isFinite(latestUpdate.score) ? latestUpdate.score : null;
+  const gm = window.__bhClassicGM || null;
+  const gmScore = gm && Number.isFinite(gm.score) ? gm.score : null;
+  const parsedScore = parseLabelValue("SCORE");
+  const parsedBest = parseLabelValue("BEST");
+  return {
+    url: location.href,
+    score: gmScore ?? hookScore ?? parsedScore,
+    best: parsedBest,
+    gmScore,
+    hookScore,
+    adTextPresent: /A Message from Samsung|LEARN MORE|Get the App/i.test(bodyText),
+    gameOver: /\bgame over\b/i.test(bodyText) || !!(gm && gm.over),
+    bodyHead: bodyText.slice(0, 500),
+  };
+})())"#;
 
 fn main() {
     match run() {
@@ -176,6 +209,7 @@ fn run() -> Result<Value, String> {
         "letterboxd-popular-guest" => smoke_letterboxd_popular_guest(),
         "spotify-search-guest" => smoke_spotify_search_guest(),
         "etsy-search-guest" => smoke_etsy_search_guest(),
+        "2048-guest" => smoke_2048_guest(),
         "metacritic-game-scores-guest" => smoke_metacritic_game_scores_guest(),
         "walmart-search-guest" => smoke_walmart_search_guest(),
         "tradingview-symbol-search-guest" => smoke_tradingview_symbol_search_guest(),
@@ -3098,6 +3132,181 @@ fn smoke_etsy_search_guest() -> Result<Value, String> {
     finalize_smoke(&options, remote_browser, &mut result, run_result)
 }
 
+fn smoke_2048_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-2048-guest-smoke", BrowserMode::Local)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let target_score = parse_env_u64("BU_2048_TARGET", 512)?;
+    let target_score_u32 =
+        u32::try_from(target_score).map_err(|_| "BU_2048_TARGET is too large".to_string())?;
+    let mut result = result_map(&options);
+    let guest_manifest = rust_2048_guest_manifest_path();
+    let default_guest_path = rust_2048_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "target_url".into(),
+        Value::String(GUEST_2048_TARGET_URL.to_string()),
+    );
+    result.insert("target_score".into(), Value::from(target_score));
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "2048 autoplay",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let name = options.name.as_str();
+        result.insert("initial_goto".into(), goto(name, GUEST_2048_TARGET_URL)?);
+        result.insert("loaded".into(), Value::Bool(wait_for_load(name)?));
+        result.insert(
+            "warm_wait".into(),
+            runner_json(
+                "wait",
+                Some(named_payload(name, json!({"duration_ms": 3000}))?),
+                Duration::from_secs(10),
+            )?,
+        );
+
+        let seed_expression = format!(
+            "localStorage.setItem('bh2048GuestTarget', {}); 'ok'",
+            serde_json::to_string(&target_score_u32.to_string())
+                .map_err(|err| format!("serialize 2048 target string: {err}"))?
+        );
+        result.insert(
+            "seed_target".into(),
+            runner_json(
+                "js",
+                Some(named_payload(name, json!({"expression": seed_expression}))?),
+                Duration::from_secs(10),
+            )?,
+        );
+        let pre_guest_score = parse_json_string(
+            &runner_json(
+                "js",
+                Some(named_payload(
+                    name,
+                    json!({"expression": GUEST_2048_SCORE_SCRIPT}),
+                )?),
+                Duration::from_secs(10),
+            )?,
+            "2048 pre-guest score payload",
+        )?;
+        result.insert("pre_guest_page_score".into(), pre_guest_score.clone());
+
+        let mut config = build_guest_config(
+            name,
+            &guest_path,
+            &[
+                "cdp_raw",
+                "goto",
+                "wait_for_load",
+                "wait",
+                "page_info",
+                "js",
+                "press_key",
+            ],
+            true,
+        )?;
+        config
+            .as_object_mut()
+            .ok_or_else(|| "guest config was not a JSON object".to_string())?
+            .insert("allow_raw_cdp".into(), Value::Bool(true));
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(180),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        validate_guest_result_success(&guest_run, "guest run")?;
+
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+        result.insert(
+            "used_press_key".into(),
+            Value::Bool(operations.iter().any(|operation| operation == "press_key")),
+        );
+        if operations.first().map(String::as_str) != Some("cdp_raw") {
+            return Err(format!(
+                "2048 guest did not start with cdp_raw hook install: {operations:?}"
+            ));
+        }
+        for required in ["goto", "wait_for_load", "wait", "js"] {
+            if !operations.iter().any(|operation| operation == required) {
+                return Err(format!(
+                    "2048 guest never called {required}: {operations:?}"
+                ));
+            }
+        }
+
+        let page_after_guest = page_info(name)?;
+        let page_url = page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        result.insert("page_after_guest".into(), page_after_guest);
+        let score_payload = parse_json_string(
+            &runner_json(
+                "js",
+                Some(named_payload(
+                    name,
+                    json!({"expression": GUEST_2048_SCORE_SCRIPT}),
+                )?),
+                Duration::from_secs(10),
+            )?,
+            "2048 score payload",
+        )?;
+        result.insert("page_score".into(), score_payload.clone());
+
+        if !page_url.starts_with(GUEST_2048_TARGET_URL_PREFIX)
+            && !page_url.starts_with(GUEST_2048_CLASSIC_URL_PREFIX)
+        {
+            return Err(format!("guest ended on an unexpected 2048 URL: {page_url}"));
+        }
+
+        let initial_score = pre_guest_score
+            .get("score")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        let final_score = score_payload
+            .get("score")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        result.insert(
+            "score_delta".into(),
+            Value::from(final_score.saturating_sub(initial_score)),
+        );
+        if final_score < target_score {
+            return Err(format!(
+                "guest did not reach the requested score: {final_score} < {target_score}"
+            ));
+        }
+        if score_payload
+            .get("adTextPresent")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err(format!(
+                "guest left obvious ad text on the page: {score_payload}"
+            ));
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
 fn smoke_metacritic_game_scores_guest() -> Result<Value, String> {
     let name =
         env::var("BU_NAME").unwrap_or_else(|_| "bhrun-metacritic-game-scores-guest-smoke".into());
@@ -3628,6 +3837,16 @@ fn rust_etsy_search_guest_manifest_path() -> PathBuf {
 fn rust_etsy_search_guest_default_path() -> PathBuf {
     repo_root().join(
         "rust/guests/rust-etsy-search/target/wasm32-unknown-unknown/release/rust_etsy_search_guest.wasm",
+    )
+}
+
+fn rust_2048_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-2048-autoplay/Cargo.toml")
+}
+
+fn rust_2048_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-2048-autoplay/target/wasm32-unknown-unknown/release/rust_2048_autoplay_guest.wasm",
     )
 }
 

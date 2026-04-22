@@ -8,7 +8,7 @@
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Step 1: search → get PMIDs
 search = json.loads(http_get(
@@ -45,7 +45,7 @@ Use **EFetch XML** when you need: full abstract text, MeSH terms, complete autho
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -92,7 +92,7 @@ Boolean operators: `AND`, `OR`, `NOT`. Phrase search: `"exact phrase"[Title]`.
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
@@ -132,7 +132,7 @@ Use this for full abstracts, complete author names, MeSH terms, structured abstr
 
 ```python
 import json, xml.etree.ElementTree as ET
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 raw = http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -228,7 +228,7 @@ When `count` exceeds `retmax` (max 10 000), use server-side history to paginate 
 
 ```python
 import json, xml.etree.ElementTree as ET
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Step 1: ESearch with usehistory=y — NCBI holds result set on server
 search = json.loads(http_get(
@@ -260,7 +260,7 @@ for start in range(0, min(total, 1000), batch_size):  # cap at 1000 for demo
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?retmode=json"
@@ -276,7 +276,7 @@ Get PubMed-specific metadata (field list, link list):
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 data = json.loads(http_get(
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?db=pubmed&retmode=json"
@@ -298,7 +298,7 @@ ELink connects a PubMed record to associated data in other NCBI databases. The `
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Link a PMID to its free full-text in PMC (if open access)
 # linkname=pubmed_pmc — may also hit the server outage; check error field
