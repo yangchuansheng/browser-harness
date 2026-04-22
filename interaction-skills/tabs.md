@@ -42,6 +42,6 @@ JSON
 
 The tab/session helpers are already exercised by:
 
-- `scripts/bhrun_tab_response_guest_smoke.py`
+- `rust/bins/bhsmoke` with the `tab-response-guest` scenario
 - `scripts/bhrun_github_trending_guest_smoke.py`
 - `scripts/bhrun_letterboxd_popular_guest_smoke.py`

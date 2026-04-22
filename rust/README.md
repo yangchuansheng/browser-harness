@@ -252,8 +252,9 @@ Live `bhrun` guest smokes:
 BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- guest-run
 BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- guest-run
 BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/target/wasm32-unknown-unknown/release/rust_navigate_and_read_guest.wasm" cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- guest-serve
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_tab_response_guest_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- tab-response-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- event-waits-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- raw-cdp-guest
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_github_trending_guest_smoke.py
 BROWSER_USE_API_KEY=... python3 scripts/bhrun_reddit_guest_smoke.py
 ```
