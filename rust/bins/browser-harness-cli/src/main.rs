@@ -19,7 +19,8 @@ const ADMIN_COMMANDS: &[&str] = &[
     "stop-daemon",
 ];
 
-const INTERNAL_COMMANDS: &[&str] = &["verify-install"];
+const INTERNAL_COMMANDS: &[&str] = &["install", "verify-install"];
+const INSTALLABLE_BINARIES: &[&str] = &["browser-harness", "bhctl", "bhrun", "bhd"];
 
 const RUNNER_HELP: &str = "manifest|sample-config|capabilities|summary|run-guest|serve-guest|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|mouse-move|mouse-down|mouse-up|type-text|press-key|dispatch-key|scroll|set-viewport|print-pdf|screenshot|handle-dialog|upload-file|get-cookies|set-cookies|configure-downloads|wait|http-get|current-session|drain-events|cdp-raw|wait-for-event|watch-events|wait-for-load-event|wait-for-download|wait-for-request|wait-for-response|wait-for-console|wait-for-dialog";
 const EXPECTED_INSTALLED_BINARIES: &[&str] = &["bhctl", "bhrun", "bhd"];
@@ -60,6 +61,10 @@ fn run(args: Vec<OsString>) -> Result<i32, String> {
     if args.is_empty() || is_help_flag(&args[0]) {
         print_usage();
         return Ok(0);
+    }
+
+    if matches!(args[0].to_str(), Some("install")) {
+        return run_install(&args[1..]);
     }
 
     if matches!(args[0].to_str(), Some("verify-install")) {
@@ -134,6 +139,228 @@ fn workspace_root() -> PathBuf {
         .nth(2)
         .expect("workspace root should exist")
         .to_path_buf()
+}
+
+#[derive(Debug, Default)]
+struct InstallOptions {
+    root: Option<PathBuf>,
+    workspace_root: Option<PathBuf>,
+    debug: bool,
+}
+
+fn run_install(args: &[OsString]) -> Result<i32, String> {
+    let Some(options) = parse_install_options(args)? else {
+        print_install_usage();
+        return Ok(0);
+    };
+    let report = install_report(&options);
+    let success = report
+        .get("success")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report)
+            .map_err(|err| format!("serialize install report: {err}"))?
+    );
+    Ok(if success { 0 } else { 1 })
+}
+
+fn parse_install_options(args: &[OsString]) -> Result<Option<InstallOptions>, String> {
+    let mut options = InstallOptions::default();
+    let mut index = 0;
+
+    while index < args.len() {
+        let value = args[index]
+            .to_str()
+            .ok_or_else(|| format!("install argument is not valid UTF-8: {:?}", args[index]))?;
+        match value {
+            "-h" | "--help" => return Ok(None),
+            "--root" => {
+                let next = args
+                    .get(index + 1)
+                    .ok_or_else(|| "--root requires a path".to_string())?;
+                options.root = Some(PathBuf::from(next));
+                index += 2;
+            }
+            "--workspace-root" => {
+                let next = args
+                    .get(index + 1)
+                    .ok_or_else(|| "--workspace-root requires a path".to_string())?;
+                options.workspace_root = Some(PathBuf::from(next));
+                index += 2;
+            }
+            "--debug" => {
+                options.debug = true;
+                index += 1;
+            }
+            _ => {
+                return Err(format!(
+                    "unsupported install argument: {value}\n\n{}",
+                    install_usage()
+                ));
+            }
+        }
+    }
+
+    Ok(Some(options))
+}
+
+fn install_report(options: &InstallOptions) -> serde_json::Value {
+    match build_install_report(options) {
+        Ok(report) => report,
+        Err(err) => json!({
+            "success": false,
+            "error": err,
+        }),
+    }
+}
+
+fn build_install_report(options: &InstallOptions) -> Result<serde_json::Value, String> {
+    let workspace_root = resolve_workspace_root(options.workspace_root.as_deref())?;
+    let install_root = match &options.root {
+        Some(path) => path.clone(),
+        None => default_install_root()?,
+    };
+    let cargo_binary = cargo_binary();
+    build_install_binaries(&cargo_binary, &workspace_root, options.debug)?;
+
+    let profile = if options.debug { "debug" } else { "release" };
+    let build_output_dir = workspace_root.join("target").join(profile);
+    let binary_dir = install_root.join("bin");
+    fs::create_dir_all(&binary_dir).map_err(|err| {
+        format!(
+            "create install bin directory {}: {err}",
+            binary_dir.display()
+        )
+    })?;
+
+    let mut installed = serde_json::Map::new();
+    for name in INSTALLABLE_BINARIES {
+        let source = installed_binary_path(&build_output_dir, name);
+        if !source.is_file() {
+            return Err(format!(
+                "built binary is missing after cargo build: {}",
+                source.display()
+            ));
+        }
+        let destination = installed_binary_path(&binary_dir, name);
+        fs::copy(&source, &destination).map_err(|err| {
+            format!(
+                "copy built binary {} to {}: {err}",
+                source.display(),
+                destination.display()
+            )
+        })?;
+        installed.insert(
+            (*name).to_string(),
+            json!({
+                "source": source.display().to_string(),
+                "installed": destination.display().to_string(),
+            }),
+        );
+    }
+
+    let verify = build_verify_install_report(&VerifyInstallOptions {
+        current_exe: Some(installed_binary_path(&binary_dir, "browser-harness")),
+        install_root: Some(install_root.clone()),
+    })?;
+    let success = verify
+        .get("success")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+
+    Ok(json!({
+        "success": success,
+        "cargo_binary": PathBuf::from(&cargo_binary).display().to_string(),
+        "workspace_root": workspace_root.display().to_string(),
+        "profile": profile,
+        "install_root": install_root.display().to_string(),
+        "binary_dir": binary_dir.display().to_string(),
+        "path_contains_binary_dir": path_contains_directory(&binary_dir),
+        "installed_binaries": installed,
+        "verify_install": verify,
+    }))
+}
+
+fn resolve_workspace_root(override_root: Option<&Path>) -> Result<PathBuf, String> {
+    let root = override_root
+        .map(Path::to_path_buf)
+        .unwrap_or_else(workspace_root);
+    let manifest = root.join("Cargo.toml");
+    if manifest.is_file() {
+        Ok(root)
+    } else {
+        Err(format!(
+            "workspace root does not contain Cargo.toml: {}",
+            manifest.display()
+        ))
+    }
+}
+
+fn default_install_root() -> Result<PathBuf, String> {
+    if let Some(path) = std::env::var_os("CARGO_HOME") {
+        return Ok(PathBuf::from(path));
+    }
+    home_dir()
+        .map(|path| path.join(".cargo"))
+        .ok_or_else(|| "could not determine home directory for install root".to_string())
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .or_else(|| {
+            let drive = std::env::var_os("HOMEDRIVE")?;
+            let path = std::env::var_os("HOMEPATH")?;
+            let mut combined = OsString::from(drive);
+            combined.push(path);
+            Some(PathBuf::from(combined))
+        })
+}
+
+fn cargo_binary() -> OsString {
+    std::env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"))
+}
+
+fn build_install_binaries(
+    cargo_binary: &OsString,
+    workspace_root: &Path,
+    debug: bool,
+) -> Result<(), String> {
+    let mut command = Command::new(cargo_binary);
+    command.arg("build");
+    if !debug {
+        command.arg("--release");
+    }
+    command
+        .arg("--manifest-path")
+        .arg(workspace_root.join("Cargo.toml"));
+    for name in INSTALLABLE_BINARIES {
+        command.arg("--bin").arg(name);
+    }
+
+    let status = command
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|err| format!("run cargo build for installer: {err}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "cargo build for installer failed with status {status}"
+        ))
+    }
+}
+
+fn path_contains_directory(directory: &Path) -> bool {
+    let Some(path_var) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path_var).any(|entry| entry == directory)
 }
 
 #[derive(Debug, Default)]
@@ -414,6 +641,18 @@ fn verify_install_usage() -> &'static str {
        - checks sibling binaries, installed Python legacy module absence, and browser-harness-py absence"
 }
 
+fn install_usage() -> &'static str {
+    "usage: browser-harness install [--root <path>] [--workspace-root <path>] [--debug]\n\
+     notes:\n\
+       - builds the Rust CLI binaries from the repo workspace and installs them into <root>/bin\n\
+       - default install root is $CARGO_HOME or ~/.cargo\n\
+       - runs verify-install against the installed binary layout after copying"
+}
+
+fn print_install_usage() {
+    eprintln!("{}", install_usage());
+}
+
 fn print_verify_install_usage() {
     eprintln!("{}", verify_install_usage());
 }
@@ -437,13 +676,14 @@ fn print_usage() {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        candidate_python_roots, find_forbidden_python_artifacts, infer_install_root, route_command,
-        Route,
+        candidate_python_roots, find_forbidden_python_artifacts, infer_install_root,
+        parse_install_options, route_command, Route,
     };
 
     #[test]
@@ -457,6 +697,25 @@ mod tests {
         assert_eq!(route_command("page-info"), Route::Runner);
         assert_eq!(route_command("run-guest"), Route::Runner);
         assert_eq!(route_command("unknown-command"), Route::Runner);
+    }
+
+    #[test]
+    fn parses_install_options() {
+        let options = parse_install_options(&[
+            OsString::from("--root"),
+            OsString::from("/tmp/browser-harness"),
+            OsString::from("--workspace-root"),
+            OsString::from("/tmp/workspace"),
+            OsString::from("--debug"),
+        ])
+        .unwrap()
+        .unwrap();
+        assert_eq!(options.root, Some(PathBuf::from("/tmp/browser-harness")));
+        assert_eq!(
+            options.workspace_root,
+            Some(PathBuf::from("/tmp/workspace"))
+        );
+        assert!(options.debug);
     }
 
     #[test]

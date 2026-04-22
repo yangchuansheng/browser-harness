@@ -8,7 +8,13 @@ description: Install and bootstrap browser-harness into the current agent, then 
 Use this file only for first-time install, reconnect, or cold-start browser bootstrap. For day-to-day browser work, read `SKILL.md`.
 
 Rust now owns the runtime/control plane. The repo-local Rust-native entrypoint
-is:
+for installation is:
+
+```bash
+cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install
+```
+
+The installed Rust-native command is:
 
 ```bash
 browser-harness --help
@@ -27,18 +33,23 @@ When you open a setup or verification tab, activate it so the user can actually 
 
 ## Best everyday setup
 
-Clone the repo once into a durable location, then install it as an editable tool so `browser-harness` works from any directory:
+Clone the repo once into a durable location, then install the Rust binaries so
+`browser-harness` works from any directory:
 
 ```bash
 git clone https://github.com/browser-use/browser-harness
 cd browser-harness
-uv tool install -e .
+cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install
+export PATH="$HOME/.cargo/bin:$PATH"
 browser-harness --help
+browser-harness verify-install
 ```
 
-That keeps the Rust-native `browser-harness` command global while still
-pointing at the real repo checkout. Prefer a stable path like
-`~/Developer/browser-harness`, not `/tmp`.
+That installs `browser-harness`, `bhctl`, `bhrun`, and `bhd` into
+`$CARGO_HOME/bin` or `$HOME/.cargo/bin` by default. Re-run the same install
+command after pulling new changes when you want to refresh the installed
+binaries. Prefer a stable checkout path like `~/Developer/browser-harness`, not
+`/tmp`.
 
 For the Rust-native repo-local path, use:
 
@@ -64,8 +75,17 @@ That makes new Codex or Claude Code sessions in other folders load the runtime b
 
 ## Browser bootstrap
 
-1. Run `uv sync`.
-   If `browser-harness` is still missing after that, run `command -v browser-harness >/dev/null || uv tool install -e .`.
+1. Install the Rust binaries if `browser-harness` is still missing:
+
+```bash
+command -v browser-harness >/dev/null || cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install
+command -v browser-harness >/dev/null || export PATH="$HOME/.cargo/bin:$PATH"
+browser-harness --help
+```
+
+   If the command is still missing after that, the current shell probably does
+   not have `$CARGO_HOME/bin` or `$HOME/.cargo/bin` on `PATH`; prepend it and
+   retry.
 2. First try the Rust-native harness directly. If this works, skip manual browser setup:
 
 ```bash
@@ -130,7 +150,7 @@ browser-harness restart-daemon
 
 ## Legacy Compatibility
 
-Installed packages no longer ship the old Python shell.
+Installed Rust binaries no longer ship the old Python shell.
 
 ```bash
 browser-harness --help

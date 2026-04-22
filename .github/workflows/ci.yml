@@ -42,8 +42,11 @@ jobs:
       - name: Byte-Compile Python Files
         run: python -m py_compile run.py helpers.py admin.py admin_cli.py runner_cli.py tests/test_rust_mode_contract.py scripts/*.py
 
-      - name: Install Package
-        run: python -m pip install -e .
+      - name: Install Rust CLI Binaries
+        run: cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install --root "${RUNNER_TEMP}/browser-harness"
+
+      - name: Add Installed Binaries To PATH
+        run: echo "${RUNNER_TEMP}/browser-harness/bin" >> "$GITHUB_PATH"
 
       - name: Check CLI Entry Points
         run: |
@@ -53,4 +56,4 @@ jobs:
           bhrun summary
 
       - name: Verify Installed Rust-Only Package Surface
-        run: browser-harness verify-install
+        run: browser-harness verify-install --install-root "${RUNNER_TEMP}/browser-harness"

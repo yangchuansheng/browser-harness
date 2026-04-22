@@ -1,5 +1,0 @@
-include pyproject.toml
-include rust/Cargo.toml
-include rust/Cargo.lock
-recursive-include rust *.rs
-recursive-include rust *.toml
