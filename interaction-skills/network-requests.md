@@ -110,16 +110,15 @@ iframe does not satisfy the watch accidentally.
 
 The repository smoke for this path is:
 
-- `rust/bins/bhsmoke` with the `wait-for-request` and `watch-events`
-  scenarios
-- `scripts/bhrun_event_waits_guest_smoke.py` for the Rust/Wasm guest wrapper path
+- `rust/bins/bhsmoke` with the `wait-for-request`, `watch-events`, and
+  `event-waits-guest` scenarios
 
 Local verification:
 
 ```bash
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- wait-for-request
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- watch-events
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_event_waits_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- event-waits-guest
 ```
 
 ## Repo-Local Python Fallback
