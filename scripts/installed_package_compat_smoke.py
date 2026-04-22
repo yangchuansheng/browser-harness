@@ -25,32 +25,35 @@ def _python_import_check(python_executable, cwd):
     code = """
 import importlib
 import json
-import warnings
 
-with warnings.catch_warnings(record=True) as caught:
-    warnings.simplefilter("always")
-    admin = importlib.import_module("admin")
-    helpers = importlib.import_module("helpers")
+def import_status(name):
+    try:
+        importlib.import_module(name)
+    except ModuleNotFoundError:
+        return "missing"
+    return "present"
 
+run = importlib.import_module("run")
+run._preload_helpers()
 print(json.dumps({
-    "admin_file": admin.__file__,
-    "helpers_file": helpers.__file__,
-    "warning_messages": [str(item.message) for item in caught],
+    "admin_status": import_status("admin"),
+    "helpers_status": import_status("helpers"),
+    "has_cdp": callable(getattr(run, "cdp", None)),
+    "has_goto": callable(getattr(run, "goto", None)),
+    "has_wait": callable(getattr(run, "wait", None)),
+    "wait_module": getattr(getattr(run, "wait", None), "__module__", None),
 }))
 """
     result = _run([python_executable, "-c", code], cwd=cwd)
     payload = json.loads(result.stdout)
-    messages = payload["warning_messages"]
-    if not payload["admin_file"].endswith("admin.py"):
-        raise AssertionError(f"unexpected admin module path: {payload['admin_file']}")
-    if not payload["helpers_file"].endswith("helpers.py"):
-        raise AssertionError(f"unexpected helpers module path: {payload['helpers_file']}")
-    if not any("`import admin` is deprecated" in message for message in messages):
-        raise AssertionError(f"missing admin deprecation warning: {messages}")
-    if not any("`import helpers` is deprecated" in message for message in messages):
-        raise AssertionError(f"missing helpers deprecation warning: {messages}")
-    if not all(f"{SUPPRESS_ENV}=1" in message for message in messages):
-        raise AssertionError(f"missing suppression guidance in warnings: {messages}")
+    if payload["admin_status"] != "missing":
+        raise AssertionError(f"admin should be absent from the installed package: {payload}")
+    if payload["helpers_status"] != "missing":
+        raise AssertionError(f"helpers should be absent from the installed package: {payload}")
+    if not payload["has_cdp"] or not payload["has_goto"] or not payload["has_wait"]:
+        raise AssertionError(f"run.py did not preload the expected fallback helper surface: {payload}")
+    if payload["wait_module"] != "runner_cli":
+        raise AssertionError(f"unexpected wait binding after fallback preload: {payload}")
     return payload
 
 
@@ -86,9 +89,9 @@ def main():
         json.dumps(
             {
                 "success": True,
-                "admin_file": payload["admin_file"],
-                "helpers_file": payload["helpers_file"],
-                "warning_count": len(payload["warning_messages"]),
+                "admin_status": payload["admin_status"],
+                "helpers_status": payload["helpers_status"],
+                "has_cdp": payload["has_cdp"],
                 "browser_harness_py": browser_harness_py,
             }
         )

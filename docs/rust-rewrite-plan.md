@@ -72,9 +72,8 @@ That means the boundary freeze below has been reached:
 - Python remains only the legacy compatibility shell and keeps the intentional leftovers (`cdp()`, dynamic skills, and the legacy wrapper surface), while `wait()` and `http_get()` now also exist on the runner side
 - `browser-harness-py`, `helpers.py`, and `admin.py` now emit explicit deprecation warnings, while `runner_cli.py` and `admin_cli.py` are the canonical Python compatibility shims
 - installed-package regression coverage now protects the deprecated shipped
-  Python surfaces, so removing `helpers.py` / `admin.py` from packaging is now
-  a separate deliberate policy change after one compatibility window, not an
-  implicit cleanup step
+  Python surfaces: `browser-harness-py` still ships, while `helpers.py` /
+  `admin.py` are now intentionally repo-local only
 - existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md`, `domain-skills/reddit/scraping.md`, `domain-skills/producthunt/scraping.md`, `domain-skills/letterboxd/scraping.md`, `domain-skills/spotify/scraping.md`, and `domain-skills/etsy/scraping.md`
 - the Python daemon path is sunset; `admin_cli.py` now uses the Rust control plane only and `admin.py` is only a compatibility alias
 

@@ -13,7 +13,7 @@ dependencies = []
 browser-harness-py = "run:main"
 
 [tool.setuptools]
-py-modules = ["run", "helpers", "admin", "admin_cli", "runner_cli", "legacy_warnings"]
+py-modules = ["run", "admin_cli", "runner_cli", "legacy_warnings"]
 
 [[tool.setuptools-rust.bins]]
 target = "browser-harness"

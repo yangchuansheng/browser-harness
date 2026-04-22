@@ -31,8 +31,8 @@ As of the current rewrite stage:
 - repo-owned smoke/verification scripts now call `browser-harness` / `bhrun`
   through small script shims instead of importing `helpers.py` or `admin.py`
 - installed-package regression coverage now explicitly checks that the
-  deprecated `browser-harness-py`, `helpers.py`, and `admin.py` surfaces still
-  ship and still warn as expected during the current compatibility window
+  deprecated `browser-harness-py` still ships, while installed packages now
+  intentionally omit `helpers.py` and `admin.py`
 
 This means the Python daemon path is sunset. The remaining Python surface is
 now a shim layer, not the product core.
@@ -133,11 +133,10 @@ Deprecation policy inside that legacy surface:
   default
 - `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` suppresses those warnings for
   legacy automation only
-- `helpers.py` and `admin.py` still ship for the current compatibility window
-  because installed-package regression coverage now exists for them
-- the removal trigger is a separate deliberate packaging change after one
-  compatibility release window, or once compatibility users are no longer a
-  supported audience
+- installed packages now intentionally omit `helpers.py` and `admin.py`; they
+  remain repo-local only for compatibility tests and source-tree fallback paths
+- `browser-harness-py` remains shipped, but now preloads a `runner_cli`-backed
+  fallback helper surface when `helpers.py` is absent
 
 They should only receive:
 
