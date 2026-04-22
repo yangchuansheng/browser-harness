@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 import unittest
+import warnings
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -15,6 +16,7 @@ ENV_KEYS = [
     "BU_NAME",
     "BU_RUST_ADMIN_BIN",
     "BU_RUST_DAEMON_BIN",
+    "BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION",
     "STUB_GREETING",
     "STUB_UNSUPPORTED_META",
 ]
@@ -42,6 +44,7 @@ class RustModeContractTests(unittest.TestCase):
         os.environ["BU_NAME"] = self.name
         os.environ["BU_RUST_ADMIN_BIN"] = str(self.bhctl_bin)
         os.environ["BU_RUST_DAEMON_BIN"] = str(self.stub_daemon)
+        os.environ["BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION"] = "1"
         self.admin, self.admin_alias, self.helpers = self.reload_modules()
 
     def tearDown(self):
@@ -77,6 +80,44 @@ class RustModeContractTests(unittest.TestCase):
         self.assertIs(self.admin.daemon_alive, self.admin_alias.daemon_alive)
         self.assertIs(self.admin.ensure_daemon, self.admin_alias.ensure_daemon)
         self.assertIs(self.admin.restart_daemon, self.admin_alias.restart_daemon)
+
+    def test_legacy_python_warnings_are_emitted_and_suppressible(self):
+        os.environ.pop("BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION", None)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            importlib.reload(importlib.import_module("admin"))
+            importlib.reload(importlib.import_module("helpers"))
+
+        messages = [str(item.message) for item in caught]
+        self.assertTrue(any("`import admin` is deprecated" in message for message in messages))
+        self.assertTrue(any("`import helpers` is deprecated" in message for message in messages))
+        self.assertTrue(
+            all("BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1" in message for message in messages)
+        )
+
+        help_env = os.environ.copy()
+        help_env.pop("BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION", None)
+        help_proc = subprocess.run(
+            [sys.executable, "run.py", "--help"],
+            cwd=REPO,
+            env=help_env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertIn("`browser-harness-py` is deprecated", help_proc.stderr)
+
+        suppressed_env = os.environ.copy()
+        suppressed_env["BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION"] = "1"
+        suppressed_proc = subprocess.run(
+            [sys.executable, "run.py", "--help"],
+            cwd=REPO,
+            env=suppressed_env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertNotIn("`browser-harness-py` is deprecated", suppressed_proc.stderr)
 
     def test_stable_helper_utilities_route_through_runner_cli(self):
         self.assertEqual(self.helpers.drain_events.__module__, "runner_cli")

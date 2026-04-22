@@ -1,4 +1,5 @@
 import sys
+import warnings
 
 from admin_cli import (
     ensure_daemon,
@@ -9,7 +10,7 @@ from admin_cli import (
     stop_remote_daemon,
     sync_local_profile,
 )
-from helpers import *
+from legacy_warnings import LegacyPythonSurfaceWarning, warn_legacy_surface
 
 HELP = """Browser Harness
 
@@ -27,8 +28,19 @@ The primary command is now the Rust-native `browser-harness` CLI.
 """
 
 
+def _preload_helpers():
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", LegacyPythonSurfaceWarning)
+        import helpers
+
+    globals().update({name: getattr(helpers, name) for name in helpers.__all__})
+
+
 def main():
     command = sys.argv[0] or "browser-harness-py"
+    warn_legacy_surface(
+        "`browser-harness-py` is deprecated; use the Rust-native `browser-harness` command instead."
+    )
     if len(sys.argv) > 1 and sys.argv[1] in {"-h", "--help"}:
         print(HELP)
         return
@@ -39,6 +51,7 @@ def main():
             "  print(page_info())\n"
             "  PY"
         )
+    _preload_helpers()
     ensure_daemon()
     exec(sys.stdin.read())
 

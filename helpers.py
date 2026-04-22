@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
+from legacy_warnings import warn_legacy_surface
 import runner_cli
 
 click = runner_cli.click
@@ -40,6 +41,9 @@ def _load_env():
 
 
 _load_env()
+warn_legacy_surface(
+    "`import helpers` is deprecated; use `runner_cli` for stable Python helpers or the `browser-harness` CLI for the primary interface."
+)
 
 NAME = os.environ.get("BU_NAME", "default")
 SOCK = f"/tmp/bu-{NAME}.sock"
