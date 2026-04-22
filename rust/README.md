@@ -255,19 +255,19 @@ BROWSER_USE_API_KEY=... BU_GUEST_PATH="$PWD/rust/guests/rust-navigate-and-read/t
 BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- tab-response-guest
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- event-waits-guest
 BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- raw-cdp-guest
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_github_trending_guest_smoke.py
-BROWSER_USE_API_KEY=... python3 scripts/bhrun_reddit_guest_smoke.py
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- github-trending-guest
+BROWSER_USE_API_KEY=... cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- reddit-guest
 ```
 
-Local `bhrun` domain-skill guest smokes:
+Local site-dependent domain-skill guest smokes:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_github_trending_guest_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_reddit_guest_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_producthunt_guest_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_letterboxd_popular_guest_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_spotify_search_guest_smoke.py
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_etsy_search_guest_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- github-trending-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- reddit-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- producthunt-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- letterboxd-popular-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- spotify-search-guest
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- etsy-search-guest
 ```
 
 Runner-local `http_get` domain-skill guest smokes:

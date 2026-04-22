@@ -22,6 +22,12 @@ const SCENARIOS: &[&str] = &[
     "tab-response-guest",
     "event-waits-guest",
     "raw-cdp-guest",
+    "github-trending-guest",
+    "reddit-guest",
+    "producthunt-guest",
+    "letterboxd-popular-guest",
+    "spotify-search-guest",
+    "etsy-search-guest",
     "wait-for-load-event",
     "watch-events",
     "wait-for-request",
@@ -50,6 +56,68 @@ const EVENT_CONSOLE_TOKEN: &str = "bhrun-event-console";
 const EVENT_DIALOG_TOKEN: &str = "bhrun-event-dialog";
 const RAW_CDP_CLI_TOKEN: &str = "bhrun-raw-cdp-cli";
 const RAW_CDP_GUEST_TOKEN: &str = "bhrun-raw-cdp-guest";
+const GITHUB_TRENDING_TARGET_URL: &str = "https://github.com/trending";
+const REDDIT_TARGET_URL_PREFIX: &str = "https://www.reddit.com/r/vibecoding/comments/1kwuqpz";
+const PRODUCTHUNT_TARGET_URL_PREFIX: &str = "https://www.producthunt.com";
+const LETTERBOXD_TARGET_URL_PREFIX: &str = "https://letterboxd.com/films/popular/";
+const SPOTIFY_TARGET_URL_PREFIX: &str = "https://open.spotify.com/search";
+const ETSY_TARGET_URL_PREFIX: &str = "https://www.etsy.com/search";
+const PRODUCTHUNT_DIAGNOSTIC_SCRIPT: &str = r#"JSON.stringify({
+  readyState: document.readyState,
+  title: document.title,
+  url: location.href,
+  dataTestCount: document.querySelectorAll('[data-test]').length,
+  postItemCount: document.querySelectorAll('[data-test^="post-item-"]').length,
+  postNameCount: document.querySelectorAll('[data-test^="post-name-"]').length,
+  productLinkCount: document.querySelectorAll('a[href^="/products/"]').length,
+  productLinkSample: Array.from(document.querySelectorAll('a[href^="/products/"]')).slice(0, 10).map(a => ({
+    href: a.getAttribute('href'),
+    text: (a.textContent || '').trim().slice(0, 120)
+  })),
+  dataTestSample: Array.from(document.querySelectorAll('[data-test]')).slice(0, 20).map(el => el.getAttribute('data-test')),
+  bodyTextHead: document.body ? document.body.innerText.slice(0, 500) : null
+})"#;
+const LETTERBOXD_DIAGNOSTIC_SCRIPT: &str = r#"JSON.stringify({
+  readyState: document.readyState,
+  title: document.title,
+  url: location.href,
+  bodyTextHead: document.body ? document.body.innerText.slice(0, 500) : null,
+  filmListEntryCount: document.querySelectorAll('li.film-list-entry').length,
+  posterContainerCount: document.querySelectorAll('li[class*="poster-container"]').length,
+  dataItemSlugCount: document.querySelectorAll('[data-item-slug]').length,
+  dataFilmSlugCount: document.querySelectorAll('[data-film-slug]').length,
+  posterSample: Array.from(document.querySelectorAll('[data-item-slug], [data-film-slug]')).slice(0, 10).map(el => ({
+    itemName: el.dataset.itemName || null,
+    filmName: el.dataset.filmName || null,
+    itemSlug: el.dataset.itemSlug || null,
+    filmSlug: el.dataset.filmSlug || null,
+    filmId: el.dataset.filmId || null
+  }))
+})"#;
+const SPOTIFY_DIAGNOSTIC_SCRIPT: &str = r#"JSON.stringify({
+  readyState: document.readyState,
+  title: document.title,
+  url: location.href,
+  bodyTextHead: document.body ? document.body.innerText.slice(0, 500) : null,
+  trackLinkCount: document.querySelectorAll('a[href*="/track/"]').length,
+  trackLinkSample: Array.from(document.querySelectorAll('a[href*="/track/"]')).slice(0, 10).map(a => ({
+    href: a.href,
+    text: (a.innerText || a.getAttribute('aria-label') || '').trim()
+  }))
+})"#;
+const ETSY_DIAGNOSTIC_SCRIPT: &str = r#"JSON.stringify({
+  readyState: document.readyState,
+  title: document.title,
+  url: location.href,
+  bodyTextHead: document.body ? document.body.innerText.slice(0, 500) : null,
+  listingCount: document.querySelectorAll('[data-listing-id]').length,
+  jsonLdCount: document.querySelectorAll('script[type="application/ld+json"]').length,
+  listingSample: Array.from(document.querySelectorAll('[data-listing-id]')).slice(0, 10).map(el => ({
+    listingId: el.getAttribute('data-listing-id'),
+    href: el.querySelector('a[href*="/listing/"]')?.href || null,
+    title: el.querySelector('h3, h2')?.innerText?.trim() || null
+  }))
+})"#;
 
 fn main() {
     match run() {
@@ -92,6 +160,12 @@ fn run() -> Result<Value, String> {
         "tab-response-guest" => smoke_tab_response_guest(),
         "event-waits-guest" => smoke_event_waits_guest(),
         "raw-cdp-guest" => smoke_raw_cdp_guest(),
+        "github-trending-guest" => smoke_github_trending_guest(),
+        "reddit-guest" => smoke_reddit_guest(),
+        "producthunt-guest" => smoke_producthunt_guest(),
+        "letterboxd-popular-guest" => smoke_letterboxd_popular_guest(),
+        "spotify-search-guest" => smoke_spotify_search_guest(),
+        "etsy-search-guest" => smoke_etsy_search_guest(),
         "wait-for-load-event" => smoke_wait_for_load_event(),
         "watch-events" => smoke_watch_events(),
         "wait-for-request" => smoke_wait_for_request(),
@@ -1678,6 +1752,1339 @@ fn smoke_raw_cdp_guest() -> Result<Value, String> {
     finalize_smoke(&options, remote_browser, &mut result, run_result)
 }
 
+fn smoke_github_trending_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-github-trending-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_github_trending_guest_manifest_path();
+    let default_guest_path = rust_github_trending_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/github/scraping.md".to_string()),
+    );
+    result.insert(
+        "target_url".into(),
+        Value::String(GITHUB_TRENDING_TARGET_URL.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "GitHub trending",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &[
+                "ensure_real_tab",
+                "goto",
+                "wait_for_load",
+                "wait",
+                "page_info",
+                "js",
+            ],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(30),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+
+        if !guest_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "goto",
+                "failed_goto_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            return Err(error_with_context("guest run failed", &result));
+        }
+        if guest_run.get("exit_code").and_then(Value::as_i64) != Some(0) {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "goto",
+                "failed_goto_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            return Err(error_with_context("unexpected guest exit code", &result));
+        }
+
+        let expected_operations = [
+            "ensure_real_tab",
+            "goto",
+            "wait_for_load",
+            "wait",
+            "page_info",
+            "js",
+        ];
+        if operations != expected_operations {
+            return Err(format!(
+                "unexpected guest operation sequence: {operations:?}"
+            ));
+        }
+
+        if calls
+            .get(2)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_bool)
+            != Some(true)
+        {
+            return Err(format!(
+                "guest wait_for_load returned unexpected value: {:?}",
+                calls.get(2).and_then(|call| call.get("response"))
+            ));
+        }
+        let wait_response = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest wait response missing".to_string())?;
+        if wait_response
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 2000
+        {
+            return Err(format!(
+                "guest wait did not sleep long enough: {wait_response}"
+            ));
+        }
+        let page_response = calls
+            .get(4)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "guest page_info response missing".to_string())?;
+        if !page_response
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("github.com/trending")
+        {
+            return Err("guest page_info did not remain on the GitHub trending page".to_string());
+        }
+
+        let repos = parse_json_string(
+            calls
+                .get(5)
+                .and_then(|call| call.get("response"))
+                .ok_or_else(|| "guest GitHub payload missing".to_string())?,
+            "GitHub trending payload",
+        )?
+        .as_array()
+        .cloned()
+        .ok_or_else(|| "GitHub trending payload was not an array".to_string())?;
+        result.insert("trending_count".into(), Value::from(repos.len() as u64));
+        result.insert(
+            "trending_sample".into(),
+            Value::Array(repos.iter().take(3).cloned().collect()),
+        );
+        if repos.len() < 5 {
+            return Err(format!(
+                "guest extracted too few trending rows: {}",
+                repos.len()
+            ));
+        }
+        let first = repos
+            .first()
+            .ok_or_else(|| "GitHub trending payload was empty".to_string())?;
+        if !value_has_nonempty_text(first.get("name"))
+            || !first
+                .get("url")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .starts_with("https://github.com/")
+        {
+            return Err("guest extracted malformed GitHub trending repo data".to_string());
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if !page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .contains("github.com/trending")
+        {
+            return Err(
+                "runner page-info after guest did not remain on GitHub trending".to_string(),
+            );
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_reddit_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-reddit-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_reddit_guest_manifest_path();
+    let default_guest_path = rust_reddit_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/reddit/scraping.md".to_string()),
+    );
+    result.insert(
+        "target_url_prefix".into(),
+        Value::String(REDDIT_TARGET_URL_PREFIX.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Reddit post scrape",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &[
+                "ensure_real_tab",
+                "goto",
+                "wait_for_load",
+                "wait",
+                "scroll",
+                "page_info",
+                "js",
+            ],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(40),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+
+        if !guest_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "goto",
+                "failed_goto_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            return Err(error_with_context("guest run failed", &result));
+        }
+        if guest_run.get("exit_code").and_then(Value::as_i64) != Some(0) {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "goto",
+                "failed_goto_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            return Err(error_with_context("unexpected guest exit code", &result));
+        }
+
+        let expected_operations = [
+            "ensure_real_tab",
+            "goto",
+            "wait_for_load",
+            "wait",
+            "scroll",
+            "wait",
+            "scroll",
+            "wait",
+            "page_info",
+            "js",
+        ];
+        if operations != expected_operations {
+            return Err(format!(
+                "unexpected guest operation sequence: {operations:?}"
+            ));
+        }
+
+        let initial_wait = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "initial Reddit wait response missing".to_string())?;
+        let first_scroll_wait = calls
+            .get(5)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "first Reddit scroll wait response missing".to_string())?;
+        let second_scroll_wait = calls
+            .get(7)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "second Reddit scroll wait response missing".to_string())?;
+        if initial_wait
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 3000
+        {
+            return Err(format!(
+                "initial guest wait did not sleep long enough: {initial_wait}"
+            ));
+        }
+        if first_scroll_wait
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 1000
+        {
+            return Err(format!(
+                "first scroll wait was too short: {first_scroll_wait}"
+            ));
+        }
+        if second_scroll_wait
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 1000
+        {
+            return Err(format!(
+                "second scroll wait was too short: {second_scroll_wait}"
+            ));
+        }
+        let page_response = calls
+            .get(8)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Reddit page_info response missing".to_string())?;
+        if !page_response
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(REDDIT_TARGET_URL_PREFIX)
+        {
+            return Err("guest page_info did not remain on the Reddit post URL".to_string());
+        }
+
+        let post = parse_json_string(
+            calls
+                .get(9)
+                .and_then(|call| call.get("response"))
+                .ok_or_else(|| "Reddit payload missing".to_string())?,
+            "Reddit payload",
+        )?;
+        let comments = post
+            .get("comments")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        result.insert(
+            "post_sample".into(),
+            json!({
+                "subreddit": post.get("subreddit").cloned().unwrap_or(Value::Null),
+                "title": post.get("title").cloned().unwrap_or(Value::Null),
+                "author": post.get("author").cloned().unwrap_or(Value::Null),
+                "score": post.get("score").cloned().unwrap_or(Value::Null),
+                "comment_count": comments.len(),
+                "comment_sample": comments.iter().take(3).cloned().collect::<Vec<_>>(),
+                "url": post.get("url").cloned().unwrap_or(Value::Null),
+                "loginWall": post.get("loginWall").cloned().unwrap_or(Value::Null),
+                "ageGate": post.get("ageGate").cloned().unwrap_or(Value::Null),
+            }),
+        );
+        if post
+            .get("ageGate")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Err("Reddit guest hit an age gate".to_string());
+        }
+        if post.get("subreddit").and_then(Value::as_str) != Some("vibecoding") {
+            return Err(format!(
+                "unexpected subreddit: {:?}",
+                post.get("subreddit").and_then(Value::as_str)
+            ));
+        }
+        if !value_has_nonempty_text(post.get("title")) {
+            return Err("Reddit guest returned an empty post title".to_string());
+        }
+        if !value_has_nonempty_text(post.get("author")) {
+            return Err("Reddit guest returned an empty post author".to_string());
+        }
+        if comments.is_empty() {
+            return Err("Reddit guest did not extract any top-level comments".to_string());
+        }
+        if !post
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(REDDIT_TARGET_URL_PREFIX)
+        {
+            return Err("Reddit guest did not remain on the canonical post URL".to_string());
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if !page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(REDDIT_TARGET_URL_PREFIX)
+        {
+            return Err(
+                "runner page-info after guest did not remain on the Reddit post URL".to_string(),
+            );
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_producthunt_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-producthunt-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_producthunt_guest_manifest_path();
+    let default_guest_path = rust_producthunt_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/producthunt/scraping.md".to_string()),
+    );
+    result.insert(
+        "target_url_prefix".into(),
+        Value::String(PRODUCTHUNT_TARGET_URL_PREFIX.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Product Hunt homepage",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &["new_tab", "wait_for_load", "wait", "page_info", "js"],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(40),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+
+        if !guest_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "new_tab",
+                "failed_new_tab_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                PRODUCTHUNT_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("guest run failed", &result));
+        }
+        if guest_run.get("exit_code").and_then(Value::as_i64) != Some(0) {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "new_tab",
+                "failed_new_tab_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                PRODUCTHUNT_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("unexpected guest exit code", &result));
+        }
+
+        validate_prefix_with_wait_js_retries(
+            &operations,
+            &["new_tab", "wait_for_load", "wait", "page_info", "js"],
+        )?;
+
+        let new_tab_response = calls
+            .get(0)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Product Hunt new_tab response missing".to_string())?;
+        let wait_for_load_response = calls
+            .get(1)
+            .and_then(|call| call.get("response"))
+            .and_then(Value::as_bool);
+        let wait_response = calls
+            .get(2)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Product Hunt wait response missing".to_string())?;
+        let page_response = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Product Hunt page_info response missing".to_string())?;
+        let raw_products = calls
+            .last()
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Product Hunt payload missing".to_string())?;
+
+        if !value_has_nonempty_text(new_tab_response.get("target_id")) {
+            return Err(format!(
+                "guest new_tab result did not include target_id: {new_tab_response}"
+            ));
+        }
+        if wait_for_load_response != Some(true) {
+            return Err(format!(
+                "guest wait_for_load returned unexpected value: {wait_for_load_response:?}"
+            ));
+        }
+        if wait_response
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 4000
+        {
+            return Err(format!(
+                "guest hydration wait did not sleep long enough: {wait_response}"
+            ));
+        }
+        if !page_response
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(PRODUCTHUNT_TARGET_URL_PREFIX)
+        {
+            return Err("guest page_info did not remain on Product Hunt".to_string());
+        }
+
+        let products = parse_json_string(raw_products, "Product Hunt payload")?
+            .as_array()
+            .cloned()
+            .ok_or_else(|| "Product Hunt payload was not an array".to_string())?;
+        result.insert("product_count".into(), Value::from(products.len() as u64));
+        result.insert(
+            "product_sample".into(),
+            Value::Array(products.iter().take(3).cloned().collect()),
+        );
+        if products.len() < 20 {
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                PRODUCTHUNT_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_short_extract",
+                "selector_diagnostics_after_short_extract_request",
+                "selector_diagnostics_after_short_extract_error",
+            );
+            return Err(error_with_context(
+                &format!(
+                    "guest extracted too few Product Hunt rows: {}",
+                    products.len()
+                ),
+                &result,
+            ));
+        }
+        let first = products
+            .first()
+            .ok_or_else(|| "Product Hunt payload was empty".to_string())?;
+        if !value_has_nonempty_text(first.get("id")) {
+            return Err("guest extracted an empty Product Hunt id".to_string());
+        }
+        if !value_has_nonempty_text(first.get("name")) {
+            return Err("guest extracted an empty Product Hunt name".to_string());
+        }
+        if !first
+            .get("slug")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with("/products/")
+        {
+            return Err("guest extracted a malformed Product Hunt slug".to_string());
+        }
+        if !products.iter().any(|item| {
+            item.get("topics")
+                .and_then(Value::as_array)
+                .map(|topics| !topics.is_empty())
+                .unwrap_or(false)
+                || item
+                    .get("tagline")
+                    .and_then(Value::as_str)
+                    .map(|tagline| !tagline.trim().is_empty())
+                    .unwrap_or(false)
+        }) {
+            return Err("guest did not extract any Product Hunt topics or taglines".to_string());
+        }
+        if !products
+            .iter()
+            .any(|item| value_has_nonempty_text(item.get("votes")))
+        {
+            return Err("guest did not extract any Product Hunt vote labels".to_string());
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if !page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(PRODUCTHUNT_TARGET_URL_PREFIX)
+        {
+            return Err("runner page-info after guest did not remain on Product Hunt".to_string());
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_letterboxd_popular_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-letterboxd-popular-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_letterboxd_popular_guest_manifest_path();
+    let default_guest_path = rust_letterboxd_popular_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/letterboxd/scraping.md".to_string()),
+    );
+    result.insert(
+        "target_url_prefix".into(),
+        Value::String(LETTERBOXD_TARGET_URL_PREFIX.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Letterboxd popular",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &[
+                "ensure_real_tab",
+                "goto",
+                "wait_for_load",
+                "wait",
+                "page_info",
+                "js",
+            ],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(30),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+
+        if !guest_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "goto",
+                "failed_goto_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                LETTERBOXD_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("guest run failed", &result));
+        }
+        if guest_run.get("exit_code").and_then(Value::as_i64) != Some(0) {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "goto",
+                "failed_goto_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                LETTERBOXD_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("unexpected guest exit code", &result));
+        }
+
+        validate_prefix_with_wait_js_retries(
+            &operations,
+            &[
+                "ensure_real_tab",
+                "goto",
+                "wait_for_load",
+                "wait",
+                "page_info",
+                "js",
+            ],
+        )?;
+
+        let wait_response = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Letterboxd wait response missing".to_string())?;
+        let page_response = calls
+            .get(4)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Letterboxd page_info response missing".to_string())?;
+        let raw_films = calls
+            .last()
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Letterboxd payload missing".to_string())?;
+
+        if wait_response
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 2000
+        {
+            return Err(format!(
+                "guest wait did not sleep long enough: {wait_response}"
+            ));
+        }
+        if !page_response
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(LETTERBOXD_TARGET_URL_PREFIX)
+        {
+            return Err("guest page_info did not remain on the Letterboxd popular URL".to_string());
+        }
+
+        let films = parse_json_string(raw_films, "Letterboxd payload")?
+            .as_array()
+            .cloned()
+            .ok_or_else(|| "Letterboxd payload was not an array".to_string())?;
+        result.insert("popular_count".into(), Value::from(films.len() as u64));
+        result.insert(
+            "popular_sample".into(),
+            Value::Array(films.iter().take(3).cloned().collect()),
+        );
+        result.insert(
+            "popular_with_film_id_count".into(),
+            Value::from(
+                films
+                    .iter()
+                    .filter(|film| value_has_nonempty_text(film.get("film_id")))
+                    .count() as u64,
+            ),
+        );
+        if films.len() < 20 {
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                LETTERBOXD_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_short_extract",
+                "selector_diagnostics_after_short_extract_request",
+                "selector_diagnostics_after_short_extract_error",
+            );
+            return Err(error_with_context(
+                &format!(
+                    "guest extracted too few Letterboxd popular rows: {}",
+                    films.len()
+                ),
+                &result,
+            ));
+        }
+        let first = films
+            .first()
+            .ok_or_else(|| "Letterboxd payload was empty".to_string())?;
+        if !value_has_nonempty_text(first.get("name")) {
+            return Err("guest extracted an empty Letterboxd name".to_string());
+        }
+        if !value_has_nonempty_text(first.get("slug")) {
+            return Err("guest extracted an empty Letterboxd slug".to_string());
+        }
+        if !first
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with("https://letterboxd.com/film/")
+        {
+            return Err("guest extracted a malformed Letterboxd film URL".to_string());
+        }
+        let film_id = first
+            .get("film_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if !film_id.is_empty() && !film_id.chars().all(|ch| ch.is_ascii_digit()) {
+            return Err("guest extracted a malformed Letterboxd film_id".to_string());
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if !page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(LETTERBOXD_TARGET_URL_PREFIX)
+        {
+            return Err(
+                "runner page-info after guest did not remain on the Letterboxd popular URL"
+                    .to_string(),
+            );
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_spotify_search_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-spotify-search-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_spotify_search_guest_manifest_path();
+    let default_guest_path = rust_spotify_search_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/spotify/scraping.md".to_string()),
+    );
+    result.insert(
+        "target_url_prefix".into(),
+        Value::String(SPOTIFY_TARGET_URL_PREFIX.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Spotify search",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &[
+                "ensure_real_tab",
+                "goto",
+                "wait_for_load",
+                "wait",
+                "page_info",
+                "js",
+            ],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(40),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+
+        if !guest_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                SPOTIFY_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("guest run failed", &result));
+        }
+        if guest_run.get("exit_code").and_then(Value::as_i64) != Some(0) {
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                SPOTIFY_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("unexpected guest exit code", &result));
+        }
+
+        let expected_operations = [
+            "ensure_real_tab",
+            "goto",
+            "wait_for_load",
+            "wait",
+            "page_info",
+            "js",
+        ];
+        if operations != expected_operations {
+            return Err(format!(
+                "unexpected guest operation sequence: {operations:?}"
+            ));
+        }
+
+        let wait_response = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Spotify wait response missing".to_string())?;
+        let page_response = calls
+            .get(4)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Spotify page_info response missing".to_string())?;
+        let raw_payload = calls
+            .get(5)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Spotify payload missing".to_string())?;
+
+        if wait_response
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 3000
+        {
+            return Err(format!(
+                "guest search wait did not sleep long enough: {wait_response}"
+            ));
+        }
+        if !page_response
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(SPOTIFY_TARGET_URL_PREFIX)
+        {
+            return Err("guest page_info did not remain on the Spotify search page".to_string());
+        }
+
+        let payload = parse_json_string(raw_payload, "Spotify payload")?;
+        let tracks = payload
+            .get("trackResults")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        result.insert(
+            "search_payload".into(),
+            json!({
+                "url": payload.get("url").cloned().unwrap_or(Value::Null),
+                "track_count": tracks.len(),
+                "track_sample": tracks.iter().take(5).cloned().collect::<Vec<_>>(),
+            }),
+        );
+        if tracks.len() < 4 {
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                SPOTIFY_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_short_extract",
+                "selector_diagnostics_after_short_extract_request",
+                "selector_diagnostics_after_short_extract_error",
+            );
+            return Err(error_with_context(
+                &format!(
+                    "guest extracted too few Spotify track rows: {}",
+                    tracks.len()
+                ),
+                &result,
+            ));
+        }
+        if !payload
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .contains("never")
+        {
+            return Err("guest did not remain on the expected Spotify query route".to_string());
+        }
+        let first = tracks
+            .first()
+            .ok_or_else(|| "Spotify track payload was empty".to_string())?;
+        if !first
+            .get("href")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with("https://open.spotify.com/track/")
+        {
+            return Err("guest extracted a malformed Spotify track URL".to_string());
+        }
+        if !value_has_nonempty_text(first.get("text")) {
+            return Err("guest extracted an empty Spotify track label".to_string());
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if !page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(SPOTIFY_TARGET_URL_PREFIX)
+        {
+            return Err(
+                "runner page-info after guest did not remain on the Spotify search page"
+                    .to_string(),
+            );
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
+fn smoke_etsy_search_guest() -> Result<Value, String> {
+    let options = load_options("bhrun-etsy-search-guest-smoke", BrowserMode::Remote)?;
+    if options.browser_mode == BrowserMode::Remote {
+        require_remote_api_key()?;
+    }
+    let mut result = result_map(&options);
+    let guest_manifest = rust_etsy_search_guest_manifest_path();
+    let default_guest_path = rust_etsy_search_guest_default_path();
+    let guest_path = env_guest_path(default_guest_path.clone());
+    result.insert(
+        "guest_path".into(),
+        Value::String(guest_path.display().to_string()),
+    );
+    result.insert(
+        "skill".into(),
+        Value::String("domain-skills/etsy/scraping.md".to_string()),
+    );
+    result.insert(
+        "target_url_prefix".into(),
+        Value::String(ETSY_TARGET_URL_PREFIX.to_string()),
+    );
+    maybe_build_default_guest(
+        &guest_path,
+        &default_guest_path,
+        &guest_manifest,
+        "Etsy search",
+        &mut result,
+    )?;
+    let remote_browser = setup_browser(&options, true, true, &mut result)?;
+    let run_result = (|| {
+        let config = build_guest_config(
+            options.name.as_str(),
+            &guest_path,
+            &["new_tab", "wait_for_load", "wait", "page_info", "js"],
+            true,
+        )?;
+        result.insert("guest_config".into(), config.clone());
+        let guest_run = runner_json_with_args(
+            "run-guest",
+            Some(config),
+            &[guest_path.display().to_string()],
+            Duration::from_secs(40),
+        )?;
+        result.insert("guest_run".into(), guest_run.clone());
+        let calls = guest_run
+            .get("calls")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "guest run missing calls array".to_string())?;
+        let operations = collect_guest_operations(&guest_run)?;
+        result.insert(
+            "guest_operations".into(),
+            Value::Array(operations.iter().cloned().map(Value::String).collect()),
+        );
+
+        if !guest_run
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "new_tab",
+                "failed_new_tab_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                ETSY_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("guest run failed", &result));
+        }
+        if guest_run.get("exit_code").and_then(Value::as_i64) != Some(0) {
+            capture_failed_operation_response(
+                &mut result,
+                &guest_run,
+                "new_tab",
+                "failed_new_tab_response",
+            );
+            capture_page_info_snapshot(
+                &mut result,
+                options.name.as_str(),
+                "page_after_failed_guest",
+            );
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                ETSY_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_failed_guest",
+                "selector_diagnostics_after_failed_guest_request",
+                "selector_diagnostics_after_failed_guest_error",
+            );
+            return Err(error_with_context("unexpected guest exit code", &result));
+        }
+
+        validate_prefix_with_wait_js_retries(
+            &operations,
+            &["new_tab", "wait_for_load", "wait", "page_info", "js"],
+        )?;
+
+        let new_tab_response = calls
+            .get(0)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Etsy new_tab response missing".to_string())?;
+        let wait_response = calls
+            .get(2)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Etsy wait response missing".to_string())?;
+        let page_response = calls
+            .get(3)
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Etsy page_info response missing".to_string())?;
+        let raw_items = calls
+            .last()
+            .and_then(|call| call.get("response"))
+            .ok_or_else(|| "Etsy payload missing".to_string())?;
+
+        if !value_has_nonempty_text(new_tab_response.get("target_id")) {
+            return Err(format!(
+                "guest new_tab result did not include target_id: {new_tab_response}"
+            ));
+        }
+        if wait_response
+            .get("elapsed_ms")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            < 3000
+        {
+            return Err(format!(
+                "guest hydration wait did not sleep long enough: {wait_response}"
+            ));
+        }
+        if !page_response
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(ETSY_TARGET_URL_PREFIX)
+        {
+            return Err("guest page_info did not remain on the Etsy search URL".to_string());
+        }
+
+        let items = parse_json_string(raw_items, "Etsy payload")?
+            .as_array()
+            .cloned()
+            .ok_or_else(|| "Etsy payload was not an array".to_string())?;
+        result.insert("search_count".into(), Value::from(items.len() as u64));
+        result.insert(
+            "search_sample".into(),
+            Value::Array(items.iter().take(3).cloned().collect()),
+        );
+        if items.len() < 24 {
+            capture_selector_diagnostics(
+                &mut result,
+                options.name.as_str(),
+                ETSY_DIAGNOSTIC_SCRIPT,
+                "selector_diagnostics_after_short_extract",
+                "selector_diagnostics_after_short_extract_request",
+                "selector_diagnostics_after_short_extract_error",
+            );
+            return Err(error_with_context(
+                &format!("guest extracted too few Etsy search rows: {}", items.len()),
+                &result,
+            ));
+        }
+        let first = items
+            .first()
+            .ok_or_else(|| "Etsy payload was empty".to_string())?;
+        if !value_has_nonempty_text(first.get("name")) {
+            return Err("guest extracted an empty Etsy result name".to_string());
+        }
+        if !first
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with("https://www.etsy.com/listing/")
+        {
+            return Err("guest extracted a malformed Etsy listing URL".to_string());
+        }
+        if let Some(position) = first.get("position").and_then(Value::as_i64) {
+            if position <= 0 {
+                return Err("guest extracted a malformed Etsy result position".to_string());
+            }
+        }
+
+        let page_after_guest = page_info(options.name.as_str())?;
+        result.insert("page_after_guest".into(), page_after_guest.clone());
+        if !page_after_guest
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .starts_with(ETSY_TARGET_URL_PREFIX)
+        {
+            return Err(
+                "runner page-info after guest did not remain on the Etsy search URL".to_string(),
+            );
+        }
+        Ok(())
+    })();
+    finalize_smoke(&options, remote_browser, &mut result, run_result)
+}
+
 fn env_guest_path(default_path: PathBuf) -> PathBuf {
     match env::var("BU_GUEST_PATH") {
         Ok(value) if !value.trim().is_empty() => PathBuf::from(value),
@@ -1733,6 +3140,66 @@ fn rust_raw_cdp_guest_default_path() -> PathBuf {
     )
 }
 
+fn rust_github_trending_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-github-trending/Cargo.toml")
+}
+
+fn rust_github_trending_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-github-trending/target/wasm32-unknown-unknown/release/rust_github_trending_guest.wasm",
+    )
+}
+
+fn rust_reddit_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-reddit-post-scrape/Cargo.toml")
+}
+
+fn rust_reddit_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-reddit-post-scrape/target/wasm32-unknown-unknown/release/rust_reddit_post_scrape_guest.wasm",
+    )
+}
+
+fn rust_producthunt_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-producthunt-homepage/Cargo.toml")
+}
+
+fn rust_producthunt_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-producthunt-homepage/target/wasm32-unknown-unknown/release/rust_producthunt_homepage_guest.wasm",
+    )
+}
+
+fn rust_letterboxd_popular_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-letterboxd-popular/Cargo.toml")
+}
+
+fn rust_letterboxd_popular_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-letterboxd-popular/target/wasm32-unknown-unknown/release/rust_letterboxd_popular_guest.wasm",
+    )
+}
+
+fn rust_spotify_search_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-spotify-search/Cargo.toml")
+}
+
+fn rust_spotify_search_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-spotify-search/target/wasm32-unknown-unknown/release/rust_spotify_search_guest.wasm",
+    )
+}
+
+fn rust_etsy_search_guest_manifest_path() -> PathBuf {
+    repo_root().join("rust/guests/rust-etsy-search/Cargo.toml")
+}
+
+fn rust_etsy_search_guest_default_path() -> PathBuf {
+    repo_root().join(
+        "rust/guests/rust-etsy-search/target/wasm32-unknown-unknown/release/rust_etsy_search_guest.wasm",
+    )
+}
+
 fn maybe_build_default_guest(
     guest_path: &Path,
     default_guest_path: &Path,
@@ -1783,6 +3250,136 @@ fn build_guest_module(guest_manifest: &Path, guest_label: &str) -> Result<(), St
     Err(format!(
         "failed to build the Rust {guest_label} guest; ensure the stable wasm target is installed via `rustup target add --toolchain stable-x86_64-unknown-linux-gnu wasm32-unknown-unknown`\n{detail}"
     ))
+}
+
+fn capture_page_info_snapshot(result: &mut Map<String, Value>, name: &str, base_key: &str) {
+    let request_key = format!("{base_key}_request");
+    let error_key = format!("{base_key}_error");
+    match named_payload(name, Value::Null) {
+        Ok(request) => {
+            result.insert(request_key, request.clone());
+            match runner_json("page-info", Some(request), Duration::from_secs(10)) {
+                Ok(page) => {
+                    result.insert(base_key.to_string(), page);
+                }
+                Err(err) => {
+                    result.insert(error_key, Value::String(err));
+                }
+            }
+        }
+        Err(err) => {
+            result.insert(error_key, Value::String(err));
+        }
+    }
+}
+
+fn capture_selector_diagnostics(
+    result: &mut Map<String, Value>,
+    name: &str,
+    expression: &str,
+    value_key: &str,
+    request_key: &str,
+    error_key: &str,
+) {
+    match named_payload(name, json!({"expression": expression})) {
+        Ok(request) => {
+            result.insert(request_key.to_string(), request.clone());
+            match runner_json("js", Some(request), Duration::from_secs(10)) {
+                Ok(raw) => {
+                    result.insert(value_key.to_string(), decode_jsonish_response(raw));
+                }
+                Err(err) => {
+                    result.insert(error_key.to_string(), Value::String(err));
+                }
+            }
+        }
+        Err(err) => {
+            result.insert(error_key.to_string(), Value::String(err));
+        }
+    }
+}
+
+fn capture_failed_operation_response(
+    result: &mut Map<String, Value>,
+    guest_run: &Value,
+    operation: &str,
+    key: &str,
+) {
+    if let Some(response) = guest_run
+        .get("calls")
+        .and_then(Value::as_array)
+        .and_then(|calls| {
+            calls.iter().find_map(|call| {
+                (call.get("operation").and_then(Value::as_str) == Some(operation))
+                    .then(|| call.get("response").cloned())
+                    .flatten()
+            })
+        })
+    {
+        result.insert(key.to_string(), response);
+    }
+}
+
+fn error_with_context(prefix: &str, result: &Map<String, Value>) -> String {
+    match serde_json::to_string(&Value::Object(result.clone())) {
+        Ok(serialized) => format!("{prefix}: {serialized}"),
+        Err(err) => format!("{prefix}: <failed to serialize context: {err}>"),
+    }
+}
+
+fn parse_json_string(value: &Value, label: &str) -> Result<Value, String> {
+    let raw = value
+        .as_str()
+        .ok_or_else(|| format!("{label} response was not a JSON string"))?;
+    serde_json::from_str(raw).map_err(|err| format!("parse {label} JSON payload: {err}"))
+}
+
+fn decode_jsonish_response(value: Value) -> Value {
+    match value {
+        Value::String(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| json!({"raw": raw})),
+        other => other,
+    }
+}
+
+fn validate_prefix_with_wait_js_retries(
+    operations: &[String],
+    expected_prefix: &[&str],
+) -> Result<(), String> {
+    if operations.len() < expected_prefix.len() {
+        return Err(format!(
+            "unexpected guest operation sequence: {operations:?}"
+        ));
+    }
+    if operations[..expected_prefix.len()]
+        != expected_prefix
+            .iter()
+            .map(|item| item.to_string())
+            .collect::<Vec<_>>()
+    {
+        return Err(format!(
+            "unexpected guest operation sequence: {operations:?}"
+        ));
+    }
+    let retries = &operations[expected_prefix.len()..];
+    if retries.len() % 2 != 0
+        || retries
+            .chunks(2)
+            .any(|chunk| chunk != ["wait".to_string(), "js".to_string()])
+    {
+        return Err(format!("unexpected guest retry sequence: {operations:?}"));
+    }
+    Ok(())
+}
+
+fn value_has_nonempty_text(value: Option<&Value>) -> bool {
+    match value {
+        Some(Value::String(text)) => !text.trim().is_empty(),
+        Some(Value::Number(_)) => true,
+        Some(Value::Bool(_)) => true,
+        Some(Value::Array(items)) => !items.is_empty(),
+        Some(Value::Object(object)) => !object.is_empty(),
+        _ => false,
+    }
 }
 
 fn build_guest_config(
