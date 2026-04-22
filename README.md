@@ -23,7 +23,7 @@ The agent writes what's missing, mid-task. No framework, no recipes, no rails. O
 Browser Harness is now Rust-native:
 
 - Rust owns the daemon/runtime/control plane
-- installed packages are now Rust-only
+- installed binaries are now Rust-only
 - the default installed command is `browser-harness`
 - the repo-local fallback is `cargo run --quiet --bin browser-harness -- ...`
 - the rewrite/migration work is complete; remaining work is normal product work
@@ -33,7 +33,8 @@ Browser Harness is now Rust-native:
 Install once, then use the Rust-native CLI directly:
 
 ```bash
-uv tool install -e .
+cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install
+export PATH="$HOME/.cargo/bin:$PATH"
 browser-harness ensure-daemon
 browser-harness page-info <<'JSON'
 {"daemon_name":"default"}
@@ -42,6 +43,10 @@ browser-harness new-tab <<'JSON'
 {"daemon_name":"default","url":"https://example.com"}
 JSON
 ```
+
+The installer builds the Rust binaries from this checkout and installs them into
+`$CARGO_HOME/bin` or `$HOME/.cargo/bin` by default. Re-run the same install
+command after pulling new changes if you want to refresh the global binaries.
 
 If you are working inside the repo and have not installed the global command
 yet, use:
