@@ -81,6 +81,20 @@ class RustModeContractTests(unittest.TestCase):
     def test_stable_helper_utilities_route_through_runner_cli(self):
         self.assertEqual(self.helpers.drain_events.__module__, "runner_cli")
         self.assertEqual(self.helpers.http_get.__module__, "runner_cli")
+        self.assertEqual(self.helpers.click.__module__, "runner_cli")
+        self.assertEqual(self.helpers.current_tab.__module__, "runner_cli")
+        self.assertEqual(self.helpers.dispatch_key.__module__, "runner_cli")
+        self.assertEqual(self.helpers.ensure_real_tab.__module__, "runner_cli")
+        self.assertEqual(self.helpers.iframe_target.__module__, "runner_cli")
+        self.assertEqual(self.helpers.list_tabs.__module__, "runner_cli")
+        self.assertEqual(self.helpers.new_tab.__module__, "runner_cli")
+        self.assertEqual(self.helpers.press_key.__module__, "runner_cli")
+        self.assertEqual(self.helpers.screenshot.__module__, "runner_cli")
+        self.assertEqual(self.helpers.scroll.__module__, "runner_cli")
+        self.assertEqual(self.helpers.switch_tab.__module__, "runner_cli")
+        self.assertEqual(self.helpers.type_text.__module__, "runner_cli")
+        self.assertEqual(self.helpers.upload_file.__module__, "runner_cli")
+        self.assertEqual(self.helpers.wait.__module__, "runner_cli")
 
     def test_rust_mode_daemon_lifecycle_contract(self):
         self.assertFalse(self.admin.daemon_alive(self.name))
