@@ -128,6 +128,10 @@ enough to be high-value early migration work.
   direct `admin.py` usage is now limited to explicit compatibility alias
   coverage; the legacy `run.py` shell now imports the Rust-native
   `admin_cli.py` shim
+- [x] add installed-package regression coverage for deprecated Python surfaces;
+  `browser-harness-py`, `helpers.py`, and `admin.py` still ship for the current
+  compatibility window, and removal is now an explicit later packaging
+  decision rather than an accidental break
 
 ## Secondary Track: Capability Pull List
 
