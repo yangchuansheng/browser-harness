@@ -119,7 +119,7 @@ enough to be high-value early migration work.
 
 Do these only when a domain skill proves the need.
 
-- [ ] typed dialog handling (`accept` / `dismiss` / optional prompt text)
+- [x] typed dialog handling (`accept` / `dismiss` / optional prompt text)
 - [x] typed screenshot support
 - [x] typed file upload support
 - [x] typed `dispatch_key` support
@@ -160,7 +160,10 @@ These are no longer treated as Python-sunset blockers by default. They belong
 to the post-sunset Rust-native capability wave unless a concrete domain
 migration pulls one forward.
 
-- [ ] `interaction-skills/dialogs.md`
+- [x] `interaction-skills/dialogs.md`
+  Refreshed around `bhrun handle-dialog`, `bh_guest_sdk::handle_dialog(...)`,
+  `wait-for-dialog`, and the local acceptance path in
+  `scripts/bhrun_event_waits_guest_smoke.py`
 - [ ] `interaction-skills/uploads.md`
 - [ ] `interaction-skills/viewport.md`
 - [ ] `interaction-skills/print-as-pdf.md`

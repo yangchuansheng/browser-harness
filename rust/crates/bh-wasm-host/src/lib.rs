@@ -1,8 +1,8 @@
 use bh_protocol::{
     META_CLICK, META_CURRENT_TAB, META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO,
-    META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
-    META_SCREENSHOT, META_SCROLL, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
-    META_WAIT_FOR_LOAD, PROTOCOL_VERSION,
+    META_HANDLE_DIALOG, META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO,
+    META_PRESS_KEY, META_SCREENSHOT, META_SCROLL, META_SWITCH_TAB, META_TYPE_TEXT,
+    META_UPLOAD_FILE, META_WAIT_FOR_LOAD, PROTOCOL_VERSION,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -304,6 +304,16 @@ pub struct ScreenshotRequest {
     pub daemon_name: String,
     #[serde(default)]
     pub full: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HandleDialogRequest {
+    #[serde(default = "default_daemon_name")]
+    pub daemon_name: String,
+    #[serde(default = "default_handle_dialog_action")]
+    pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_text: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -632,6 +642,16 @@ impl Default for ScreenshotRequest {
     }
 }
 
+impl Default for HandleDialogRequest {
+    fn default() -> Self {
+        Self {
+            daemon_name: default_daemon_name(),
+            action: default_handle_dialog_action(),
+            prompt_text: None,
+        }
+    }
+}
+
 impl Default for UploadFileRequest {
     fn default() -> Self {
         Self {
@@ -872,6 +892,24 @@ impl ScreenshotRequest {
                 self.daemon_name.clone()
             },
             full: self.full,
+        }
+    }
+}
+
+impl HandleDialogRequest {
+    pub fn normalized(&self) -> Self {
+        Self {
+            daemon_name: if self.daemon_name.trim().is_empty() {
+                default_daemon_name()
+            } else {
+                self.daemon_name.clone()
+            },
+            action: if self.action.trim().is_empty() {
+                default_handle_dialog_action()
+            } else {
+                self.action.clone()
+            },
+            prompt_text: self.prompt_text.clone(),
         }
     }
 }
@@ -1214,6 +1252,10 @@ pub fn default_operations() -> Vec<HostOperation> {
         compatibility_helper(META_SCROLL, "Dispatch browser-level mouse wheel scrolling."),
         compatibility_helper(META_SCREENSHOT, "Capture the current page as an image."),
         compatibility_helper(
+            META_HANDLE_DIALOG,
+            "Accept or dismiss a pending browser dialog, with optional prompt text.",
+        ),
+        compatibility_helper(
             META_UPLOAD_FILE,
             "Assign files to an input element in the current page or iframe target.",
         ),
@@ -1514,6 +1556,10 @@ fn default_dispatch_event() -> String {
     "keypress".to_string()
 }
 
+fn default_handle_dialog_action() -> String {
+    "accept".to_string()
+}
+
 fn default_wait_timeout_ms() -> u64 {
     15_000
 }
@@ -1558,11 +1604,12 @@ mod tests {
         dialog_event_filter, event_matches_filter, load_event_filter, operation_names,
         response_received_filter, ClickRequest, CurrentSessionRequest, CurrentTabRequest,
         DispatchKeyRequest, EnsureRealTabRequest, EventFilter, ExecutionModel, GotoRequest,
-        GuestTransport, HttpGetRequest, IframeTargetRequest, JsRequest, ListTabsRequest,
-        NewTabRequest, PageInfoRequest, PressKeyRequest, ProtocolFamilyKind, ScreenshotRequest,
-        ScrollRequest, Stability, SwitchTabRequest, TypeTextRequest, UploadFileRequest,
-        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForLoadEventRequest,
-        WaitForLoadRequest, WaitForResponseRequest, WatchEventsLine, WatchEventsRequest,
+        GuestTransport, HandleDialogRequest, HttpGetRequest, IframeTargetRequest, JsRequest,
+        ListTabsRequest, NewTabRequest, PageInfoRequest, PressKeyRequest, ProtocolFamilyKind,
+        ScreenshotRequest, ScrollRequest, Stability, SwitchTabRequest, TypeTextRequest,
+        UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest,
+        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WatchEventsLine,
+        WatchEventsRequest,
     };
     use std::collections::BTreeMap;
 
@@ -1610,6 +1657,7 @@ mod tests {
         assert!(names.contains(&"wait_for_console"));
         assert!(names.contains(&"wait_for_dialog"));
         assert!(names.contains(&"screenshot"));
+        assert!(names.contains(&"handle_dialog"));
         assert!(names.contains(&"dispatch_key"));
         assert!(names.contains(&"upload_file"));
         assert!(names.contains(&"http_get"));
@@ -1920,6 +1968,20 @@ mod tests {
 
         assert_eq!(normalized.daemon_name, "default");
         assert!(normalized.full);
+    }
+
+    #[test]
+    fn handle_dialog_request_normalizes_blank_name_and_action() {
+        let request = HandleDialogRequest {
+            daemon_name: "   ".to_string(),
+            action: "   ".to_string(),
+            prompt_text: Some("typed value".to_string()),
+        };
+        let normalized = request.normalized();
+
+        assert_eq!(normalized.daemon_name, "default");
+        assert_eq!(normalized.action, "accept");
+        assert_eq!(normalized.prompt_text.as_deref(), Some("typed value"));
     }
 
     #[test]

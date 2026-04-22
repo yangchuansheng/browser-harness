@@ -79,6 +79,7 @@ The primary Rust-native path for stable operations is:
 - `browser-harness dispatch-key`
 - `browser-harness scroll`
 - `browser-harness screenshot`
+- `browser-harness handle-dialog`
 - `browser-harness upload-file`
 - `browser-harness wait-for-event`
 - `browser-harness watch-events`
@@ -119,7 +120,6 @@ Some interaction skills do not need to block the Python sunset itself.
 
 These can land after the Rust-native CLI and guest path become the default:
 
-- dialog handling beyond passive wait coverage
 - uploads guest ergonomics
 - viewport control
 - print-to-PDF

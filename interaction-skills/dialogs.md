@@ -11,31 +11,44 @@ prefer the Rust runner path:
 
 - `bhrun wait-for-dialog`
 - `bh_guest_sdk::wait_for_dialog(...)` in Rust/Wasm guests
+- `bhrun handle-dialog`
+- `bh_guest_sdk::handle_dialog(...)` in Rust/Wasm guests
 
 That gives you a scoped runner-owned wait on `Page.javascriptDialogOpening`
-without depending on the destructive `drain_events()` buffer.
+without depending on the destructive `drain_events()` buffer, plus a typed
+follow-up path to accept or dismiss the dialog.
 
-## Reactive: dismiss via CDP (preferred)
+## Reactive: accept or dismiss (preferred)
 
 Works even when JS is frozen. Handles all dialog types including `beforeunload`.
 
-```python
-# Dismiss and read the message
-cdp("Page.handleJavaScriptDialog", accept=True)   # accept / click OK
-cdp("Page.handleJavaScriptDialog", accept=False)  # cancel / click Cancel
+```bash
+# Accept / click OK
+bhrun handle-dialog <<'JSON'
+{"daemon_name":"default","action":"accept"}
+JSON
 
-# Read what the dialog said (from buffered CDP events)
-events = drain_events()
-for e in events:
-    if e["method"] == "Page.javascriptDialogOpening":
-        print(e["params"]["type"])     # "alert", "confirm", "prompt", "beforeunload"
-        print(e["params"]["message"])  # the dialog text
+# Cancel / click Cancel
+bhrun handle-dialog <<'JSON'
+{"daemon_name":"default","action":"dismiss"}
+JSON
+
+# Prompt dialogs can also submit text
+bhrun handle-dialog <<'JSON'
+{"daemon_name":"default","action":"accept","prompt_text":"typed value"}
+JSON
+```
+
+```rust
+use bh_guest_sdk::{handle_dialog, wait_for_dialog};
+
+let opened = wait_for_dialog(Some("prompt"), None, None, 5_000, 100)?;
+if opened.matched {
+    handle_dialog("accept", Some("typed value"))?;
+}
 ```
 
 Undetectable by antibot — no JS injected into the page.
-
-Until typed dialog accept/dismiss lands on the Rust side, raw CDP dismissal is
-still the right follow-up after `wait-for-dialog`.
 
 ## Proactive: stub via JS
 
@@ -63,10 +76,17 @@ Tradeoffs:
 Fires when navigating away from a page with unsaved changes (forms, editors, upload pages). The page freezes until the user clicks Leave/Stay.
 
 ```python
+import subprocess
+
 # Option A: dismiss after navigating (CDP-level, safe)
 goto("https://new-url.com")
 try:
-    cdp("Page.handleJavaScriptDialog", accept=True)  # click "Leave"
+    subprocess.run(
+        ["browser-harness", "handle-dialog"],
+        input='{"daemon_name":"default","action":"accept"}',
+        text=True,
+        check=True,
+    )  # click "Leave"
 except:
     pass  # no dialog — normal
 
@@ -74,3 +94,8 @@ except:
 js("window.onbeforeunload=null")
 goto("https://new-url.com")
 ```
+
+Legacy fallback:
+
+- `helpers.py` / raw `cdp("Page.handleJavaScriptDialog", ...)` is now
+  compatibility-only, not the primary path.
