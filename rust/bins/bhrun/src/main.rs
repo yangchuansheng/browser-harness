@@ -13,9 +13,9 @@ use bh_protocol::{
 };
 use bh_wasm_host::{
     console_event_matches, default_manifest, default_runner_config, event_matches_filter,
-    operation_names, ClickRequest, CurrentSessionRequest, CurrentSessionResult, CurrentTabRequest,
-    DispatchKeyRequest, EnsureRealTabRequest, GotoRequest, GuestCallRecord, GuestRunResult,
-    GuestServeRequest, GuestServeResponse, HandleDialogRequest, HttpGetRequest,
+    operation_names, CdpRawRequest, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
+    CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest, GotoRequest, GuestCallRecord,
+    GuestRunResult, GuestServeRequest, GuestServeResponse, HandleDialogRequest, HttpGetRequest,
     IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, NewTabResult, PageInfoRequest,
     PressKeyRequest, RunnerConfig, ScreenshotRequest, ScrollRequest, SwitchTabRequest,
     SwitchTabResult, TabSummary, TypeTextRequest, UploadFileRequest, WaitForConsoleRequest,
@@ -33,7 +33,7 @@ const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|handle-dialog|upload-file|wait|http-get|current-session|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|handle-dialog|upload-file|wait|http-get|current-session|cdp-raw|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
@@ -68,7 +68,7 @@ where
             let manifest = default_manifest();
             writeln!(
                 stdout,
-                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live dispatch_key=live scroll=live screenshot=live handle_dialog=live upload_file=live wait=live http_get=live current_session=live wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
+                "bhrun scaffold: execution_model={:?} guest_transport={:?} protocol_families={} operations={} current_tab=live list_tabs=live new_tab=live switch_tab=live ensure_real_tab=live iframe_target=live page_info=live goto=live wait_for_load=live js=live click=live type_text=live press_key=live dispatch_key=live scroll=live screenshot=live handle_dialog=live upload_file=live wait=live http_get=live current_session=live cdp_raw=experimental wait_for_event=live watch_events=live wait_for_response=live wait_for_console=live wait_for_dialog=live wasm_guests=preview persistent_guest_runner=preview",
                 manifest.execution_model,
                 manifest.guest_transport,
                 manifest.protocol_families.len(),
@@ -200,6 +200,11 @@ where
             let result = current_session(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("cdp-raw") => {
+            let request = read_json::<CdpRawRequest, _>(&mut stdin)?;
+            let result = cdp_raw(request)?;
+            write_json(&mut stdout, &result)
+        }
         Some("wait-for-event") => {
             let request = read_json::<WaitForEventRequest, _>(&mut stdin)?;
             let result = wait_for_event(request)?;
@@ -238,6 +243,10 @@ where
 
 fn current_session(request: CurrentSessionRequest) -> Result<CurrentSessionResult, String> {
     current_session_with_sender(request, send_daemon_meta_request)
+}
+
+fn cdp_raw(request: CdpRawRequest) -> Result<Value, String> {
+    cdp_raw_with_sender(request, send_daemon_request)
 }
 
 fn current_tab(request: CurrentTabRequest) -> Result<TabSummary, String> {
@@ -595,6 +604,25 @@ where
     Ok(CurrentSessionResult {
         session_id: response.session_id.unwrap_or(None),
     })
+}
+
+fn cdp_raw_with_sender<F>(request: CdpRawRequest, mut sender: F) -> Result<Value, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    let request = request.normalized();
+    let response = sender(
+        &request.daemon_name,
+        &DaemonRequest {
+            method: Some(request.method),
+            params: request.params,
+            session_id: request.session_id,
+            ..DaemonRequest::default()
+        },
+    )?;
+    Ok(response
+        .result
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new())))
 }
 
 fn current_tab_with_sender<F>(
@@ -1168,6 +1196,9 @@ fn dispatch_guest_operation(
     if operation == "http_get" && !state.config.allow_http {
         return Err("operation denied by runner config: http_get disabled".to_string());
     }
+    if operation == "cdp_raw" && !state.config.allow_raw_cdp {
+        return Err("operation denied by runner config: cdp_raw disabled".to_string());
+    }
 
     let request = inject_daemon_name(request_text, &state.config.daemon_name)?;
     let response = match operation {
@@ -1175,6 +1206,7 @@ fn dispatch_guest_operation(
             current_session(parse_request_value(&request)?),
             "current_session",
         )?,
+        "cdp_raw" => cdp_raw(parse_request_value(&request)?)?,
         "current_tab" => {
             serialize_guest_result(current_tab(parse_request_value(&request)?), "current_tab")?
         }
@@ -1416,19 +1448,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        click_with_sender, current_session_with_sender, current_tab_with_sender,
-        daemon_read_timeout, dispatch_guest_operation, dispatch_key_with_sender,
-        ensure_real_tab_with_sender, goto_with_sender, handle_dialog_with_sender, http_get,
-        iframe_target_with_sender, inject_daemon_name, js_with_sender, list_tabs_with_sender,
-        new_tab_with_sender, page_info_with_sender, press_key_with_sender, run_cli,
-        screenshot_with_sender, scroll_with_sender, serialize_guest_result, switch_tab_with_sender,
-        type_text_with_sender, upload_file_with_sender, wait, wait_for_console_with_drain,
-        wait_for_event_with_drain, wait_for_load_with_sender, watch_events_collect_with_drain,
-        watch_events_with_drain, DaemonResponse, GuestHostState, GuestRuntime, META_CLICK,
-        META_CURRENT_TAB, META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG,
-        META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
-        META_SCREENSHOT, META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT,
-        META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
+        cdp_raw_with_sender, click_with_sender, current_session_with_sender,
+        current_tab_with_sender, daemon_read_timeout, dispatch_guest_operation,
+        dispatch_key_with_sender, ensure_real_tab_with_sender, goto_with_sender,
+        handle_dialog_with_sender, http_get, iframe_target_with_sender, inject_daemon_name,
+        js_with_sender, list_tabs_with_sender, new_tab_with_sender, page_info_with_sender,
+        press_key_with_sender, run_cli, screenshot_with_sender, scroll_with_sender,
+        serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
+        upload_file_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
+        wait_for_load_with_sender, watch_events_collect_with_drain, watch_events_with_drain,
+        DaemonResponse, GuestHostState, GuestRuntime, META_CLICK, META_CURRENT_TAB,
+        META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
+        META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT,
+        META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
+        META_WAIT_FOR_LOAD,
     };
     use std::collections::BTreeMap;
     use std::collections::VecDeque;
@@ -1439,14 +1472,14 @@ mod tests {
 
     use bh_protocol::DaemonRequest;
     use bh_wasm_host::{
-        default_runner_config, ClickRequest, CurrentSessionRequest, CurrentSessionResult,
-        CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest, EventFilter, GotoRequest,
-        GuestServeResponse, HandleDialogRequest, HttpGetRequest, IframeTargetRequest, JsRequest,
-        ListTabsRequest, NewTabRequest, PageInfoRequest, PressKeyRequest, RunnerConfig,
-        ScreenshotRequest, ScrollRequest, SwitchTabRequest, TypeTextRequest, UploadFileRequest,
-        WaitForConsoleRequest, WaitForDialogRequest, WaitForEventRequest, WaitForEventResult,
-        WaitForLoadEventRequest, WaitForLoadRequest, WaitForResponseRequest, WaitRequest,
-        WatchEventsLine, WatchEventsRequest,
+        default_runner_config, CdpRawRequest, ClickRequest, CurrentSessionRequest,
+        CurrentSessionResult, CurrentTabRequest, DispatchKeyRequest, EnsureRealTabRequest,
+        EventFilter, GotoRequest, GuestServeResponse, HandleDialogRequest, HttpGetRequest,
+        IframeTargetRequest, JsRequest, ListTabsRequest, NewTabRequest, PageInfoRequest,
+        PressKeyRequest, RunnerConfig, ScreenshotRequest, ScrollRequest, SwitchTabRequest,
+        TypeTextRequest, UploadFileRequest, WaitForConsoleRequest, WaitForDialogRequest,
+        WaitForEventRequest, WaitForEventResult, WaitForLoadEventRequest, WaitForLoadRequest,
+        WaitForResponseRequest, WaitRequest, WatchEventsLine, WatchEventsRequest,
     };
     use serde_json::{json, Value};
 
@@ -2242,6 +2275,42 @@ mod tests {
     }
 
     #[test]
+    fn cdp_raw_uses_direct_daemon_request_payload() {
+        let result = cdp_raw_with_sender(
+            CdpRawRequest {
+                daemon_name: "runner".to_string(),
+                method: "Runtime.evaluate".to_string(),
+                params: Some(json!({"expression":"2+3","returnByValue":true})),
+                session_id: Some("session-2".to_string()),
+            },
+            |daemon, request| {
+                assert_eq!(daemon, "runner");
+                assert_eq!(request.meta, None);
+                assert_eq!(request.method.as_deref(), Some("Runtime.evaluate"));
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("expression"))
+                        .and_then(Value::as_str),
+                    Some("2+3")
+                );
+                assert_eq!(request.session_id.as_deref(), Some("session-2"));
+                Ok(DaemonResponse {
+                    result: Some(json!({"result":{"type":"number","value":5}})),
+                    ..DaemonResponse::default()
+                })
+            },
+        )
+        .expect("cdp raw result");
+
+        assert_eq!(
+            result.pointer("/result/value").and_then(Value::as_i64),
+            Some(5)
+        );
+    }
+
+    #[test]
     fn upload_file_uses_meta_request_payload() {
         upload_file_with_sender(
             UploadFileRequest {
@@ -2327,6 +2396,7 @@ mod tests {
         assert!(text.contains("wait=live"));
         assert!(text.contains("http_get=live"));
         assert!(text.contains("current_session=live"));
+        assert!(text.contains("cdp_raw=experimental"));
         assert!(text.contains("wait_for_event=live"));
         assert!(text.contains("watch_events=live"));
         assert!(text.contains("wait_for_response=live"));
@@ -2984,6 +3054,32 @@ mod tests {
                 .expect_err("http_get should be denied");
 
         assert_eq!(err, "operation denied by runner config: http_get disabled");
+        assert!(state.calls.is_empty());
+    }
+
+    #[test]
+    fn dispatch_guest_operation_rejects_cdp_raw_when_disabled() {
+        let mut state = GuestHostState {
+            config: RunnerConfig {
+                daemon_name: "runner".to_string(),
+                guest_module: None,
+                granted_operations: vec!["cdp_raw".to_string()],
+                allow_http: false,
+                allow_raw_cdp: false,
+                persistent_guest_state: true,
+            },
+            calls: Vec::new(),
+            error: None,
+        };
+
+        let err = dispatch_guest_operation(
+            &mut state,
+            "cdp_raw",
+            r#"{"method":"Runtime.evaluate","params":{"expression":"2+3","returnByValue":true}}"#,
+        )
+        .expect_err("cdp_raw should be denied");
+
+        assert_eq!(err, "operation denied by runner config: cdp_raw disabled");
         assert!(state.calls.is_empty());
     }
 

@@ -92,6 +92,10 @@ access instead of defining the entire long-term ABI.
 - it should be capability-gated
 - it should be disabled by default for new guests
 
+That escape hatch is now live via `bhrun cdp-raw` and
+`bh_guest_sdk::cdp_raw(...)`, with `allow_raw_cdp=false` still the default for
+new guest configs.
+
 ## Runner Model
 
 `bhrun` should be a persistent runner rather than a one-shot executor.
