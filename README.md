@@ -86,7 +86,7 @@ Useful for sub-agents or deployment. **Free tier: 3 concurrent browsers, no card
 The old Python shell still exists, but it is no longer the default path:
 
 - `browser-harness-py` — explicit legacy heredoc shell
-- `run.py` + `helpers.py` + `admin.py` — compatibility layer behind that shell
+- `run.py` + `helpers.py` + `admin_cli.py` — compatibility layer behind that shell
 
 Use it only when you intentionally need old helper-preloaded behavior. New
 docs, smokes, and guest work should land on `browser-harness` / `bhrun` first.
