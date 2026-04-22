@@ -130,20 +130,23 @@ browser-harness restart-daemon
 
 ## Legacy Compatibility
 
-The old Python shell is still available, but it is deprecated and no longer
-part of the main install or bootstrap flow:
+Installed packages no longer ship the old Python shell.
 
 ```bash
-command -v browser-harness-py
+browser-harness --help
 ```
 
-Use `browser-harness-py` only if you intentionally need the old helper-loaded
-compatibility shell. New setup, verification, and onboarding should teach
-`browser-harness` first.
+If you are working inside the source tree and intentionally need the deprecated
+helper-loaded compatibility shell, use:
+
+```bash
+python3 run.py --help
+```
 
 Current deprecation behavior:
 
-- `browser-harness-py` warns when invoked
+- installed packages no longer ship any Python entrypoint
+- repo-local `run.py` warns when invoked
 - installed packages no longer ship `helpers.py` or `admin.py`
 - repo-local `helpers.py` warns on import; use `runner_cli.py` instead
 - repo-local `admin.py` warns on import; use `admin_cli.py` instead

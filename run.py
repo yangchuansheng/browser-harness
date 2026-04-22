@@ -46,15 +46,16 @@ HELP = """Browser Harness
 
 Read SKILL.md for the default workflow and examples.
 
-Legacy Python-shell usage:
-  browser-harness-py <<'PY'
+Deprecated repo-local Python-shell usage:
+  python3 run.py <<'PY'
   ensure_real_tab()
   print(page_info())
   PY
 
 Helpers are pre-imported. The daemon auto-starts and connects to the running
 browser.
-The primary command is now the Rust-native `browser-harness` CLI.
+Installed packages no longer ship the Python shell.
+The primary command is the Rust-native `browser-harness` CLI.
 """
 
 
@@ -92,9 +93,9 @@ def _preload_helpers():
 
 
 def main():
-    command = sys.argv[0] or "browser-harness-py"
+    command = sys.argv[0] or "run.py"
     warn_legacy_surface(
-        "`browser-harness-py` is deprecated; use the Rust-native `browser-harness` command instead."
+        "`run.py` is deprecated and repo-local only; installed packages no longer ship the Python shell. Use the Rust-native `browser-harness` command instead."
     )
     if len(sys.argv) > 1 and sys.argv[1] in {"-h", "--help"}:
         print(HELP)

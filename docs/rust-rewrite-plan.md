@@ -4,7 +4,7 @@
 
 Rewrite the stable runtime parts of Browser Harness in Rust without breaking the current user-facing workflow:
 
-- keep `browser-harness-py <<'PY'` only as a short-term deprecated compatibility mode
+- keep `python3 run.py <<'PY'` only as a short-term deprecated repo-local compatibility mode
 - keep `helpers.py`, `runner_cli.py`, and `admin_cli.py` thin while the Rust-native replacement lands
 - replace the Python daemon/core with a Rust daemon
 - replace the Python-first interface with a Rust-native top-level CLI
@@ -70,10 +70,10 @@ That means the boundary freeze below has been reached:
 
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser lifecycle, and the common typed helper surface
 - Python remains only the legacy compatibility shell and keeps the intentional leftovers (`cdp()`, dynamic skills, and the legacy wrapper surface), while `wait()` and `http_get()` now also exist on the runner side
-- `browser-harness-py`, `helpers.py`, and `admin.py` now emit explicit deprecation warnings, while `runner_cli.py` and `admin_cli.py` are the canonical Python compatibility shims
+- `run.py`, `helpers.py`, and `admin.py` now emit explicit deprecation warnings in the source tree, while `runner_cli.py` and `admin_cli.py` remain the repo-local canonical Python compatibility shims
 - installed-package regression coverage now protects the deprecated shipped
-  Python surfaces: `browser-harness-py` still ships, while `helpers.py` /
-  `admin.py` are now intentionally repo-local only
+  Python surfaces by verifying that installed packages now omit the legacy
+  Python shell and compatibility modules entirely
 - existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md`, `domain-skills/reddit/scraping.md`, `domain-skills/producthunt/scraping.md`, `domain-skills/letterboxd/scraping.md`, `domain-skills/spotify/scraping.md`, and `domain-skills/etsy/scraping.md`
 - the Python daemon path is sunset; `admin_cli.py` now uses the Rust control plane only and `admin.py` is only a compatibility alias
 
@@ -168,7 +168,7 @@ stable when:
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser
   lifecycle, and the common typed helper surface
 - `helpers.py` remains as a thin compatibility shell over `runner_cli.py`
-- `runner_cli.py` and `admin_cli.py` are the intended Python shims during compatibility mode, while `browser-harness-py`, `helpers.py`, and `admin.py` are explicitly deprecated
+- `runner_cli.py` and `admin_cli.py` are the intended repo-local Python shims during compatibility mode, while `run.py`, `helpers.py`, and `admin.py` are explicitly deprecated
 - `cdp()` is kept intentionally as the raw escape hatch
 - `wait()` and `http_get()` remain intentionally client/runner-side utilities
 - unsupported typed meta commands degrade through the explicit
@@ -342,7 +342,7 @@ Current design scaffold:
 
 Success means:
 
-- existing legacy `browser-harness-py <<'PY'` scripts still run
+- existing legacy `python3 run.py <<'PY'` scripts still run in the source tree
 - Rust daemon handles core helpers reliably
 - common attach/navigation/screenshot/click flows work
 
