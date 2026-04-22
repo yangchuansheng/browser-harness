@@ -18,12 +18,13 @@ The agent writes what's missing, mid-task. No framework, no recipes, no rails. O
 
 **You will never use the browser again.**
 
-## Transition Status
+## Status
 
-Browser Harness is now in a Rust-first transition:
+Browser Harness is now Rust-native:
 
 - Rust owns the daemon/runtime/control plane
-- the default installed command is now the Rust-native `browser-harness`
+- installed packages are now Rust-only
+- the default installed command is `browser-harness`
 - the repo-local fallback is `cargo run --quiet --bin browser-harness -- ...`
 
 ## Quick Start
