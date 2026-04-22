@@ -11,6 +11,15 @@ fi
 
 mapfile -d '' files < <(git ls-files -z --cached --others --exclude-standard)
 
+existing_files=()
+for file in "${files[@]}"; do
+  if [[ -e "$file" ]]; then
+    existing_files+=("$file")
+  fi
+done
+
+files=("${existing_files[@]}")
+
 if ((${#files[@]} == 0)); then
   echo "No tracked or unignored files to scan."
   exit 0

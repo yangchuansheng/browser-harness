@@ -148,21 +148,10 @@ browser-harness restart-daemon
 - On macOS, prefer AppleScript `open location` over `open -a ... URL` when Chrome is already running.
 - Microsoft Edge (including Beta/Dev/Canary) works too — substitute the app name; steps are identical.
 
-## Legacy Compatibility
+## Optional Python Integration
 
-Installed Rust binaries no longer ship any Python entrypoint.
+Installed binaries are Rust-only.
 
-```bash
-browser-harness --help
-```
-
-If you intentionally want Python around the Rust CLI, use the thin
-`subprocess` wrappers in [docs/python-cli-helpers.md](docs/python-cli-helpers.md)
-instead of the archived repo-local shims.
-
-Current source-tree policy:
-
-- the active source tree ships no repo-local Python shim
-- the deprecated shell/import aliases have been removed
-- new setup, verification, and guest flows should use `browser-harness`,
-  `bhrun`, or `bhsmoke`
+If you intentionally want to orchestrate `browser-harness` from Python, keep
+that logic outside the repo runtime layer and use the thin `subprocess`
+pattern in [docs/python-integration.md](docs/python-integration.md).

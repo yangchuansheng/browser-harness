@@ -48,8 +48,8 @@ browser-harness page-info <<'JSON'
 JSON
 ```
 
-The Rust-native CLI is now the preferred path. The Python heredoc shell is
-legacy compatibility only.
+The Rust-native CLI is the canonical interface. If you need to call it from
+Python, keep that as a thin subprocess wrapper outside the runtime layer.
 
 ### Remote browsers
 
@@ -83,13 +83,7 @@ and map to:
 - `browser-harness sync-local-profile`
 
 If you intentionally want Python around the Rust CLI, use the small
-`subprocess` wrappers in `docs/python-cli-helpers.md`. Do not depend on
-archived repo-local shim modules.
-
-## Legacy compatibility
-
-The deprecated helper-loaded shell, shim modules, and import aliases have been
-removed from the repository.
+`subprocess` wrappers in `docs/python-integration.md`.
 
 ## Search first
 
@@ -172,8 +166,8 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 - **Connect to the user's running Chrome.** Don't launch your own browser.
 - **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
 - **The Rust CLI stays thin.** `browser-harness` is only a facade over `bhctl` and `bhrun`.
-- **Legacy helpers are removed.** Use `browser-harness`, `bhrun`, `bhctl`, or
-  the thin subprocess wrappers in `docs/python-cli-helpers.md`.
+- **Use the Rust CLI directly.** Prefer `browser-harness`, `bhrun`, `bhctl`,
+  or thin subprocess wrappers from `docs/python-integration.md`.
 - **Don't add a manager layer.** No retries framework, session manager, daemon supervisor, config system, or logging framework.
 
 ## Architecture

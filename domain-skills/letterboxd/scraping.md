@@ -5,7 +5,7 @@
 Repo-local Python snippets below assume the Rust-backed runner shim:
 
 ```python
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 ```
 
 ## Access path decision table

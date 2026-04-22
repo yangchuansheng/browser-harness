@@ -7,10 +7,10 @@
 **Use the REST API for repo/user/release data — it's one call, no browser, fully parsed JSON.**
 
 Python snippets below assume the direct `browser-harness` wrappers from
-`docs/python-cli-helpers.md`:
+`docs/python-integration.md`:
 
 ```python
-# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
+# setup: see docs/python-integration.md for direct browser-harness wrappers
 ```
 
 ```python

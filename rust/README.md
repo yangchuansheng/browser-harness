@@ -1,37 +1,24 @@
 # Rust Workspace
 
-This workspace is the Browser Harness runtime and guest implementation.
+This workspace contains the active Browser Harness runtime, host crates, and
+guest modules.
 
-The short-term rewrite is done. The remaining long-term track is the
-Rust-host-plus-WASM-guest direction.
+## Layout
 
-Current status:
+- `bins/browser-harness-cli` — top-level CLI facade
+- `bins/bhctl` — admin/control plane
+- `bins/bhrun` — typed runner and guest execution
+- `bins/bhd` — daemon/runtime core
+- `bins/bhsmoke` — smoke verification runner
+- `crates/` — shared libraries such as discovery, remote control, wasm host, protocol, and guest SDK
+- `guests/` — WAT and Rust-to-WASM guest samples
 
-- The runtime rewrite is complete: Rust owns the daemon/runtime core and the repo no longer carries the old Python shim layer
-- Rust daemon connects to local or remote CDP and serves the existing Unix socket contract
-- first typed helper operations are implemented in the Rust daemon: page info, tab listing/current tab, tab switching, new-tab creation, real-tab recovery, iframe lookup, load waiting, JS evaluation, goto, screenshot capture, viewport control, PDF export, cookie read/write, download configuration, low-level input primitives, drag primitives, DOM key dispatch, and file upload
-- remote-browser shutdown parity is implemented in the Rust daemon
-- local regression tests cover protocol, discovery, remote stop requests, daemon buffer behavior, and the Rust-native smoke surface
-- site-dependent domain-skill acceptance now has passing local browser smokes via `DevToolsActivePort`, including the GitHub trending, Reddit post, Product Hunt homepage, Letterboxd popular, Spotify search, and Etsy search guest slices
-- Browser Use remote remains useful for simple runner/plumbing smokes, but site-dependent guest verification against origins such as GitHub, Reddit, Product Hunt, and Letterboxd is currently best-effort because cloud navigation to those sites has been intermittently unreliable
-- the first preview guest-execution slice exists via `bh-wasm-host`, `bhrun`, and [docs/wasm-runner-design.md](../docs/wasm-runner-design.md)
-- the new Rust-native top-level CLI facade is `browser-harness`, which forwards admin commands to `bhctl` and runner/helper commands to `bhrun`
-- the repo-owned runner/admin verification smokes for the common helper surface now live in `bins/bhsmoke`
-- `bhrun` now has a first persistent guest-runner preview via `serve-guest`, plus the runner-local `wait` utility for browser-free guest verification
-- the first Rust guest authoring path now exists via `bh-guest-sdk` and `guests/rust-navigate-and-read`
-- the persistent browser-state sample guest is now also available as a compiled Rust Wasm guest via `guests/rust-persistent-browser-state`
-- `bh-guest-sdk` now also covers typed tab/session control and the event-wait family, with compiled workflow samples in `guests/rust-tab-response-workflow` and `guests/rust-event-waits-sdk`
-- the guest SDK and runner now also expose `wait_for_load`, `ensure_real_tab`, `iframe_target`, `click`, `mouse_move`, `mouse_down`, `mouse_up`, `type_text`, `press_key`, `dispatch_key`, `scroll`, `set_viewport`, `print_pdf`, `screenshot`, `handle_dialog`, `upload_file`, `get_cookies`, `set_cookies`, `configure_downloads`, `wait_for_download`, runner-owned `http_get`, request-side `wait_for_request`, and the capability-gated raw CDP escape hatch `cdp_raw`
-- the first skill-shaped Rust/Wasm guest now exists via `guests/rust-github-trending`, which ports the browser-trending slice of `domain-skills/github/scraping.md`
-- a second skill-shaped Rust/Wasm guest now exists via `guests/rust-reddit-post-scrape`, which ports the browser DOM extraction slice of `domain-skills/reddit/scraping.md`
-- a third skill-shaped Rust/Wasm guest now exists via `guests/rust-producthunt-homepage`, which ports the homepage feed slice of `domain-skills/producthunt/scraping.md` with a `new_tab()`-first flow and a fallback extractor for the current homepage DOM
-- a fourth skill-shaped Rust/Wasm guest now exists via `guests/rust-letterboxd-popular`, which ports the browser-only popular browse slice of `domain-skills/letterboxd/scraping.md`
-- a fifth and sixth browser-first skill-shaped guests now exist via `guests/rust-spotify-search` and `guests/rust-etsy-search`
-- the first HTTP-owned skill-shaped guests now exist via `guests/rust-metacritic-game-scores`, `guests/rust-walmart-search`, and `guests/rust-tradingview-symbol-search`
+## Main References
 
-Compatibility contract:
-
-- [docs/rust-compat-contract.md](../docs/rust-compat-contract.md)
+- [../docs/architecture.md](../docs/architecture.md)
+- [../docs/development.md](../docs/development.md)
+- [../docs/future-wasm.md](../docs/future-wasm.md)
+- [../docs/python-integration.md](../docs/python-integration.md)
 
 Quick verification:
 
@@ -163,8 +150,9 @@ cargo run --quiet --bin bhrun -- wait-for-dialog <<'JSON'
 JSON
 ```
 
-Optional Python wrappers should now call `browser-harness` through the thin
-helpers in [docs/python-cli-helpers.md](../docs/python-cli-helpers.md).
+If you want to drive the CLI from Python, keep that integration outside the
+repo runtime layer and use the thin subprocess pattern documented in
+[../docs/python-integration.md](../docs/python-integration.md).
 
 Live remote smoke test:
 
