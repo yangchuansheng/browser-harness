@@ -56,7 +56,11 @@ def _typed_result(meta, **params):
 
 
 def cdp(method, session_id=None, **params):
-    """Raw CDP escape hatch kept intentionally for advanced compatibility work."""
+    """Legacy raw CDP compatibility escape hatch.
+
+    Prefer `browser-harness cdp-raw` or `bh_guest_sdk::cdp_raw(...)` for new
+    Rust-native workflows.
+    """
     return _send({"method": method, "params": params, "session_id": session_id}).get("result", {})
 
 
