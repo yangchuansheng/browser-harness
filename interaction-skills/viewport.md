@@ -75,12 +75,12 @@ recompute them.
 
 The repository smoke for this path is:
 
-- `scripts/bhrun_viewport_smoke.py`
+- `rust/bins/bhsmoke` with the `set-viewport` scenario
 
 Primary acceptance is local browser mode:
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_viewport_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- set-viewport
 ```
 
 That smoke:

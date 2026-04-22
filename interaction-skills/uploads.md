@@ -60,10 +60,10 @@ Prefer one of these after upload:
 
 ## Local Acceptance
 
-- `scripts/bhrun_upload_smoke.py`
+- `rust/bins/bhsmoke` with the `upload-file` scenario
 
 ```bash
-BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust python3 scripts/bhrun_upload_smoke.py
+BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- upload-file
 ```
 
 That smoke:

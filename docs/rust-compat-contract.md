@@ -228,4 +228,5 @@ The local regression checks for this contract are:
 - `cargo test --workspace`
 - `python3 -m unittest tests/test_rust_mode_contract.py`
 - `python3 run.py --help`
-- `python3 scripts/remote_smoke.py` for live Browser Use verification
+- `cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- remote`
+  for live Browser Use verification
