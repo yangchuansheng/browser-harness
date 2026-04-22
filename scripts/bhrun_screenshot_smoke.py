@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "bhrun-screenshot-smoke")
 
 from admin import _browser_use, ensure_daemon, restart_daemon, start_remote_daemon  # noqa: E402
-from helpers import js, new_tab, page_info, wait_for_load  # noqa: E402
+from scripts._runner_cli import js, new_tab, page_info, wait_for_load  # noqa: E402
 
 TARGET_URL = "https://example.com/?via=bhrun-screenshot-smoke"
 

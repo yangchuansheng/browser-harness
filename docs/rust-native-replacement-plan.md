@@ -25,6 +25,8 @@ As of the current rewrite stage:
   compatibility shell
 - the installed default `browser-harness` command is now the Rust-native CLI,
   while the Python shell is explicitly `browser-harness-py`
+- repo-owned smoke/verification scripts now call `bhrun` directly through a
+  small script shim instead of importing `helpers.py`
 
 This means the Python daemon path is sunset. The remaining Python surface is
 now a shim layer, not the product core.

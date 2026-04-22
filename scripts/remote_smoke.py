@@ -23,7 +23,15 @@ sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "remote-smoke")
 
 from admin import _browser_use, restart_daemon, start_remote_daemon  # noqa: E402
-from helpers import dispatch_key, goto, js, new_tab, page_info, screenshot, wait_for_load  # noqa: E402
+from scripts._runner_cli import (  # noqa: E402
+    dispatch_key,
+    goto,
+    js,
+    new_tab,
+    page_info,
+    screenshot,
+    wait_for_load,
+)
 
 
 def poll_browser_status(browser_id, attempts=10, delay=1.0):

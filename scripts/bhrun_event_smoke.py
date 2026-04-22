@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "bhrun-event-smoke")
 
 from admin import _browser_use, restart_daemon, start_remote_daemon  # noqa: E402
-from helpers import drain_events, goto, new_tab, page_info, wait_for_load  # noqa: E402
+from scripts._runner_cli import drain_events, goto, new_tab, page_info, wait_for_load  # noqa: E402
 
 
 def poll_browser_status(browser_id, attempts=10, delay=1.0):

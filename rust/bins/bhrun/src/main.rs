@@ -33,7 +33,7 @@ const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
 
 fn print_usage() {
     eprintln!(
-        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|handle-dialog|upload-file|wait|http-get|current-session|cdp-raw|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
+        "usage: bhrun <manifest|sample-config|capabilities|summary|run-guest [path]|serve-guest [path]|current-tab|list-tabs|new-tab|switch-tab|ensure-real-tab|iframe-target|page-info|goto|wait-for-load|js|click|type-text|press-key|dispatch-key|scroll|screenshot|handle-dialog|upload-file|wait|http-get|current-session|drain-events|cdp-raw|wait-for-event|watch-events|wait-for-load-event|wait-for-response|wait-for-console|wait-for-dialog>\n\
          runner scaffold: persistent guest serving, event waiting, and preview guest execution are live"
     );
 }
@@ -200,6 +200,12 @@ where
             let result = current_session(request)?;
             write_json(&mut stdout, &result)
         }
+        Some("drain-events") => {
+            let request =
+                read_optional_json::<CurrentSessionRequest, _>(&mut stdin)?.unwrap_or_default();
+            let result = drain_events_command(request)?;
+            write_json(&mut stdout, &result)
+        }
         Some("cdp-raw") => {
             let request = read_json::<CdpRawRequest, _>(&mut stdin)?;
             let result = cdp_raw(request)?;
@@ -243,6 +249,10 @@ where
 
 fn current_session(request: CurrentSessionRequest) -> Result<CurrentSessionResult, String> {
     current_session_with_sender(request, send_daemon_meta_request)
+}
+
+fn drain_events_command(request: CurrentSessionRequest) -> Result<Vec<Value>, String> {
+    drain_events(&request.daemon_name)
 }
 
 fn cdp_raw(request: CdpRawRequest) -> Result<Value, String> {
@@ -1089,9 +1099,22 @@ where
 }
 
 fn drain_events(daemon_name: &str) -> Result<Vec<Value>, String> {
-    Ok(send_daemon_meta_request(daemon_name, META_DRAIN_EVENTS)?
-        .events
-        .unwrap_or_default())
+    drain_events_with_sender(daemon_name, send_daemon_request)
+}
+
+fn drain_events_with_sender<F>(daemon_name: &str, mut sender: F) -> Result<Vec<Value>, String>
+where
+    F: FnMut(&str, &DaemonRequest) -> Result<DaemonResponse, String>,
+{
+    Ok(sender(
+        daemon_name,
+        &DaemonRequest {
+            meta: Some(META_DRAIN_EVENTS.to_string()),
+            ..DaemonRequest::default()
+        },
+    )?
+    .events
+    .unwrap_or_default())
 }
 
 fn meta_result_with_sender<F>(
@@ -1450,18 +1473,18 @@ mod tests {
     use super::{
         cdp_raw_with_sender, click_with_sender, current_session_with_sender,
         current_tab_with_sender, daemon_read_timeout, dispatch_guest_operation,
-        dispatch_key_with_sender, ensure_real_tab_with_sender, goto_with_sender,
-        handle_dialog_with_sender, http_get, iframe_target_with_sender, inject_daemon_name,
-        js_with_sender, list_tabs_with_sender, new_tab_with_sender, page_info_with_sender,
-        press_key_with_sender, run_cli, screenshot_with_sender, scroll_with_sender,
-        serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
+        dispatch_key_with_sender, drain_events_with_sender, ensure_real_tab_with_sender,
+        goto_with_sender, handle_dialog_with_sender, http_get, iframe_target_with_sender,
+        inject_daemon_name, js_with_sender, list_tabs_with_sender, new_tab_with_sender,
+        page_info_with_sender, press_key_with_sender, run_cli, screenshot_with_sender,
+        scroll_with_sender, serialize_guest_result, switch_tab_with_sender, type_text_with_sender,
         upload_file_with_sender, wait, wait_for_console_with_drain, wait_for_event_with_drain,
         wait_for_load_with_sender, watch_events_collect_with_drain, watch_events_with_drain,
         DaemonResponse, GuestHostState, GuestRuntime, META_CLICK, META_CURRENT_TAB,
-        META_DISPATCH_KEY, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG, META_IFRAME_TARGET,
-        META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY, META_SCREENSHOT,
-        META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT, META_UPLOAD_FILE,
-        META_WAIT_FOR_LOAD,
+        META_DISPATCH_KEY, META_DRAIN_EVENTS, META_ENSURE_REAL_TAB, META_GOTO, META_HANDLE_DIALOG,
+        META_IFRAME_TARGET, META_JS, META_LIST_TABS, META_NEW_TAB, META_PAGE_INFO, META_PRESS_KEY,
+        META_SCREENSHOT, META_SCROLL, META_SESSION, META_SWITCH_TAB, META_TYPE_TEXT,
+        META_UPLOAD_FILE, META_WAIT_FOR_LOAD,
     };
     use std::collections::BTreeMap;
     use std::collections::VecDeque;
@@ -2988,6 +3011,26 @@ mod tests {
                 session_id: Some("session-7".to_string())
             }
         )
+    }
+
+    #[test]
+    fn drain_events_uses_meta_request_result() {
+        let result = drain_events_with_sender("runner", |daemon, request| {
+            assert_eq!(daemon, "runner");
+            assert_eq!(request.meta.as_deref(), Some(META_DRAIN_EVENTS));
+            assert!(request.params.is_none());
+            Ok(DaemonResponse {
+                events: Some(vec![json!({"method":"Page.loadEventFired"})]),
+                ..DaemonResponse::default()
+            })
+        })
+        .expect("drain events result");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].get("method").and_then(Value::as_str),
+            Some("Page.loadEventFired")
+        );
     }
 
     #[test]
