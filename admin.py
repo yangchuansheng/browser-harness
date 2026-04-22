@@ -1,7 +1,5 @@
 import json
 import os
-import socket
-import time
 import urllib.request
 from pathlib import Path
 
@@ -23,50 +21,11 @@ _load_env()
 NAME = os.environ.get("BU_NAME", "default")
 BU_API = "https://api.browser-use.com/api/v3"
 
-
-def _paths(name):
-    n = name or NAME
-    return f"/tmp/bu-{n}.sock", f"/tmp/bu-{n}.pid"
-
-
-def _log_tail(name):
-    p = f"/tmp/bu-{name or NAME}.log"
-    try:
-        return Path(p).read_text().strip().splitlines()[-1]
-    except (FileNotFoundError, IndexError):
-        return None
-
-
 def daemon_alive(name=None):
-    if _rust_admin_enabled():
-        args = ["daemon-alive"]
-        if name:
-            args.append(name)
-        return bool(_run_bhctl(args)["alive"])
-    try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(1)
-        s.connect(_paths(name)[0])
-        s.close()
-        return True
-    except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
-        return False
-
-
-def _daemon_process_spec():
-    repo_dir = os.path.dirname(os.path.abspath(__file__))
-    if os.environ.get("BU_DAEMON_IMPL", "").strip().lower() != "rust":
-        return ["uv", "run", "daemon.py"], repo_dir
-
-    rust_dir = os.path.join(repo_dir, "rust")
-    if custom := os.environ.get("BU_RUST_DAEMON_BIN"):
-        return [custom], repo_dir
-
-    return ["cargo", "run", "--quiet", "--bin", "bhd", "--"], rust_dir
-
-
-def _rust_admin_enabled():
-    return os.environ.get("BU_DAEMON_IMPL", "").strip().lower() == "rust"
+    args = ["daemon-alive"]
+    if name:
+        args.append(name)
+    return bool(_run_bhctl(args)["alive"])
 
 
 def _bhctl_process_spec():
@@ -98,39 +57,14 @@ def _run_bhctl(args, payload=None):
 
 def ensure_daemon(wait=60.0, name=None, env=None):
     """Idempotent. `env` is merged into the child process env."""
-    if _rust_admin_enabled():
-        _run_bhctl(
-            ["ensure-daemon"],
-            {
-                "wait": wait,
-                "name": name,
-                "env": env or {},
-            },
-        )
-        return
-    if daemon_alive(name):
-        return
-    import subprocess
-
-    e = {**os.environ, **({"BU_NAME": name} if name else {}), **(env or {})}
-    cmd, cwd = _daemon_process_spec()
-    p = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        env=e,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+    _run_bhctl(
+        ["ensure-daemon"],
+        {
+            "wait": wait,
+            "name": name,
+            "env": env or {},
+        },
     )
-    deadline = time.time() + wait
-    while time.time() < deadline:
-        if daemon_alive(name):
-            return
-        if p.poll() is not None:
-            break
-        time.sleep(0.2)
-    msg = _log_tail(name)
-    raise RuntimeError(msg or f"daemon {name or NAME} didn't come up -- check /tmp/bu-{name or NAME}.log")
 
 
 def stop_remote_daemon(name="remote"):
@@ -153,45 +87,10 @@ def restart_daemon(name=None):
     Name is historical: callers typically follow this with another
     `browser-harness` invocation, which auto-spawns a fresh daemon via
     ensure_daemon(). The function itself only stops."""
-    if _rust_admin_enabled():
-        args = ["restart-daemon"]
-        if name:
-            args.append(name)
-        _run_bhctl(args)
-        return
-    import signal
-
-    sock, pid_path = _paths(name)
-    try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect(sock)
-        s.sendall(b'{"meta":"shutdown"}\n')
-        s.recv(1024)
-        s.close()
-    except Exception:
-        pass
-    try:
-        pid = int(open(pid_path).read())
-    except (FileNotFoundError, ValueError):
-        pid = None
-    if pid:
-        for _ in range(75):
-            try:
-                os.kill(pid, 0)
-                time.sleep(0.2)
-            except ProcessLookupError:
-                break
-        else:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-    for f in (sock, pid_path):
-        try:
-            os.unlink(f)
-        except FileNotFoundError:
-            pass
+    args = ["restart-daemon"]
+    if name:
+        args.append(name)
+    _run_bhctl(args)
 
 
 def _browser_use(path, method, body=None):
@@ -205,10 +104,6 @@ def _browser_use(path, method, body=None):
         headers={"X-Browser-Use-API-Key": key, "Content-Type": "application/json"},
     )
     return json.loads(urllib.request.urlopen(req, timeout=60).read() or b"{}")
-
-
-def _cdp_ws_from_url(cdp_url):
-    return json.loads(urllib.request.urlopen(f"{cdp_url}/json/version", timeout=15).read())["webSocketDebuggerUrl"]
 
 
 def _has_local_gui():
@@ -246,40 +141,7 @@ def list_cloud_profiles():
     detail on a *local* profile before sync: `profile-use inspect --profile <name>`.
 
     Paginates through all pages — the API caps `pageSize` at 100."""
-    if _rust_admin_enabled():
-        return _run_bhctl(["list-cloud-profiles"])
-
-    out, page = [], 1
-    while True:
-        listing = _browser_use(f"/profiles?pageSize=100&pageNumber={page}", "GET")
-        items = listing.get("items") if isinstance(listing, dict) else listing
-        if not items:
-            break
-        for p in items:
-            detail = _browser_use(f"/profiles/{p['id']}", "GET")
-            out.append({
-                "id": detail["id"],
-                "name": detail.get("name"),
-                "userId": detail.get("userId"),
-                "cookieDomains": detail.get("cookieDomains") or [],
-                "lastUsedAt": detail.get("lastUsedAt"),
-            })
-        if isinstance(listing, dict) and len(out) >= listing.get("totalItems", len(out)):
-            break
-        page += 1
-    return out
-
-
-def _resolve_profile_name(profile_name):
-    """Find a single cloud profile by exact name; raise if 0 or >1 match."""
-    if _rust_admin_enabled():
-        return _run_bhctl(["resolve-profile-name", profile_name])["profileId"]
-    matches = [p for p in list_cloud_profiles() if p.get("name") == profile_name]
-    if not matches:
-        raise RuntimeError(f"no cloud profile named {profile_name!r} -- call list_cloud_profiles() or sync_local_profile() first")
-    if len(matches) > 1:
-        raise RuntimeError(f"{len(matches)} cloud profiles named {profile_name!r} -- pass profileId=<uuid> instead")
-    return matches[0]["id"]
+    return _run_bhctl(["list-cloud-profiles"])
 
 
 def start_remote_daemon(name="remote", profileName=None, **create_kwargs):
@@ -298,18 +160,10 @@ def start_remote_daemon(name="remote", profileName=None, **create_kwargs):
     if daemon_alive(name):
         raise RuntimeError(f"daemon {name!r} already alive -- restart_daemon({name!r}) first")
 
-    if _rust_admin_enabled():
-        if profileName:
-            create_kwargs["profileName"] = profileName
-        browser = _run_bhctl(["create-browser"], create_kwargs or {})
-        cdp_ws = browser["cdpWsUrl"]
-    else:
-        if profileName:
-            if "profileId" in create_kwargs:
-                raise RuntimeError("pass profileName OR profileId, not both")
-            create_kwargs["profileId"] = _resolve_profile_name(profileName)
-        browser = _browser_use("/browsers", "POST", create_kwargs)
-        cdp_ws = _cdp_ws_from_url(browser["cdpUrl"])
+    if profileName:
+        create_kwargs["profileName"] = profileName
+    browser = _run_bhctl(["create-browser"], create_kwargs or {})
+    cdp_ws = browser["cdpWsUrl"]
     ensure_daemon(
         name=name,
         env={"BU_CDP_WS": cdp_ws, "BU_BROWSER_ID": browser["id"]},
@@ -322,12 +176,7 @@ def list_local_profiles():
     """Detected local browser profiles on this machine. Shells out to `profile-use list --json`.
     Returns [{BrowserName, BrowserPath, ProfileName, ProfilePath, DisplayName}, ...].
     Requires `profile-use` (see interaction-skills/profile-sync.md for install)."""
-    if _rust_admin_enabled():
-        return _run_bhctl(["list-local-profiles"])
-    import json, shutil, subprocess
-    if not shutil.which("profile-use"):
-        raise RuntimeError("profile-use not installed -- curl -fsSL https://browser-use.com/profile.sh | sh")
-    return json.loads(subprocess.check_output(["profile-use", "list", "--json"], text=True))
+    return _run_bhctl(["list-local-profiles"])
 
 
 def sync_local_profile(profile_name, browser=None, cloud_profile_id=None,
@@ -349,47 +198,18 @@ def sync_local_profile(profile_name, browser=None, cloud_profile_id=None,
                           Leading dot is optional. Example: ["google.com", "stripe.com"].
       exclude_domains:    drop cookies for these domains (and subdomains). Applied
                           before `include_domains` so exclude wins on overlap."""
-    if _rust_admin_enabled():
-        import sys
+    import sys
 
-        result = _run_bhctl(
-            ["sync-local-profile"],
-            {
-                "profileName": profile_name,
-                "browser": browser,
-                "cloudProfileId": cloud_profile_id,
-                "includeDomains": include_domains or [],
-                "excludeDomains": exclude_domains or [],
-            },
-        )
-        sys.stdout.write(result.get("stdout", ""))
-        sys.stderr.write(result.get("stderr", ""))
-        return result["cloudProfileId"]
-
-    import os, re, shutil, subprocess, sys
-    if not shutil.which("profile-use"):
-        raise RuntimeError("profile-use not installed -- curl -fsSL https://browser-use.com/profile.sh | sh")
-    if not os.environ.get("BROWSER_USE_API_KEY"):
-        raise RuntimeError("BROWSER_USE_API_KEY missing")
-    cmd = ["profile-use", "sync", "--profile", profile_name]
-    if browser:
-        cmd += ["--browser", browser]
-    if cloud_profile_id:
-        cmd += ["--cloud-profile-id", cloud_profile_id]
-    for d in include_domains or []:
-        cmd += ["--domain", d]
-    for d in exclude_domains or []:
-        cmd += ["--exclude-domain", d]
-    r = subprocess.run(cmd, text=True, capture_output=True)
-    sys.stdout.write(r.stdout)
-    sys.stderr.write(r.stderr)
-    if r.returncode != 0:
-        raise RuntimeError(f"profile-use sync failed (exit {r.returncode})")
-    # With --cloud-profile-id the tool prints "♻️ Using existing cloud profile"
-    # instead of "Profile created: <uuid>", so we already know the UUID.
-    if cloud_profile_id:
-        return cloud_profile_id
-    m = re.search(r"Profile created:\s+([0-9a-f-]{36})", r.stdout)
-    if not m:
-        raise RuntimeError(f"profile-use did not report a profile UUID (exit {r.returncode})")
-    return m.group(1)
+    result = _run_bhctl(
+        ["sync-local-profile"],
+        {
+            "profileName": profile_name,
+            "browser": browser,
+            "cloudProfileId": cloud_profile_id,
+            "includeDomains": include_domains or [],
+            "excludeDomains": exclude_domains or [],
+        },
+    )
+    sys.stdout.write(result.get("stdout", ""))
+    sys.stderr.write(result.get("stderr", ""))
+    return result["cloudProfileId"]
