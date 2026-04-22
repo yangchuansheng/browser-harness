@@ -7,7 +7,7 @@
 **Every response is a 2-element JSON array: `[metadata, data]`.** The metadata element is always at index 0 (pagination info); the data array is at index 1. This is the single biggest gotcha — `json.loads(raw)` gives you a list, not a dict.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get("https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json")
@@ -23,7 +23,7 @@ Always append `?format=json` — default response is XML.
 ### Single country, single indicator
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get("https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json")
@@ -45,7 +45,7 @@ for r in rows:
 `mrv` (most recent values) skips null years and returns the N most recent non-provisional points.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get(
@@ -68,7 +68,7 @@ for r in d[1]:
 Semicolon-delimit country codes in the URL path. Use `date=YYYY:YYYY` for a range.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get(
@@ -91,7 +91,7 @@ for r in rows:
 Use `mrv=1` with `per_page=1000` to get all 266 countries in a single call.
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get(
@@ -115,7 +115,7 @@ for r in sorted(countries_only, key=lambda x: -(x["value"] or 0))[:5]:
 ### Full pagination (fetch all pages)
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 def fetch_all_pages(base_url):
@@ -145,7 +145,7 @@ print(f"Non-null: {len(non_null)}, range: {non_null[-1][0]}–{non_null[0][0]}")
 ### Indicators list (discover available indicators)
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get("https://api.worldbank.org/v2/indicator?format=json&per_page=50")
@@ -163,7 +163,7 @@ for ind in d[1][:3]:
 ### Indicators by topic
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 # Topic 3 = Economy & Growth
@@ -178,7 +178,7 @@ for ind in d[1][:5]:
 ### Country metadata
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get("https://api.worldbank.org/v2/country/US?format=json")
@@ -196,7 +196,7 @@ print(f"Low-income countries: {d[0]['total']}")  # 25
 ### Topics list
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 raw = http_get("https://api.worldbank.org/v2/topics?format=json")
@@ -212,7 +212,7 @@ for t in d[1]:
 ### Parallel fetch for multiple indicators (ThreadPoolExecutor)
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 from concurrent.futures import ThreadPoolExecutor
 import json
 

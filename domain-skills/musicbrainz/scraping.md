@@ -12,7 +12,7 @@ Field-tested against musicbrainz.org on 2026-04-18.
 **The MusicBrainz Web Service API (ws/2) returns clean JSON for all entity types — no browser needed.**
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 # REQUIRED: every request must include this header or you get HTTP 403
@@ -49,7 +49,7 @@ All entities share the same MBID (MusicBrainz ID) format: UUID v4, e.g. `0383dad
 ### Artist search
 
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import json
 
 UA = {"User-Agent": "browser-harness/1.0 (your@email.com)"}

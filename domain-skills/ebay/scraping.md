@@ -182,7 +182,7 @@ def extract_search_results(html):
 
 **Usage:**
 ```python
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 import re
 
 HEADERS = {
@@ -373,7 +373,7 @@ in a session, eBay returns "Pardon Our Interruption" for all subsequent requests
 
 ```python
 import re, json, time
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",

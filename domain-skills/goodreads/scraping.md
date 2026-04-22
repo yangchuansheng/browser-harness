@@ -25,7 +25,7 @@ The slug is optional — numeric ID alone works and redirects cleanly.
 
 ```python
 import re, json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def parse_book(book_id):
     html = http_get(f"https://www.goodreads.com/book/show/{book_id}")
@@ -103,7 +103,7 @@ Use when you only need title, author, rating, page count, and awards. ~3× less 
 
 ```python
 import re, json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def parse_book_fast(book_id):
     html = http_get(f"https://www.goodreads.com/book/show/{book_id}")
@@ -142,7 +142,7 @@ Search uses server-rendered HTML with schema.org microdata `<tr>` rows. No `__NE
 
 ```python
 import re, json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def search_books(query, page=1):
     from urllib.parse import quote_plus
@@ -203,7 +203,7 @@ The author ID and slug can be obtained from a book's `author_url` field.
 
 ```python
 import re, json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def parse_author(author_id_and_slug):
     # author_id_and_slug e.g. "58.Frank_Patrick_Herbert"
@@ -274,7 +274,7 @@ Returns 100 books per page with rank numbers.
 
 ```python
 import re, json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def parse_list(list_id_and_slug, page=1):
     url = f"https://www.goodreads.com/list/show/{list_id_and_slug}?page={page}"
@@ -332,7 +332,7 @@ Open Library's ratings are from its own user base (~400 ratings vs. Goodreads' 8
 ```python
 import json
 from urllib.parse import quote_plus
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 def ol_search(query, limit=10):
     url = f"https://openlibrary.org/search.json?q={quote_plus(query)}&limit={limit}"

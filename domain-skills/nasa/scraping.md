@@ -8,7 +8,7 @@
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Simplest call: today's Astronomy Picture of the Day
 apod = json.loads(http_get("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY"))
@@ -38,7 +38,7 @@ Rate limit headers on every `api.nasa.gov` response:
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 apod = json.loads(http_get("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY"))
 print(apod['date'])        # '2026-04-18'
@@ -57,7 +57,7 @@ print(apod.get('copyright'))  # None if public domain
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 apods = json.loads(http_get(
     "https://api.nasa.gov/planetary/apod"
@@ -82,7 +82,7 @@ Optional params: `date=YYYY-MM-DD` (specific day), `count=N` (N random entries),
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 apods = json.loads(http_get(
     "https://api.nasa.gov/planetary/apod?count=5&api_key=DEMO_KEY"
@@ -96,7 +96,7 @@ for a in apods:
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 data = json.loads(http_get(
     "https://api.nasa.gov/neo/rest/v1/feed"
@@ -130,7 +130,7 @@ Date range is capped at **7 days per request**. For longer ranges, paginate with
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Asteroid ID comes from the feed's `id` field
 neo = json.loads(http_get(
@@ -145,7 +145,7 @@ print(neo['orbital_data']['orbit_class']['orbit_class_description'])
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # sol = Martian solar day since landing
 data = json.loads(http_get(
@@ -189,7 +189,7 @@ EPIC images are served from `epic.gsfc.nasa.gov` — **no `api_key` required, no
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Latest available images (natural color)
 images = json.loads(http_get("https://epic.gsfc.nasa.gov/api/natural"))
@@ -237,7 +237,7 @@ No API key or rate limit. SQL-like ADQL queries over the full archive.
 
 ```python
 import json
-from runner_cli import http_get
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 
 # Short-period planets with known radii
 planets = json.loads(http_get(
@@ -336,4 +336,4 @@ https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=<ADQL>&format=json&maxr
 
 - **Exoplanet null values come back as `None` in JSON** — Many fields like `pl_masse` are `null` for planets without mass measurements. Always guard with `if row['pl_masse'] is not None`.
 
-- **Prefer `runner_cli.http_get` or `browser-harness http-get`** — The current default HTTP path is the Rust runner client, not the deprecated `helpers.py` wrapper. If you are still using the old compatibility shell and hit Python SSL issues, switch to `runner_cli.http_get(...)`, `browser-harness http-get`, or a `curl` subprocess instead.
+- **Prefer `browser-harness http-get`** — The current default HTTP path is the Rust runner client, not the deprecated `helpers.py` wrapper. If you are still using the old compatibility shell and hit Python SSL issues, switch to `browser-harness http-get` or a `curl` subprocess instead.

@@ -23,18 +23,18 @@ The Rust-native path now exposes typed viewport control directly:
 - `browser-harness set-viewport`
 - `bh_guest_sdk::set_viewport(...)`
 
-Repo-local Python scripts should use the Rust-backed shim in
-`scripts/_runner_cli.py`:
+Use the CLI directly:
 
-```python
-from scripts._runner_cli import page_info, set_viewport
-
-set_viewport(1280, 800, device_scale_factor=1.0, mobile=False)
-print(page_info())   # {'w': 1280, 'h': 800, ...}
+```bash
+browser-harness set-viewport <<'JSON'
+{"daemon_name":"default","width":1280,"height":800,"device_scale_factor":1.0,"mobile":false}
+JSON
+browser-harness page-info <<'JSON'
+{"daemon_name":"default"}
+JSON
 ```
 
-This is now the preferred path. The old Python helper shell is compatibility
-only.
+This is now the preferred path. The old Python helper shell is archived.
 
 ## Desktop Vs Mobile
 

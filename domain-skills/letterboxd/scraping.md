@@ -5,7 +5,7 @@
 Repo-local Python snippets below assume the Rust-backed runner shim:
 
 ```python
-from scripts._runner_cli import goto, http_get, js, wait, wait_for_load
+# setup: see docs/python-cli-helpers.md for direct browser-harness wrappers
 ```
 
 ## Access path decision table

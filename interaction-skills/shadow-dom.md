@@ -7,13 +7,10 @@ component tree is more expensive than the action.
 
 Shadow DOM usually needs recursive `shadowRoot` access:
 
-```python
-from scripts._runner_cli import js
-
-label = js(
-    "document.querySelector('my-app').shadowRoot.querySelector('button').textContent"
-)
-print(label)
+```bash
+browser-harness js <<'JSON'
+{"daemon_name":"default","expression":"document.querySelector('my-app').shadowRoot.querySelector('button').textContent"}
+JSON
 ```
 
 ## When To Use Pointer Input Instead

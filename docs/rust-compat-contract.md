@@ -1,35 +1,24 @@
 # Rust Compatibility Contract
 
-This document defines the Python-facing contract that the in-repo Rust rewrite
-must preserve while the legacy Python compatibility layer still ships.
+This document records the final Python-facing contract that existed during the
+Rust rewrite. The active repo workflow no longer keeps repo-local Python shims.
+The historical Python layer now lives under `archive/python-legacy/`, and any
+optional Python examples should call `browser-harness` through the small
+subprocess wrappers in `docs/python-cli-helpers.md`.
 
-Current compatibility split:
+Archived compatibility split:
 
-- `runner_cli.py` is the intended stable Python helper shim over `bhrun`
-- `admin_cli.py` is the intended stable Python admin shim over Rust control
+- `runner_cli.py` was the repo-local Python helper shim over `bhrun`
+- `admin_cli.py` was the repo-local Python admin shim over Rust control
   commands
-- `helpers.py` is deprecated and now exists as a compatibility facade over
-  `runner_cli.py` plus the raw-CDP / typed-meta fallback layer
-- `admin.py` is deprecated and is only a compatibility alias for `admin_cli.py`
-- `run.py` is the deprecated repo-local heredoc shell
+- `archive/python-legacy/` keeps the removed `run.py`, `helpers.py`,
+  `admin.py`, and related historical compatibility code for reference only
 
 Installed-package policy:
 
-- installed packages do not ship `run.py`, `runner_cli.py`, `admin_cli.py`,
-  `helpers.py`, or `admin.py`
-- source-tree compatibility tests still cover `helpers.py` and `admin.py`
-- source-tree compatibility tests still cover `run.py`
-
-Deprecation-warning contract:
-
-- `run.py` warns on invocation
-- `import helpers` warns on import
-- `import admin` warns on import
-- `BROWSER_HARNESS_SUPPRESS_PY_DEPRECATION=1` suppresses those warnings for
-  legacy automation
-
-This document exists because the deprecated layer still has to keep working
-until packaging and compatibility policy change again.
+- installed packages do not ship any Python entrypoint
+- installed packages do not ship `runner_cli.py` or `admin_cli.py`
+- the archived legacy Python layer is source-tree only
 
 ## Runtime Files
 
@@ -38,8 +27,9 @@ until packaging and compatibility policy change again.
 - PID file: `/tmp/bu-<name>.pid`
 - Log file: `/tmp/bu-<name>.log`
 
-`admin_cli.py`, `runner_cli.py`, `helpers.py`, `bhd`, and `bhctl` must agree on
-these paths.
+The archived `admin_cli.py` / `runner_cli.py` pair, plus `bhd` and `bhctl`,
+had to agree on these paths. The archived `helpers.py` layer used the same
+runtime files.
 
 ## Daemon Socket Protocol
 
@@ -93,11 +83,12 @@ Unsupported typed meta negotiation:
 
 - If a daemon does not implement a typed helper meta command, it must respond
   with `{"error":"unsupported meta command: <name>"}`.
-- `helpers.py` treats that exact prefix as a capability check and falls back to
-  raw CDP or client-side behavior where a compatibility path exists.
-- `runner_cli.py` is the preferred stable Python path and does not provide that
-  raw fallback layer; the fallback behavior is intentionally isolated in the
-  deprecated `helpers.py` facade.
+- the archived `helpers.py` layer treated that exact prefix as a capability
+  check and fell back to raw CDP or client-side behavior where a compatibility
+  path existed.
+- `runner_cli.py` was the preferred stable Python path and did not provide that
+  raw fallback layer; the fallback behavior stayed isolated in the deprecated
+  `helpers.py` facade.
 - Raw CDP requests sent through `cdp(...)` remain part of the compatibility
   contract and are not considered a migration gap.
 
@@ -129,11 +120,11 @@ Supported meta commands:
 All non-meta requests are daemon-forwarded CDP calls and return either
 `{"result":{...}}` or `{"error":"..."}`.
 
-## `bhctl` Commands Used By Python
+## Historical `bhctl` Commands Used By Python
 
-Rust mode in `admin_cli.py` currently relies on these commands and JSON shapes.
-`admin.py` must continue to expose the same behavior because it is only an
-alias over `admin_cli.py`.
+Rust mode in the archived `admin_cli.py` shim relied on these commands and JSON
+shapes. The archived `admin.py` alias exposed the same behavior because it only
+re-exported `admin_cli.py`.
 
 ### `bhctl daemon-alive [name]`
 
@@ -223,10 +214,10 @@ Output:
 
 ## Compatibility Coverage
 
-The local regression checks for this contract are:
+The local regression checks for the active surface are:
 
 - `cargo test --workspace`
-- `python3 -m unittest tests/test_rust_mode_contract.py`
-- `python3 run.py --help`
+- `cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- install --root "$(mktemp -d)"`
+- `browser-harness verify-install`
 - `cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- remote`
   for live Browser Use verification
