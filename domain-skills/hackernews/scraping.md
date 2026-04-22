@@ -20,7 +20,7 @@
 
 The front page HTML is ~34KB. Story order matches Firebase `/topstories.json` exactly — confirmed identical on 2026-04-18.
 
-```python
+```text
 import re, html as htmllib
 
 page = http_get("https://news.ycombinator.com")
@@ -85,7 +85,7 @@ for i, sid in enumerate(story_ids):
 
 No rate limiting observed. Returns up to 1000 hits per query (`hitsPerPage` max is capped at ~1000 per Algolia plan).
 
-```python
+```text
 import json
 
 # Keyword search — sorted by relevance
@@ -122,7 +122,7 @@ Note: comment hits use `comment_text`, NOT `text`. Story hits use `story_text` f
 
 Tags are AND by default, OR with parentheses:
 
-```python
+```text
 # Story types
 "tags=story"           # regular link/self posts
 "tags=show_hn"         # Show HN
@@ -143,7 +143,7 @@ Tags are AND by default, OR with parentheses:
 
 ### Numeric filters
 
-```python
+```text
 # Date range (unix timestamps)
 "numericFilters=created_at_i>1745000000"
 "numericFilters=created_at_i>1700000000,created_at_i<1750000000"
@@ -155,7 +155,7 @@ Tags are AND by default, OR with parentheses:
 
 ### Full Algolia items API (nested comment tree)
 
-```python
+```text
 import json
 
 thread = json.loads(http_get(
@@ -182,7 +182,7 @@ Confirmed: Algolia items returns 653 total comments for a 659-comment thread (so
 
 Clean JSON, no scraping. Use for fetching specific items or building live feeds.
 
-```python
+```text
 import json
 
 # Ranked story ID lists (no metadata — just IDs)
@@ -221,7 +221,7 @@ maxid = json.loads(http_get("https://hacker-news.firebaseio.com/v0/maxitem.json"
 
 For a large thread, the item page HTML (~1MB for 659 comments) loads ALL comments flat in a single request — no pagination, no JS required.
 
-```python
+```text
 import re, html as htmllib
 
 page = http_get("https://news.ycombinator.com/item?id=47806725")

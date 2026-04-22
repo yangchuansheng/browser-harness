@@ -89,6 +89,12 @@ If you intentionally want Python around the Rust CLI, use the small
 
 After cloning the repo, search `domain-skills/` first for the domain you are working on before inventing a new approach.
 
+Examples in `domain-skills/` use helper-style operation names such as
+`http_get()`, `goto()`, `new_tab()`, `wait()`, `page_info()`, and `js()`.
+Treat those as conceptual Browser Harness operations that can be mapped to
+`browser-harness`, `bhrun`, or a guest. They are not a requirement to use
+Python.
+
 Only if you start struggling with a specific mechanic while navigating, look in `interaction-skills/` for helpers. The available interaction skills are:
 - `cookies.md`
 - `cross-origin-iframes.md`

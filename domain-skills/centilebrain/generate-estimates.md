@@ -41,7 +41,7 @@ each a distinct Shiny app. Login/account not required.
 
 ## End-to-end example
 
-```python
+```text
 import time, os
 
 DL = "/tmp/centilebrain"

@@ -29,7 +29,7 @@ required in a real browser). Cookie-only bypass also fails — the `__cf_bm` coo
 
 ## Do this first: open in a new tab, wait for CF to resolve
 
-```python
+```text
 new_tab("https://www.glassdoor.com/Reviews/Google-Reviews-E9079.htm")
 wait_for_load()
 wait(5)  # CF managed challenge runs for ~2-4s after readyState=complete
@@ -40,7 +40,7 @@ is ready. Extracting before this resolves returns an empty or partial page.
 
 Verify you are past the challenge before extracting:
 
-```python
+```text
 title = js("document.title")
 url = page_info()["url"]
 if "Security" in title or "__cf_chl_tk" in url:
@@ -75,7 +75,7 @@ Find the employer ID from a search result URL or the company's Glassdoor page UR
 
 Glassdoor renders job cards client-side. Wait 5 seconds after load before extracting.
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 
@@ -127,7 +127,7 @@ for r in results:
 **If `results` is empty:** take a screenshot and check which page you are on. Glassdoor often
 serves a different layout under A/B tests. The screenshot will reveal the actual card selector.
 
-```python
+```text
 screenshot("/tmp/glassdoor_jobs.png")
 # Inspect the image, then adjust the querySelectorAll selector above
 ```
@@ -138,7 +138,7 @@ screenshot("/tmp/glassdoor_jobs.png")
 
 Glassdoor paginates via `&p=N` on the job search URL.
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 
@@ -194,7 +194,7 @@ print(f"Collected {len(all_jobs)} jobs across {page} pages")
 Navigate to the company Overview or Reviews page. These pages require login for full content but the
 summary header (overall rating, review count, recommend %) is visible without login.
 
-```python
+```text
 import json, re
 
 # Example: Google (employer_id=9079)
@@ -244,7 +244,7 @@ else:
 Reviews pages show up to ~10 reviews per page without login. A login modal appears after scrolling.
 Extract before scrolling.
 
-```python
+```text
 import json
 
 employer_id = 9079
@@ -308,7 +308,7 @@ for r in results:
 
 ## Workflow 5: Salary page — extract reported salary data
 
-```python
+```text
 import json
 from urllib.parse import quote_plus
 
@@ -357,7 +357,7 @@ Glassdoor shows a sign-in modal:
 
 Dismiss it before extracting anything that requires scrolling:
 
-```python
+```text
 def dismiss_glassdoor_login_modal():
     """Close the Glassdoor sign-in modal. Safe to call if no modal is present."""
     closed = js("""
@@ -420,7 +420,7 @@ may itself be outside the viewport.
 
 After `goto()` + `wait(5)`, confirm you are on the real page:
 
-```python
+```text
 def glassdoor_is_cf_blocked() -> bool:
     """True if the CF managed challenge is still running."""
     title = js("document.title") or ""
@@ -446,7 +446,7 @@ if glassdoor_is_cf_blocked():
 Glassdoor uses numeric employer IDs (e.g., Google = 9079, Apple = 1138, Meta = 40772).
 To find the ID for any company:
 
-```python
+```text
 from urllib.parse import quote_plus
 
 company_name = "OpenAI"

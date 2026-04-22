@@ -13,7 +13,7 @@ Need browser-visible chart data? → use CDP to intercept network requests
 ```
 
 **The web CSV/JSON/TXT URLs all timeout — do NOT attempt them:**
-```python
+```text
 # ALL OF THESE TIMEOUT — confirmed dead from headless HTTP:
 # https://fred.stlouisfed.org/graph/fredgraph.csv?id=GDP      ← timeout
 # https://fred.stlouisfed.org/graph/fredgraph.json?id=GDP     ← timeout
@@ -36,7 +36,7 @@ The key is free, instant, and unlimited for reasonable use (120 req/min cap).
 
 The only way to get FRED data programmatically. Set `FRED_KEY` in your `.env` file.
 
-```python
+```text
 import json, os
 FRED_KEY = os.environ["FRED_KEY"]   # 32-char lowercase alphanumeric
 BASE = "https://api.stlouisfed.org/fred"
@@ -44,7 +44,7 @@ BASE = "https://api.stlouisfed.org/fred"
 
 ### Series metadata
 
-```python
+```text
 import json, os
 FRED_KEY = os.environ["FRED_KEY"]
 BASE = "https://api.stlouisfed.org/fred"
@@ -65,7 +65,7 @@ print(s['last_updated'])        # "2025-12-19 08:00:06-06"
 
 ### Observations (the actual data)
 
-```python
+```text
 import json, os
 FRED_KEY = os.environ["FRED_KEY"]
 BASE = "https://api.stlouisfed.org/fred"
@@ -94,7 +94,7 @@ for o in obs['observations']:
 
 ### Date-range filtering
 
-```python
+```text
 import json, os
 FRED_KEY = os.environ["FRED_KEY"]
 BASE = "https://api.stlouisfed.org/fred"
@@ -140,7 +140,7 @@ for o in obs['observations'][:5]:
 
 ### Series search
 
-```python
+```text
 import json, os
 FRED_KEY = os.environ["FRED_KEY"]
 BASE = "https://api.stlouisfed.org/fred"
@@ -162,7 +162,7 @@ for s in results['seriess']:
 
 ### Multiple series — parallel fetch
 
-```python
+```text
 import json, os
 from concurrent.futures import ThreadPoolExecutor
 FRED_KEY = os.environ["FRED_KEY"]
@@ -193,7 +193,7 @@ for sid, date, val in results:
 
 ### Parse observations into a list of (date, float) tuples
 
-```python
+```text
 import json, os
 FRED_KEY = os.environ["FRED_KEY"]
 BASE = "https://api.stlouisfed.org/fred"
@@ -215,7 +215,7 @@ print(f"Last:  {data[-1]}")  # ('2026-04-17', 4.34)
 
 ### Handle errors
 
-```python
+```text
 import urllib.error, json
 
 try:
@@ -234,7 +234,7 @@ except urllib.error.HTTPError as e:
 
 Bureau of Labor Statistics. Covers unemployment, CPI, payrolls — the most-queried FRED series. **Without a key: 10 requests/day limit.** Free key registration at `https://www.bls.gov/developers/` gives 500 req/day and 10 years of data per call (vs 3 years without key).
 
-```python
+```text
 import json
 # Single series GET — no auth needed
 r = http_get("https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000?startyear=2024&endyear=2024")
@@ -250,7 +250,7 @@ for point in series['data'][:3]:
 
 ### Multi-series POST (single call, multiple series)
 
-```python
+```text
 import json, urllib.request
 
 payload = json.dumps({
@@ -303,7 +303,7 @@ for s in data['Results']['series']:
 
 Free, no registration, no rate limit observed (10 rapid calls completed in 2.0s). Annual data only — no monthly or quarterly frequency.
 
-```python
+```text
 import json
 
 # Single country, single indicator
@@ -322,7 +322,7 @@ for item in items:
 
 ### Date range filter and multi-country
 
-```python
+```text
 import json
 
 # Historical range: date=YYYY:YYYY
@@ -365,7 +365,7 @@ for item in items:
 
 Some economic indicators work with the `demo` key (no registration); most require a free registered key (25 requests/day, instant signup at `https://www.alphavantage.co/support/#api-key`).
 
-```python
+```text
 import json
 AV_KEY = "demo"  # or your registered key
 
@@ -398,7 +398,7 @@ print(f"Total: {len(data['data'])} months since {data['data'][-1]['date']}")
 | `TREASURY_YIELD` | NO (rate-limited) | YES |
 | `CONSUMER_SENTIMENT` | NO (rate-limited) | YES |
 
-```python
+```text
 import json
 AV_KEY = "YOUR_FREE_KEY"  # from alphavantage.co/support/#api-key
 
@@ -423,7 +423,7 @@ print(data['data'][0])   # {'date': '2026-04-17', 'value': '4.34'}
 
 When you need data from `fred.stlouisfed.org` that has no API equivalent (custom chart combos, release dates visible on page) — or when you have no API key — use the browser.
 
-```python
+```text
 # Navigate to a series page
 goto("https://fred.stlouisfed.org/series/GDP")
 wait_for_load()

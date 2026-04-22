@@ -6,8 +6,8 @@
 
 **Always add `mailto=your@email.com` to every request** — it moves you into the polite pool, which doubles the rate limit and concurrency allowance. The difference is measurable and the cost is zero.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"  # set once, append to every URL
@@ -23,8 +23,8 @@ msg = data['message']
 
 ### DOI lookup — single paper
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json, re
 
 MAILTO = "mailto=your@email.com"
@@ -71,8 +71,8 @@ print("Abstract:", clean_abstract(w.get('abstract', ''))[:100] if w.get('abstrac
 
 ### DOI lookup — extract authors with ORCID
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -95,8 +95,8 @@ for a in authors[:3]:
 
 ### Batch DOI lookup (parallel — 5 calls in ~0.3s)
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 from concurrent.futures import ThreadPoolExecutor
 import json
 
@@ -140,8 +140,8 @@ for r in results:
 
 ### Search works by keyword
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -163,8 +163,8 @@ for item in msg['items']:
 
 ### Search by author + title (targeted)
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -187,8 +187,8 @@ for item in msg['items'][:3]:
 
 ### Filter by date, type, and sort by citations
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -212,8 +212,8 @@ for item in msg['items'][:3]:
 
 ### Filter with `has-abstract:true`
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -238,8 +238,8 @@ for item in msg['items']:
 
 Standard offset pagination (`start=`) caps at a few thousand results. Use cursor for full sweeps.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 from urllib.parse import quote
 import json
 
@@ -271,8 +271,8 @@ while next_cursor and items:
 
 Reduces response size significantly for bulk operations:
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -289,8 +289,8 @@ for item in data['message']['items']:
 
 ### Count by type using facets
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -313,8 +313,8 @@ for k, v in sorted(type_facet['values'].items(), key=lambda x: -x[1]):
 
 ### Journal info by ISSN
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -339,8 +339,8 @@ for j in data2['message']['items']:
 
 ### Funder search
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 MAILTO = "mailto=your@email.com"
@@ -363,7 +363,7 @@ for f in msg['items']:
 
 The `doi.org` resolver can return formatted metadata directly via `Accept` header:
 
-```python
+```text
 import urllib.request, json
 
 def doi_to_csl(doi):
@@ -452,7 +452,7 @@ All fields are potentially absent unless marked required. Fields marked (R) are 
 
 ### Date object structure
 
-```python
+```text
 # All date fields share this structure:
 date_obj = {
     "date-parts": [[2021, 7, 15]],  # [[year, month, day]] — month/day may be absent

@@ -11,8 +11,8 @@ Field-tested against musicbrainz.org on 2026-04-18.
 
 **The MusicBrainz Web Service API (ws/2) returns clean JSON for all entity types — no browser needed.**
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 # REQUIRED: every request must include this header or you get HTTP 403
@@ -48,8 +48,8 @@ All entities share the same MBID (MusicBrainz ID) format: UUID v4, e.g. `0383dad
 
 ### Artist search
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 UA = {"User-Agent": "browser-harness/1.0 (your@email.com)"}
@@ -72,7 +72,7 @@ for a in resp['artists']:
 
 ### Artist by MBID (with related data via `inc=`)
 
-```python
+```text
 # inc= parameters stack with + between them
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/artist/0383dadf-2a4e-4d10-a46a-e9e041da8eb3"
@@ -105,7 +105,7 @@ for rg in resp.get('release-groups', []):
 
 ### Browse releases by artist (full list)
 
-```python
+```text
 # Browse API: uses 'artist' param (not 'query') — response key is 'release-count' not 'count'
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/release/"
@@ -124,7 +124,7 @@ for r in resp['releases']:
 
 ### Release search and lookup
 
-```python
+```text
 # Search by title
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/release/?query=dark+side+of+the+moon&fmt=json&limit=5",
@@ -172,7 +172,7 @@ for disc in release.get('media', []):
 
 ### Recording (track) search
 
-```python
+```text
 # Use Lucene field syntax to filter by artist
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/recording/"
@@ -191,7 +191,7 @@ for r in resp['recordings']:
 
 ### Release-group search (deduplicated albums)
 
-```python
+```text
 # Use release-group endpoint to avoid getting every regional edition
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/release-group/"
@@ -216,7 +216,7 @@ for rg in resp.get('release-groups', []):
 
 ### Label and work lookups
 
-```python
+```text
 # Label search
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/label/?query=EMI&fmt=json&limit=3",
@@ -238,7 +238,7 @@ for w in resp['works']:
 
 ### Cover Art Archive
 
-```python
+```text
 # Get cover art for a release MBID
 # 404 if no artwork has been uploaded for that release
 def get_cover_art(release_mbid, size="500"):
@@ -287,7 +287,7 @@ for img in resp['images']:
 
 All search endpoints support Lucene field queries:
 
-```python
+```text
 # Field search: artist:, type:, country:, tag:, release:, date:
 resp = json.loads(http_get(
     "https://musicbrainz.org/ws/2/artist/"
@@ -312,7 +312,7 @@ Common Lucene field names per entity:
 
 ### Parallel fetching
 
-```python
+```text
 from concurrent.futures import ThreadPoolExecutor
 
 UA = {"User-Agent": "browser-harness/1.0 (your@email.com)"}
@@ -340,7 +340,7 @@ Tested: 5-6 rapid sequential requests all succeed. Parallel requests at 3x concu
 
 ### Pagination
 
-```python
+```text
 import time
 
 UA = {"User-Agent": "browser-harness/1.0 (your@email.com)"}

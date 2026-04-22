@@ -2,11 +2,31 @@
 
 `https://www.tradingview.com` — charting platform with multiple internal REST APIs. Stock/crypto/forex screener and symbol search work without auth. Use `http_get` or raw `urllib` for all workflows except JS-rendered chart pages.
 
+## Rust-native paths
+
+For a direct symbol-search fetch, use the installed Rust CLI:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://symbol-search.tradingview.com/symbol_search/v3/?text=AAPL&hl=1&exchange=NASDAQ&lang=en&search_type=stock&domain=production","headers":{"Origin":"https://www.tradingview.com"},"timeout":20.0}
+JSON
+```
+
+For the packaged symbol-search workflow, run the guest:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-tradingview-symbol-search/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-tradingview-symbol-search/target/wasm32-unknown-unknown/release/rust_tradingview_symbol_search_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-tradingview-symbol-search/target/wasm32-unknown-unknown/release/rust_tradingview_symbol_search_guest.wasm","granted_operations":["http_get"],"allow_http":true,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ## Do this first
 
 **Use the scanner API for bulk screener data — one POST, no browser, full column control.**
 
-```python
+```text
 import json, urllib.request
 
 def tv_scan(payload, market="america"):
@@ -26,7 +46,7 @@ def tv_scan(payload, market="america"):
 
 ### Top stocks by market cap (screener)
 
-```python
+```text
 import json, urllib.request
 
 payload = {
@@ -64,7 +84,7 @@ for item in resp["data"]:
 
 ### Pagination
 
-```python
+```text
 # Page 1: range [0, 20]
 # Page 2: range [20, 40]
 payload["range"] = [20, 40]
@@ -72,7 +92,7 @@ payload["range"] = [20, 40]
 
 ### Filtering stocks
 
-```python
+```text
 payload = {
     "filter": [
         {"left": "market_cap_basic", "operation": "greater", "right": 10_000_000_000},
@@ -97,7 +117,7 @@ Sector names use TradingView taxonomy (not GICS). Confirmed working values:
 
 ### Full list of tested valid column names
 
-```python
+```text
 # Price & volume
 "name"                     # ticker (e.g. "AAPL")
 "description"              # full name ("Apple Inc.")
@@ -145,7 +165,7 @@ Bad columns return HTTP 400 with `{"error": "Unknown field \"X\""}`.
 
 ### Other scanner markets
 
-```python
+```text
 # market argument options (confirmed working):
 # "america"  — US equities (19,549 instruments)
 # "crypto"   — crypto across exchanges (56,455 instruments)
@@ -165,7 +185,7 @@ resp = tv_scan(payload, market="crypto")
 
 ### Symbol search (requires Origin header)
 
-```python
+```text
 import json, urllib.request
 
 def symbol_search(query, exchange="", type_filter="", limit=50):
@@ -194,7 +214,7 @@ result = symbol_search("AAPL")
 
 Filter by exchange and type:
 
-```python
+```text
 # Exact match on NASDAQ:AAPL
 result = symbol_search("AAPL", exchange="NASDAQ", type_filter="stock")
 # Returns 1 result — exact symbol only when exchange is specified
@@ -202,7 +222,7 @@ result = symbol_search("AAPL", exchange="NASDAQ", type_filter="stock")
 
 ### News headlines for a symbol
 
-```python
+```text
 import json, urllib.request
 
 def get_news(symbol, limit=20):
@@ -230,7 +250,7 @@ No auth or special headers needed. Returns up to 200 items per request.
 
 ### Published trading ideas feed
 
-```python
+```text
 import json, urllib.request
 
 def get_ideas(sort="trending", page=1, symbol=None):
@@ -300,7 +320,7 @@ aapl_ideas = get_ideas(symbol="NASDAQ:AAPL")
 
 The charting UI (`/chart/`), symbol detail pages (`/symbols/NASDAQ-AAPL/`), and the ideas page (`/ideas/`) are React SPAs — their visible data comes from the APIs above, not embedded HTML. Use browser + JS extraction only if you need visual chart screenshots or data from auth-gated pages (watchlists, portfolio, paper trading).
 
-```python
+```text
 # Only if you need a chart screenshot:
 goto("https://www.tradingview.com/chart/?symbol=NASDAQ:AAPL")
 wait_for_load()

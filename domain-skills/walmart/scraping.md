@@ -3,6 +3,26 @@
 Field-tested against walmart.com on 2026-04-18 using `http_get` (no browser required).
 All code blocks were run and outputs verified against live responses.
 
+## Rust-native paths
+
+For a direct HTML fetch, use the installed Rust CLI:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://www.walmart.com/search?q=laptop","timeout":20.0}
+JSON
+```
+
+For the packaged search extraction workflow, run the guest:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-walmart-search/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-walmart-search/target/wasm32-unknown-unknown/release/rust_walmart_search_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-walmart-search/target/wasm32-unknown-unknown/release/rust_walmart_search_guest.wasm","granted_operations":["http_get"],"allow_http":true,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ---
 
 ## Fastest Approach: `http_get` with `__NEXT_DATA__`
@@ -26,7 +46,7 @@ client or includes a recognizable browser fingerprint triggers the JS challenge 
 
 ### Base fetch helper
 
-```python
+```text
 import json, re, gzip, urllib.request
 
 def fetch_walmart(url):
@@ -61,7 +81,7 @@ def parse_next_data(html):
 
 ### URL patterns
 
-```python
+```text
 # Keyword search
 "https://www.walmart.com/search?q=laptop"
 
@@ -94,7 +114,7 @@ data
 
 ### Full extractor (field-tested)
 
-```python
+```text
 def extract_search_results(html):
     """
     Returns (items, total_count, max_page).
@@ -157,7 +177,7 @@ organic = [i for i in items if not i["isSponsored"]]
 
 ### Pagination
 
-```python
+```text
 for page in range(1, max_page + 1):
     html = fetch_walmart(f"https://www.walmart.com/search?q=laptop&page={page}")
     items, _, _ = extract_search_results(html)
@@ -195,7 +215,7 @@ data.props.pageProps.initialData.data
 
 ### Full extractor (field-tested)
 
-```python
+```text
 def extract_product_detail(html):
     """
     Returns a dict with all confirmed product fields.
@@ -327,7 +347,7 @@ Walmart uses **PerimeterX** (app ID `PXu6b0qd2S`, confirmed in `runtimeConfig.pe
 | No JS execution | SSR response is complete — no JS challenge to solve |
 
 Detection in code:
-```python
+```text
 if "Robot or human" in html:
     raise RuntimeError("PerimeterX challenge — switch to browser harness")
 ```
@@ -344,7 +364,7 @@ Use the browser harness when:
 - You need to interact with the page (add to cart, filter UI, infinite scroll)
 - You need variant switching (color/size selectors)
 
-```python
+```text
 # Browser-based search extraction
 new_tab("https://www.walmart.com/search?q=laptop")
 wait_for_load()
@@ -362,7 +382,7 @@ for stack in sr.get("itemStacks", []):
 
 ### Browser selectors (confirmed working for DOM-based extraction)
 
-```python
+```text
 # Product cards on search results page
 results = js("""
   Array.from(document.querySelectorAll('[data-item-id]')).map(el => ({
@@ -386,7 +406,7 @@ results_alt = js("""
 ### Session gotcha
 
 Always open Walmart with `new_tab()` on first visit:
-```python
+```text
 new_tab("https://www.walmart.com/search?q=laptop")
 wait_for_load()
 wait(2)
@@ -411,7 +431,7 @@ The `__NEXT_DATA__` SSR approach replaces any need for the official API for read
 - **Regex must use `id=` attribute match**: The regex
   `r'<script id="__NEXT_DATA__" type="application/json">...'` fails because the actual tag is
   `<script id="__NEXT_DATA__">` without `type`. Use:
-  ```python
+  ```text
   re.search(r'id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
   ```
 

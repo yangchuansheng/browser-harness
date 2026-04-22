@@ -3,6 +3,27 @@
 Field-tested against open.spotify.com on 2026-04-18.
 No authentication required for any approach documented here.
 
+## Rust-native paths
+
+For oEmbed and page-source HTTP reads, use the installed Rust CLI:
+
+```bash
+browser-harness http-get <<'JSON'
+{"url":"https://open.spotify.com/oembed?url=https://open.spotify.com/track/4PTG3Z6ehGkBFwjybzWkR8","timeout":20.0}
+JSON
+```
+
+For in-browser search extraction, use the guest. This assumes a live browser
+daemon is already attached:
+
+```bash
+cd rust
+cargo +stable build --release --target wasm32-unknown-unknown --manifest-path guests/rust-spotify-search/Cargo.toml
+cargo run --quiet --bin bhrun -- run-guest guests/rust-spotify-search/target/wasm32-unknown-unknown/release/rust_spotify_search_guest.wasm <<'JSON'
+{"daemon_name":"default","guest_module":"guests/rust-spotify-search/target/wasm32-unknown-unknown/release/rust_spotify_search_guest.wasm","granted_operations":["ensure_real_tab","goto","wait_for_load","wait","page_info","js"],"allow_http":false,"allow_raw_cdp":false,"persistent_guest_state":true}
+JSON
+```
+
 ---
 
 ## Approach 1 (Fastest): oEmbed API — No Auth, No Browser
@@ -11,8 +32,8 @@ No authentication required for any approach documented here.
 
 Returns JSON in ~0.25s. Works for tracks, albums, playlists, and artists. Does **not** work for episodes/shows.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 def spotify_oembed(resource_type, resource_id):
@@ -58,10 +79,10 @@ pl = spotify_oembed("playlist", "37i9dQZF1DXcBWIGoYBM5M")
 
 ### Bulk fetching (ThreadPoolExecutor)
 
-```python
+```text
 from concurrent.futures import ThreadPoolExecutor
 import json
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 track_ids = [
     "4PTG3Z6ehGkBFwjybzWkR8",
@@ -89,8 +110,8 @@ Every open.spotify.com page (track, album, playlist, artist) serves full HTML wi
 
 ### Track page — all extractable fields
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json, re
 
 def scrape_track(track_id):
@@ -146,7 +167,7 @@ def scrape_track(track_id):
 
 ### Artist page — fields available
 
-```python
+```text
 def scrape_artist(artist_id):
     url = f"https://open.spotify.com/artist/{artist_id}"
     html = http_get(url)
@@ -181,8 +202,8 @@ def scrape_artist(artist_id):
 
 `https://open.spotify.com/embed/{type}/{id}` returns a small Next.js SSR page. Its `__NEXT_DATA__` script tag contains a fully-parsed entity object. This is the only no-auth route that returns track listings for albums, playlists, and artists.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json, re
 
 def scrape_embed(resource_type, resource_id):
@@ -247,7 +268,7 @@ entity = scrape_embed("artist", "0gxyHStUsqpMadRV0Di1Qt")
 
 The embed page SSR data includes a short-lived anonymous Spotify Web Player access token. The token is valid (~1 hour) but **anonymous tokens are severely rate-limited for api.spotify.com/v1 calls** (observed `Retry-After: 79561` seconds on the tracks endpoint after a few requests).
 
-```python
+```text
 def get_embed_token(resource_type="track", resource_id="4PTG3Z6ehGkBFwjybzWkR8"):
     """Extract the anonymous access token from an embed page."""
     url = f"https://open.spotify.com/embed/{resource_type}/{resource_id}"
@@ -289,7 +310,7 @@ The following are **not accessible** via http_get and require the CDP browser:
 
 If browser access is needed for search:
 
-```python
+```text
 goto("https://open.spotify.com/search")
 wait_for_load()
 wait(2)
@@ -315,7 +336,7 @@ wait(1)
 
 Extract Spotify ID from any URL:
 
-```python
+```text
 import re
 def spotify_id(url):
     m = re.search(r'spotify\.com/(?:embed/)?(?:track|album|artist|playlist)/([A-Za-z0-9]{22})', url)

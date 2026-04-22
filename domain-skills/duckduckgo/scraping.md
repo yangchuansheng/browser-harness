@@ -19,9 +19,9 @@
 
 ## Fastest path: entity lookup
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def ddg_instant(query: str) -> dict:
     q = urllib.parse.quote(query)
@@ -53,9 +53,9 @@ img_url = f"https://duckduckgo.com{data['Image']}" if data['Image'] else None
 
 ## Instant answers (Type = E)
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def ddg_answer(query: str) -> tuple[str, str]:
     """Returns (answer_text, answer_type). answer_text is '' if no result."""
@@ -140,7 +140,7 @@ meta             # API plugin metadata — rarely needed
 Each item is one of two shapes:
 
 **Plain topic** (the common case):
-```python
+```text
 {
     "FirstURL": "https://duckduckgo.com/Deep_learning",
     "Icon": {"Height": "", "URL": "/i/abc123.png", "Width": ""},  # URL often ""
@@ -150,7 +150,7 @@ Each item is one of two shapes:
 ```
 
 **Section** (disambiguation pages only — when `Type` is `D` without `skip_disambig`):
-```python
+```text
 {
     "Name": "Science & Technology",   # section heading
     "Topics": [                        # list of plain topic objects
@@ -165,7 +165,7 @@ For A-type results, `RelatedTopics` are Wikipedia category links (e.g. `"America
 ### `Results` item structure
 
 Usually 0 or 1 item. When present, it's the official website:
-```python
+```text
 {
     "FirstURL": "https://www.apple.com/",
     "Icon": {"Height": 16, "URL": "/i/apple.com.ico", "Width": 16},
@@ -177,7 +177,7 @@ Icon URLs in `Results` are relative — prepend `https://duckduckgo.com`.
 
 ### `Infobox` structure
 
-```python
+```text
 ib = data['Infobox']  # dict or "" (empty string when absent)
 if isinstance(ib, dict):
     content = ib['content']  # list of structured fields
@@ -288,9 +288,9 @@ In practice, C and N types are rare. A, D, E, and empty cover nearly all queries
 
 ## Complete working example
 
-```python
+```text
 import json, urllib.parse
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def ddg_entity(query: str) -> dict | None:
     """

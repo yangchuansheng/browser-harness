@@ -23,7 +23,7 @@
 
 Every `?format=json` response starts with the anti-hijacking prefix `])}while(1);</x>` before the JSON. **Strip it before parsing.** The helper below handles this.
 
-```python
+```text
 import urllib.request, gzip, json, re
 
 def medium_json(url):
@@ -56,7 +56,7 @@ def medium_json(url):
 
 Append `?format=json` to any article URL. Returns full metadata, virtuals (metrics), and the complete article body in a structured `bodyModel`. No auth required for public and subscriber-locked articles alike — the metadata and full body are always returned, but paywalled body content in a browser would be truncated.
 
-```python
+```text
 data = medium_json("https://medium.com/@karpathy/software-2-0-a64152b37c35")
 payload = data['payload']
 val     = payload['value']        # article fields
@@ -100,7 +100,7 @@ following_count = ss['usersFollowedCount']     # 183
 
 ### Detect paywall
 
-```python
+```text
 # Paywalled (Medium Partner Program): isSubscriptionLocked=True, visibility=2, lockedPostSource=1
 # Free: isSubscriptionLocked=False, visibility=0, lockedPostSource=0
 is_paywalled = val['isSubscriptionLocked']   # True / False
@@ -112,7 +112,7 @@ Confirmed on real TDS articles: paywalled articles return `isSubscriptionLocked=
 
 The full body is in `val['content']['bodyModel']['paragraphs']` — a list of dicts:
 
-```python
+```text
 paragraphs = val['content']['bodyModel']['paragraphs']
 
 # Paragraph types (confirmed for this article):
@@ -132,7 +132,7 @@ full_text   = '\n\n'.join(text_paras)
 `POST https://medium.com/_/graphql` with a JSON body. No auth, no CSRF token required.
 Returns HTTP 200 with JSON even for unauthenticated queries. Invalid fields return HTTP 400 — do not assume a field exists without testing first.
 
-```python
+```text
 import json, urllib.request, gzip
 
 def gql(query):
@@ -157,7 +157,7 @@ def gql(query):
 
 ### Fetch article metrics (fastest)
 
-```python
+```text
 result = gql("""
 {
   post(id: "a64152b37c35") {
@@ -192,7 +192,7 @@ post = result['data']['post']
 
 ### Fetch author profile
 
-```python
+```text
 result = gql("""
 {
   user(username: "karpathy") {
@@ -227,7 +227,7 @@ user = result['data']['user']
 
 The GraphQL `collection()` query only accepts `id`, not `slug`. Get the ID from `?format=json` on the publication page.
 
-```python
+```text
 # TDS Archive id: 7f60cf5620c9  (from medium.com/towards-data-science?format=json)
 result = gql("""
 {
@@ -252,9 +252,9 @@ coll = result['data']['collection']
 
 Works with plain `http_get`. Returns up to 10 most recent posts. Full article HTML is in `content:encoded`. No clap count or visibility info in RSS.
 
-```python
+```text
 import re
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 def parse_rss_items(rss_xml):
     """Extract items from Medium RSS feed. Returns list of dicts."""
@@ -302,7 +302,7 @@ pub_posts = parse_rss_items(rss_pub)
 
 Better than RSS when you need clap counts alongside post list. Returns up to `limit` posts (default 10) plus full author metadata.
 
-```python
+```text
 data = medium_json("https://medium.com/@karpathy?limit=10")
 payload = data['payload']
 
@@ -341,7 +341,7 @@ data2 = medium_json(next_url)
 
 Returns publication metadata and recent posts with metrics.
 
-```python
+```text
 data = medium_json("https://medium.com/towards-data-science")
 payload = data['payload']
 
@@ -370,7 +370,7 @@ paging = payload['paging']
 
 The `id` is the last 12 hex chars of a Medium article URL slug:
 
-```python
+```text
 import re
 
 url = "https://medium.com/@karpathy/software-2-0-a64152b37c35"

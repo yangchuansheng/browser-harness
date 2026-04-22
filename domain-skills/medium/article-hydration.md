@@ -32,12 +32,10 @@ Safe pattern: take the extracted markdown, then drop leading paragraphs that are
 
 ## Extractor
 
-This Python example should call the Rust CLI directly through the helper
-wrappers in `docs/python-integration.md`.
+This example is written in helper-style operations. Map them to `browser-harness`, `bhrun`, or a guest as needed.
 
-````bash
-python3 <<'PY'
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+````text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 
 new_tab("https://medium.com/@user/slug-abc123")
 wait_for_load()
@@ -91,7 +89,6 @@ while paras and len(paras[0]) < 12:
     paras.pop(0)
 md = '\n\n'.join(paras)
 print(md)
-PY
 ````
 
 The `seen` set avoids double-emitting when an `<li>` matches the block query inside its `<ul>`.
@@ -103,7 +100,7 @@ The `seen` set avoids double-emitting when an `<li>` matches the block query ins
 
 ## Paywall / login detection
 
-```python
+```text
 state = js("""
 (()=>{
   const art = document.querySelector('article');

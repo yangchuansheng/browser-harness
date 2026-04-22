@@ -56,7 +56,7 @@ Implications:
 
 ## Do this first: open in new tab, wait for DataDome to resolve
 
-```python
+```text
 new_tab("https://wellfound.com/company/stripe")
 wait_for_load()
 wait(5)   # DataDome JS fingerprinting runs ~2-4s after readyState=complete
@@ -64,7 +64,7 @@ wait(5)   # DataDome JS fingerprinting runs ~2-4s after readyState=complete
 
 Verify you are past the DataDome challenge before extracting:
 
-```python
+```text
 title = js("document.title")
 url = page_info()["url"]
 
@@ -103,7 +103,7 @@ Wellfound enforces these with login walls or redirects for most filtered job sea
 
 Navigate to the company page and extract structured data. Most fields are visible without login.
 
-```python
+```text
 import json
 
 new_tab("https://wellfound.com/company/stripe")
@@ -153,7 +153,7 @@ if apollo_raw:
 
 If the structured data path fails, fall back to DOM extraction:
 
-```python
+```text
 # DOM extraction — company profile page
 profile = js("""
 (function() {
@@ -207,7 +207,7 @@ print(json.dumps(data, indent=2))
 
 ## Workflow 2: Company jobs listing
 
-```python
+```text
 import json
 
 company_slug = "stripe"
@@ -254,7 +254,7 @@ for j in results:
 
 The main `/jobs` page shows a curated job feed. Filters are not accessible via URL params (DataDome blocks `?role=...`). Use the UI dropdown filters after loading the page.
 
-```python
+```text
 import json
 
 new_tab("https://wellfound.com/jobs")
@@ -307,7 +307,7 @@ Wellfound's GraphQL endpoint (`/graphql`) requires:
 
 **This approach only works from inside a browser session (after navigating to any Wellfound page).**
 
-```python
+```text
 import json
 
 # Step 1: Load any Wellfound page so the session cookie + DataDome cookie are set
@@ -413,7 +413,7 @@ Wellfound shows a sign-in modal on:
 
 Company overview pages typically show content without login. Job listings require login to see full details and apply.
 
-```python
+```text
 def dismiss_wellfound_login_modal():
     """Close the Wellfound sign-in modal. Safe to call if no modal is present."""
     closed = js("""
@@ -451,7 +451,7 @@ def dismiss_wellfound_login_modal():
 
 After `new_tab()` + `wait(5)`, verify you are on a real Wellfound page:
 
-```python
+```text
 def wellfound_is_blocked() -> bool:
     """True if DataDome or Cloudflare challenge is still showing."""
     title = js("document.title") or ""
@@ -559,7 +559,7 @@ In a real Chrome browser, both challenges resolve automatically without user int
 
 ## Minimal working example
 
-```python
+```text
 import json
 
 # Open Wellfound company page

@@ -36,7 +36,7 @@ The API is unauthenticated-friendly but strictly quota-capped per IP per day:
 
 Check your remaining quota in every response envelope:
 
-```python
+```text
 import json
 data = json.loads(http_get("https://api.stackexchange.com/2.3/info?site=stackoverflow"))
 print("Quota remaining:", data.get('quota_remaining'))  # e.g. 273
@@ -54,7 +54,7 @@ Every API response includes `quota_remaining` in the envelope. Monitor it. When 
 
 Every response from the Stack Exchange API is wrapped in a consistent envelope:
 
-```python
+```text
 {
   "items": [...],          # list of result objects
   "has_more": True/False,  # whether more pages exist
@@ -70,7 +70,7 @@ Error responses raise `urllib.error.HTTPError` (not a JSON envelope):
 - HTTP 400 — invalid parameter (e.g. bad site name) — raises exception
 - HTTP 400 with JSON body — quota exhausted or throttle_violation
 
-```python
+```text
 try:
     data = json.loads(http_get("https://api.stackexchange.com/2.3/questions?site=stackoverflow&pagesize=1"))
 except Exception as e:
@@ -83,7 +83,7 @@ except Exception as e:
 
 By default, the API strips the `body` field from all responses. You **must** add `filter=withbody` to get question or answer text. This applies to questions, answers, and comments alike.
 
-```python
+```text
 import json
 
 # WITHOUT filter=withbody — body field is ABSENT
@@ -113,7 +113,7 @@ The API returns HTML in two contexts, and plain text in a third:
 - **`title` field** — HTML-entity-encoded plain text. Quotes, angle brackets, and ampersands are escaped (`&quot;`, `&lt;`, `&amp;`). Decode with `html.unescape()`.
 - **`display_name`, `link`, `tags`** — plain text, no encoding.
 
-```python
+```text
 import json, html
 from html.parser import HTMLParser
 
@@ -148,7 +148,7 @@ print(s.get_text()[:200])
 
 ### Top questions by tag (API)
 
-```python
+```text
 import json, html
 data = json.loads(http_get(
     "https://api.stackexchange.com/2.3/questions"
@@ -169,7 +169,7 @@ Sort options for `/questions`: `activity`, `votes`, `creation`, `hot`, `week`, `
 
 ### Answers for a question
 
-```python
+```text
 import json
 data = json.loads(http_get(
     "https://api.stackexchange.com/2.3/questions/231767/answers"
@@ -190,7 +190,7 @@ Answer fields (with `filter=withbody`): `answer_id`, `question_id`, `score`, `is
 
 Fetch up to 100 questions in one call using semicolons:
 
-```python
+```text
 import json
 data = json.loads(http_get(
     "https://api.stackexchange.com/2.3/questions/231767;419163;394809"
@@ -208,7 +208,7 @@ for q in data['items']:
 
 Use `/search/advanced` when you need combined keyword + tag filtering. Use `/search` when searching only by title keyword (`intitle=`).
 
-```python
+```text
 import json
 
 # search/advanced: keyword in body OR title, filtered by tag, sorted by relevance
@@ -232,7 +232,7 @@ data = json.loads(http_get(
 
 ### User profile
 
-```python
+```text
 import json
 
 # Basic user info
@@ -265,7 +265,7 @@ for q in questions['items']:
 
 ### Comments (requires `filter=withbody`)
 
-```python
+```text
 import json
 data = json.loads(http_get(
     "https://api.stackexchange.com/2.3/questions/231767/comments"
@@ -280,7 +280,7 @@ for c in data['items']:
 
 ### Related questions
 
-```python
+```text
 import json
 related = json.loads(http_get(
     "https://api.stackexchange.com/2.3/questions/231767/related?site=stackoverflow&pagesize=5"
@@ -293,7 +293,7 @@ for q in related['items']:
 
 ### Popular tags
 
-```python
+```text
 import json
 tags = json.loads(http_get("https://api.stackexchange.com/2.3/tags?order=desc&sort=popular&site=stackoverflow&pagesize=5"))
 for t in tags['items']:
@@ -310,7 +310,7 @@ for t in tags['items']:
 
 Use `page=` (1-indexed) and `pagesize=` (max 100). Check `has_more` in the envelope to know whether a next page exists.
 
-```python
+```text
 import json
 
 def fetch_all_pages(url_base, max_pages=5):
@@ -339,7 +339,7 @@ Note: `page=2` with `pagesize=3` returns the 4th–6th items. Confirmed working 
 
 ## Parallel fetching (multiple questions or answers)
 
-```python
+```text
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -374,7 +374,7 @@ Keep `max_workers` at 3 or below when unauthenticated — parallel calls consume
 
 The HTML page works but returns 777KB and has no clean `QAPage` JSON-LD. Use it only when you need something not in the API (e.g. rendered MathJax, ads context).
 
-```python
+```text
 import re, html as htmllib
 headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
 page = http_get("https://stackoverflow.com/questions/231767/what-does-the-yield-keyword-do-in-python", headers=headers)

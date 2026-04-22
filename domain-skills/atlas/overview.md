@@ -50,7 +50,7 @@ Filter IDs seen: `opportunity_owner`, `stage`, `industry`, `segment`, `conversio
 
 POST `https://my.recruitwithatlas.com/graphql` using the tab's own cookies:
 
-```python
+```text
 js("""
 fetch('/graphql', {
   method: 'POST',

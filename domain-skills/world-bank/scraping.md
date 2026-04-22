@@ -6,8 +6,8 @@
 
 **Every response is a 2-element JSON array: `[metadata, data]`.** The metadata element is always at index 0 (pagination info); the data array is at index 1. This is the single biggest gotcha — `json.loads(raw)` gives you a list, not a dict.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get("https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json")
@@ -22,8 +22,8 @@ Always append `?format=json` — default response is XML.
 
 ### Single country, single indicator
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get("https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json")
@@ -44,8 +44,8 @@ for r in rows:
 
 `mrv` (most recent values) skips null years and returns the N most recent non-provisional points.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get(
@@ -67,8 +67,8 @@ for r in d[1]:
 
 Semicolon-delimit country codes in the URL path. Use `date=YYYY:YYYY` for a range.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get(
@@ -90,8 +90,8 @@ for r in rows:
 
 Use `mrv=1` with `per_page=1000` to get all 266 countries in a single call.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get(
@@ -114,8 +114,8 @@ for r in sorted(countries_only, key=lambda x: -(x["value"] or 0))[:5]:
 
 ### Full pagination (fetch all pages)
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 def fetch_all_pages(base_url):
@@ -144,8 +144,8 @@ print(f"Non-null: {len(non_null)}, range: {non_null[-1][0]}–{non_null[0][0]}")
 
 ### Indicators list (discover available indicators)
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get("https://api.worldbank.org/v2/indicator?format=json&per_page=50")
@@ -162,8 +162,8 @@ for ind in d[1][:3]:
 
 ### Indicators by topic
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 # Topic 3 = Economy & Growth
@@ -177,8 +177,8 @@ for ind in d[1][:5]:
 
 ### Country metadata
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get("https://api.worldbank.org/v2/country/US?format=json")
@@ -195,8 +195,8 @@ print(f"Low-income countries: {d[0]['total']}")  # 25
 
 ### Topics list
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 raw = http_get("https://api.worldbank.org/v2/topics?format=json")
@@ -211,8 +211,8 @@ for t in d[1]:
 
 ### Parallel fetch for multiple indicators (ThreadPoolExecutor)
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 from concurrent.futures import ThreadPoolExecutor
 import json
 

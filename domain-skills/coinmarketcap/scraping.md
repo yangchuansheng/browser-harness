@@ -25,7 +25,7 @@
 
 Returns CMC-ranked coins with full price data in one call. No auth needed.
 
-```python
+```text
 import json
 
 resp = json.loads(http_get(
@@ -70,7 +70,7 @@ dominance, turnover, lastUpdated
 
 ### Query parameters
 
-```python
+```text
 # Pagination
 "?start=1&limit=100"        # page 1 of 100
 "?start=101&limit=100"      # page 2
@@ -103,7 +103,7 @@ dominance, turnover, lastUpdated
 
 Best for fetching one coin's complete data including ATH, ATL, 52-week high/low, volume ranks.
 
-```python
+```text
 import json
 
 # Look up by CMC coin ID (BTC=1, ETH=1027, XRP=52, SOL=5426, BNB=1839)
@@ -166,7 +166,7 @@ holders, watchCount, watchListRanking
 
 ## Path 3: Global market metrics
 
-```python
+```text
 import json
 
 resp = json.loads(http_get(
@@ -198,7 +198,7 @@ print(f"MCap Change:       {q['totalMarketCapYesterdayPercentageChange']:+.2f}%"
 
 ## Path 4: Historical OHLCV (candlestick data)
 
-```python
+```text
 import json, time
 
 now = int(time.time())
@@ -230,7 +230,7 @@ Supported intervals: `daily`, `1h` (hourly). `5m` returns HTTP 500 — not suppo
 
 ## Path 5: Exchange market pairs for a coin
 
-```python
+```text
 import json
 
 resp = json.loads(http_get(
@@ -253,7 +253,7 @@ Pair fields: `rank, exchangeId, exchangeName, exchangeSlug, marketId, marketPair
 
 ## Path 6: Exchange listings
 
-```python
+```text
 import json
 
 resp = json.loads(http_get(
@@ -271,7 +271,7 @@ Exchange fields: `id, name, slug, dexStatus, platformId, status, score, trafficS
 
 ## Path 7: Price conversion (cross-rate)
 
-```python
+```text
 import json
 
 # Convert 1 BTC → USD
@@ -298,7 +298,7 @@ print(f"1 ETH = {btc_price:.6f} BTC")
 
 ## Path 8: News / articles
 
-```python
+```text
 import json
 
 # News for a specific coin
@@ -323,7 +323,7 @@ Use when you need data that isn't in the API (e.g. Fear & Greed index, CMC100 in
 
 ### Main page (`coinmarketcap.com/`)
 
-```python
+```text
 import json, re
 
 html = http_get("https://coinmarketcap.com/")
@@ -364,7 +364,7 @@ print("pageSharedData keys:", list(psd.keys()))
 ```
 
 **Gotcha — regex pattern**: Use `[^>]+` to match the `crossorigin="anonymous"` attribute on the script tag. `type="application/json"` alone will miss it:
-```python
+```text
 # CORRECT
 m = re.search(r'<script id="__NEXT_DATA__"[^>]+>([\s\S]*?)</script>', html)
 
@@ -378,7 +378,7 @@ m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script
 
 ### Individual coin page (`/currencies/{slug}/`)
 
-```python
+```text
 import json, re
 
 html = http_get("https://coinmarketcap.com/currencies/bitcoin/")

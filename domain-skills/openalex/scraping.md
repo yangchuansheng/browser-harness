@@ -6,8 +6,8 @@
 
 **Use `http_get` with the REST JSON API — one call, JSON response, no auth, no parsing library.**
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 data = json.loads(http_get(
@@ -23,8 +23,8 @@ Always include `mailto=` to stay in the polite pool. Always parse with `json.loa
 
 ### Search papers (works)
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 data = json.loads(http_get(
@@ -53,8 +53,8 @@ for w in data["results"]:
 
 ### Fetch single paper by OpenAlex ID or DOI
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 # By OpenAlex ID (bare or full URL form both work)
@@ -74,8 +74,8 @@ print(w["display_name"], w["cited_by_count"])
 
 OpenAlex does not return abstracts as plain strings — they come as an inverted index (`{word: [position, ...], ...}`) due to publisher agreements. Reconstruct as follows:
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 w = json.loads(http_get(
@@ -93,8 +93,8 @@ print(abstract[:200])
 
 ### Author lookup
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 # Search by name
@@ -134,8 +134,8 @@ for w in works_data["results"]:
 
 ### Institution lookup
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 data = json.loads(http_get(
@@ -162,8 +162,8 @@ print("total MIT works:", works["meta"]["count"])
 
 Concepts (legacy, level-based hierarchy) and Topics (newer, 4-level hierarchy) are both available.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 # Concepts endpoint (Wikidata-linked)
@@ -190,8 +190,8 @@ for t in data2["results"]:
 
 ### Source (journal/venue) lookup
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 data = json.loads(http_get(
@@ -214,8 +214,8 @@ print("Nature works:", works["meta"]["count"])
 
 ### Funder lookup
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 data = json.loads(http_get(
@@ -229,8 +229,8 @@ for f in data["results"]:
 
 ### Citation traversal
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 paper_id = "W2626778328"  # Attention Is All You Need
@@ -261,8 +261,8 @@ print(f"references {len(ref_ids)} works:", ref_ids[:3])
 
 Use cursor pagination (not page-based) for more than 10,000 results. Page-based fails with HTTP 400 beyond page 50 at per-page=200.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json, urllib.parse
 
 def harvest_works(query_filter, max_results=1000, mailto="you@example.com"):
@@ -298,8 +298,8 @@ for w in harvest_works("concepts.id:C119857082,publication_year:2023", max_resul
 
 ### Group-by analytics
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 # Publication counts by year for machine learning papers

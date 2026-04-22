@@ -6,7 +6,7 @@
 
 **Use the Gutendex REST API (`gutendex.com`) for all search and discovery. It is one call, returns clean JSON, and requires no auth. Go to gutenberg.org URLs only to fetch actual file content.**
 
-```python
+```text
 import json
 
 # Search by title/author keyword
@@ -24,7 +24,7 @@ text = http_get(book['formats']['text/plain; charset=utf-8'])
 
 For a known book ID, skip search entirely:
 
-```python
+```text
 book = json.loads(http_get("https://gutendex.com/books/1342/"))
 ```
 
@@ -32,7 +32,7 @@ book = json.loads(http_get("https://gutendex.com/books/1342/"))
 
 ### Search by keyword and get the first result
 
-```python
+```text
 import json
 
 data = json.loads(http_get("https://gutendex.com/books/?search=frankenstein"))
@@ -47,7 +47,7 @@ if data['results']:
 
 ### Get the most downloaded books (popularity ranking)
 
-```python
+```text
 import json
 
 data = json.loads(http_get("https://gutendex.com/books/?sort=popular"))
@@ -68,7 +68,7 @@ for b in data['results'][:10]:
 
 ### Browse by genre / topic
 
-```python
+```text
 import json
 
 # 'topic' matches both subjects and bookshelves fields
@@ -86,7 +86,7 @@ data = json.loads(http_get("https://gutendex.com/books/?languages=fr&topic=roman
 
 ### Paginate through results
 
-```python
+```text
 import json
 
 url = "https://gutendex.com/books/?topic=science+fiction"
@@ -102,7 +102,7 @@ while url:
 
 ### Fetch multiple specific books by ID
 
-```python
+```text
 import json
 
 data = json.loads(http_get("https://gutendex.com/books/?ids=1342,11,84"))
@@ -116,7 +116,7 @@ for b in data['results']:
 
 ### Read the plain text of a book (boilerplate stripped)
 
-```python
+```text
 raw = http_get("https://www.gutenberg.org/cache/epub/1342/pg1342.txt")
 # 763 083 chars total including PG licence header and footer
 
@@ -131,7 +131,7 @@ if s != -1:
 
 The cache URL is the most reliable direct path. The `formats` dict in Gutendex also provides a redirect URL that resolves to the same file:
 
-```python
+```text
 # Both of these return identical content (763 083 chars):
 http_get("https://www.gutenberg.org/ebooks/1342.txt.utf-8")          # redirect
 http_get("https://www.gutenberg.org/cache/epub/1342/pg1342.txt")     # direct cache
@@ -151,7 +151,7 @@ Every book's `formats` dict maps MIME type to URL. All URLs resolve to `/cache/e
 | `image/jpeg` | `pg{id}.cover.medium.jpg` | cover image |
 | `application/octet-stream` | `pg{id}-h.zip` | HTML+images zip |
 
-```python
+```text
 import json
 
 b = json.loads(http_get("https://gutendex.com/books/1342/"))
@@ -169,7 +169,7 @@ for mime, url in b['formats'].items():
 
 ### Fetch RDF/XML metadata for a book
 
-```python
+```text
 import re
 
 rdf = http_get("https://www.gutenberg.org/cache/epub/1342/pg1342.rdf")
@@ -200,7 +200,7 @@ Note: `<dcterms:language>` value is a subject string, not a language code. For l
 
 Use this only when you need to leverage Gutenberg's own search index (author:, title:, subject: prefix syntax).
 
-```python
+```text
 import re, json
 
 html = http_get(
@@ -235,7 +235,7 @@ html_p2 = http_get(
 
 ### Browse a bookshelf (curated genre list)
 
-```python
+```text
 import re
 
 # Bookshelf 68 = Science Fiction
@@ -247,7 +247,7 @@ titles = re.findall(r'<span class="title">(.*?)</span>', html)
 
 ### OPDS catalog (machine-readable Atom feed)
 
-```python
+```text
 import re
 
 feed = http_get("https://www.gutenberg.org/ebooks/search.opds/?query=dracula")
@@ -354,7 +354,7 @@ Notable IDs validated in tests: `84` (Frankenstein), `1342` (Pride and Prejudice
 
 Gutendex (`gutendex.com`) returns no `X-RateLimit-*` headers. Server is Apache/2.4.58 on Ubuntu. Rapid sequential calls can trigger connection resets — observed a timeout on the second call in a tight loop. Add a small delay between calls when paginating:
 
-```python
+```text
 import time, json
 
 url = "https://gutendex.com/books/?sort=popular"

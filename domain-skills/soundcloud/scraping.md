@@ -11,8 +11,8 @@ No authentication required for any approach documented here. All code uses `http
 
 Returns JSON in ~0.3s. Works for **tracks, playlists/sets, and user profiles**. No key required.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json
 
 def soundcloud_oembed(resource_url):
@@ -71,8 +71,8 @@ user = soundcloud_oembed("https://soundcloud.com/forss")
 
 Every SoundCloud page embeds a JSON array in a `<script>` tag as `window.__sc_hydration`. This contains full API-grade metadata with no key required.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json, re
 
 def extract_hydration(page_url):
@@ -151,8 +151,8 @@ playlist = get_hydration_by_type("https://soundcloud.com/forss/sets/soulhack", "
 
 The `client_id` lives in every page's `__sc_hydration` under the `apiClient` key. It is **stable across all pages and sessions** — extract once and reuse.
 
-```python
-# setup: see docs/python-integration.md for direct browser-harness wrappers
+```text
+# helper-style example: map these calls to browser-harness / bhrun or a guest
 import json, re
 
 def get_client_id(page_url="https://soundcloud.com"):
@@ -177,7 +177,7 @@ def sc_api(path, **params):
 
 ### Resolve any URL to a resource
 
-```python
+```text
 # Resolve a permalink URL to get its resource with full metadata
 track = sc_api("resolve", url="https://soundcloud.com/forss/flickermood")
 # Returns: {'kind': 'track', 'id': 293, 'title': 'Flickermood', ...}
@@ -188,7 +188,7 @@ user = sc_api("resolve", url="https://soundcloud.com/forss")
 
 ### Track lookup
 
-```python
+```text
 # Single track by numeric ID
 track = sc_api("tracks/293")
 
@@ -201,7 +201,7 @@ for t in tracks:
 
 ### Search
 
-```python
+```text
 # Tracks
 results = sc_api("search/tracks", q="jazz", limit=20)
 # results['collection']    = list of track objects
@@ -227,7 +227,7 @@ def paginate(first_response):
 
 ### Trending charts
 
-```python
+```text
 # Trending tracks across all genres
 trending = sc_api("charts", kind="trending",
                   genre="soundcloud:genres:all-music", limit=20)
@@ -241,7 +241,7 @@ for item in trending['collection']:
 
 ### User resources
 
-```python
+```text
 user_id = 183  # numeric ID from resolve or hydration
 
 # User's tracks
@@ -261,7 +261,7 @@ related = sc_api("tracks/293/related", limit=10)
 
 ### Waveform data
 
-```python
+```text
 # Waveform URL comes from track['waveform_url']
 waveform_url = "https://wave.sndcdn.com/cWHNerOLlkUq_m.json"
 waveform = json.loads(http_get(waveform_url))

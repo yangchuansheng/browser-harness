@@ -8,7 +8,7 @@
 
 The CDX (Capture/Crawl Index) API is the single fastest way to query the Wayback Machine. It returns structured JSON and supports filtering, collapsing, pagination, and nearest-date lookups.
 
-```python
+```text
 import json
 
 # Find all snapshots of a URL — the minimal starting query
@@ -32,7 +32,7 @@ for ts, orig, status, mime, length in rows[1:]:
 
 ### Nearest snapshot to a target date
 
-```python
+```text
 import json
 
 r = http_get(
@@ -51,7 +51,7 @@ snap_url = f"https://web.archive.org/web/{ts}/{orig}"
 
 ### One snapshot per month (collapsed)
 
-```python
+```text
 import json
 
 r = http_get(
@@ -76,7 +76,7 @@ for ts, orig, status in rows[1:]:
 
 ### All pages under a domain or path
 
-```python
+```text
 import json
 
 # matchType=prefix — all URLs starting with the given path
@@ -100,7 +100,7 @@ for row in rows[1:]:
 
 ### Filter by status code or MIME type
 
-```python
+```text
 import json
 
 # Only successful HTML captures — combine multiple filters
@@ -142,7 +142,7 @@ Default `fl=` when omitted: all 7 fields above in that order.
 
 ## Availability API (DO NOT USE as primary)
 
-```python
+```text
 import json
 
 # WARNING: This API is BROKEN — returns empty archived_snapshots
@@ -177,7 +177,7 @@ if len(rows) > 1:
 
 ## Paginate large result sets
 
-```python
+```text
 import json
 from urllib.parse import quote
 
@@ -210,7 +210,7 @@ for ts, orig, status in cdx_all_snapshots("example.com"):
 
 ## Retrieve the archived page
 
-```python
+```text
 # Direct snapshot URL: /web/{14-digit-timestamp}/{original-url}
 snap_url = "https://web.archive.org/web/20230601114925/https://example.com/"
 content = http_get(snap_url, timeout=30.0)
@@ -228,7 +228,7 @@ latest = "https://web.archive.org/web/20240101000000*/example.com"
 
 ## Advanced CDX: deduplicate by content digest
 
-```python
+```text
 import json
 
 # Find only snapshots where the content CHANGED — dedup by SHA-1 digest
@@ -249,7 +249,7 @@ rows = json.loads(r)
 
 ## CDX summary/count query
 
-```python
+```text
 import json
 
 # showNumPages=true returns total page count, not records

@@ -6,7 +6,7 @@
 
 **Use the search listing URL to get event lists — parse the `ItemList` JSON-LD block, not the HTML.**
 
-```python
+```text
 import re, json
 
 headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
@@ -125,7 +125,7 @@ The second JSON-LD block on listing pages is a `BreadcrumbList` (skip it).
 
 The detail page has 4 JSON-LD blocks. The `Event` (or `BusinessEvent`) block is the second one and contains the full schema:
 
-```python
+```text
 import re, json
 
 headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
@@ -173,7 +173,7 @@ offers             list    AggregateOffer object(s)
 
 ### Offers / pricing
 
-```python
+```text
 offers = event_data.get('offers', [])
 if offers:
     offer = offers[0]   # always a list; typically one AggregateOffer
@@ -199,7 +199,7 @@ if offers:
 
 Every event detail page embeds a `<script id="__NEXT_DATA__">` block with additional fields not in JSON-LD:
 
-```python
+```text
 import re, json
 
 nextjs = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
@@ -261,7 +261,7 @@ for module in context['structuredContent']['modules']:
 
 ## Complete workflow: scrape events from a category
 
-```python
+```text
 import re, json
 
 def get_events_from_listing(location, category, page=1):
@@ -324,7 +324,7 @@ The Eventbrite REST API (`https://www.eventbriteapi.com/v3/`) requires an OAuth 
 **Use HTML scraping instead** — the JSON-LD and `__NEXT_DATA__` data is equivalent to the API response and requires no credentials.
 
 If you have a token (`EVENTBRITE_TOKEN`):
-```python
+```text
 import os
 token = os.environ.get('EVENTBRITE_TOKEN')
 headers = {
