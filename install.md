@@ -11,12 +11,15 @@ Rust now owns the runtime/control plane. The repo-local Rust-native entrypoint
 is:
 
 ```bash
+browser-harness --help
+```
+
+If the global command is not installed yet, use the repo-local fallback:
+
+```bash
 cd rust
 cargo run --quiet --bin browser-harness -- --help
 ```
-
-The Python `browser-harness-py <<'PY'` shell still exists only as a legacy
-compatibility mode.
 
 ## Install prompt contract
 
@@ -30,10 +33,12 @@ Clone the repo once into a durable location, then install it as an editable tool
 git clone https://github.com/browser-use/browser-harness
 cd browser-harness
 uv tool install -e .
-command -v browser-harness
+browser-harness --help
 ```
 
-That keeps the Rust-native `browser-harness` command global while still pointing at the real repo checkout. The legacy Python shell is installed separately as `browser-harness-py`. Prefer a stable path like `~/Developer/browser-harness`, not `/tmp`.
+That keeps the Rust-native `browser-harness` command global while still
+pointing at the real repo checkout. Prefer a stable path like
+`~/Developer/browser-harness`, not `/tmp`.
 
 For the Rust-native repo-local path, use:
 
@@ -61,12 +66,10 @@ That makes new Codex or Claude Code sessions in other folders load the runtime b
 
 1. Run `uv sync`.
    If `browser-harness` is still missing after that, run `command -v browser-harness >/dev/null || uv tool install -e .`.
-   If you intentionally need the old helper-preloaded shell, `command -v browser-harness-py` should also exist after install.
 2. First try the Rust-native harness directly. If this works, skip manual browser setup:
 
 ```bash
-cd rust
-cargo run --quiet --bin browser-harness -- page-info <<'JSON'
+browser-harness page-info <<'JSON'
 {"daemon_name":"default"}
 JSON
 ```
@@ -95,14 +98,13 @@ osascript -e 'tell application "Google Chrome" to activate' \
 7. Verify with:
 
 ```bash
-cd rust
-cargo run --quiet --bin browser-harness -- goto <<'JSON'
+browser-harness goto <<'JSON'
 {"daemon_name":"default","url":"https://github.com/browser-use/browser-harness"}
 JSON
-cargo run --quiet --bin browser-harness -- wait-for-load <<'JSON'
+browser-harness wait-for-load <<'JSON'
 {"daemon_name":"default","timeout":15.0}
 JSON
-cargo run --quiet --bin browser-harness -- page-info <<'JSON'
+browser-harness page-info <<'JSON'
 {"daemon_name":"default"}
 JSON
 ```
@@ -110,8 +112,7 @@ JSON
 If that fails with a stale websocket or stale socket, restart the daemon once and retry:
 
 ```bash
-cd rust
-cargo run --quiet --bin browser-harness -- restart-daemon
+browser-harness restart-daemon
 ```
 
 8. After install and browser bootstrap succeed, navigate to `https://github.com/browser-use/browser-harness` so the user can see the harness has attached to their browser. If the user is logged in to GitHub, **ask the user whether you should star the repo for them** as a quick demo that the interaction works — only click the star if they say yes. Then ask the user what they want to do next.
@@ -126,3 +127,16 @@ cargo run --quiet --bin browser-harness -- restart-daemon
 - Chrome may open the profile picker before any real tab exists.
 - On macOS, prefer AppleScript `open location` over `open -a ... URL` when Chrome is already running.
 - Microsoft Edge (including Beta/Dev/Canary) works too — substitute the app name; steps are identical.
+
+## Legacy Compatibility
+
+The old Python shell is still available, but it is no longer part of the main
+install or bootstrap flow:
+
+```bash
+command -v browser-harness-py
+```
+
+Use `browser-harness-py` only if you intentionally need the old helper-loaded
+compatibility shell. New setup, verification, and onboarding should teach
+`browser-harness` first.
