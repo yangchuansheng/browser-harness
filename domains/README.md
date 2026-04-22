@@ -19,10 +19,10 @@ Current rules:
   [`github/repo-actions.md`](github/repo-actions.md)
 - executable guests still live under [`../rust/guests/`](../rust/guests/) for
   now
-- some migrated sites are knowledge-only and do not have a guest crate yet
-- `domain-skills/` contains legacy site guides that have not yet been migrated
+- some sites are knowledge-only and do not have a guest crate yet
+- all active site-specific knowledge now lives under `domains/`
 
-Currently migrated sites:
+Current sites:
 
 Guest-backed sites:
 
@@ -43,20 +43,58 @@ Knowledge-only sites:
 - [`arxiv/skill.md`](arxiv/skill.md)
 - [`arxiv-bulk/skill.md`](arxiv-bulk/skill.md)
 - [`amazon/skill.md`](amazon/skill.md)
+- [`atlas/skill.md`](atlas/skill.md)
+- [`booking-com/skill.md`](booking-com/skill.md)
 - [`coingecko/skill.md`](coingecko/skill.md)
 - [`coinmarketcap/skill.md`](coinmarketcap/skill.md)
+- [`capterra/skill.md`](capterra/skill.md)
+- [`centilebrain/skill.md`](centilebrain/skill.md)
+- [`craigslist/skill.md`](craigslist/skill.md)
 - [`crossref/skill.md`](crossref/skill.md)
+- [`coursera/skill.md`](coursera/skill.md)
+- [`dev-to/skill.md`](dev-to/skill.md)
+- [`duckduckgo/skill.md`](duckduckgo/skill.md)
 - [`ebay/skill.md`](ebay/skill.md)
+- [`eventbrite/skill.md`](eventbrite/skill.md)
+- [`facebook/skill.md`](facebook/skill.md)
 - [`fred/skill.md`](fred/skill.md)
+- [`framer/skill.md`](framer/skill.md)
+- [`g2/skill.md`](g2/skill.md)
+- [`genius/skill.md`](genius/skill.md)
+- [`glassdoor/skill.md`](glassdoor/skill.md)
+- [`goodreads/skill.md`](goodreads/skill.md)
+- [`gutenberg/skill.md`](gutenberg/skill.md)
+- [`hackernews/skill.md`](hackernews/skill.md)
+- [`howlongtobeat/skill.md`](howlongtobeat/skill.md)
+- [`itch-io/skill.md`](itch-io/skill.md)
+- [`job-boards/skill.md`](job-boards/skill.md)
 - [`stackoverflow/skill.md`](stackoverflow/skill.md)
+- [`musicbrainz/skill.md`](musicbrainz/skill.md)
+- [`macrotrends/skill.md`](macrotrends/skill.md)
+- [`medium/skill.md`](medium/skill.md)
 - [`nasa/skill.md`](nasa/skill.md)
+- [`news-aggregation/skill.md`](news-aggregation/skill.md)
 - [`open-library/skill.md`](open-library/skill.md)
 - [`openalex/skill.md`](openalex/skill.md)
+- [`openstreetmap/skill.md`](openstreetmap/skill.md)
+- [`package-registries/skill.md`](package-registries/skill.md)
 - [`pubmed/skill.md`](pubmed/skill.md)
+- [`quora/skill.md`](quora/skill.md)
+- [`rawg/skill.md`](rawg/skill.md)
 - [`rest-countries/skill.md`](rest-countries/skill.md)
+- [`salesforce/skill.md`](salesforce/skill.md)
+- [`sec-edgar/skill.md`](sec-edgar/skill.md)
+- [`soundcloud/skill.md`](soundcloud/skill.md)
+- [`spreadshirt/skill.md`](spreadshirt/skill.md)
 - [`tiktok/skill.md`](tiktok/skill.md)
+- [`thetechgeeks/skill.md`](thetechgeeks/skill.md)
+- [`steam/skill.md`](steam/skill.md)
+- [`trello/skill.md`](trello/skill.md)
+- [`trustpilot/skill.md`](trustpilot/skill.md)
 - [`weather/skill.md`](weather/skill.md)
+- [`zillow/skill.md`](zillow/skill.md)
+- [`wellfound/skill.md`](wellfound/skill.md)
 - [`world-bank/skill.md`](world-bank/skill.md)
-- [`linkedin/skill.md`](linkedin/skill.md) (stub; guide not written yet)
+- [`linkedin/skill.md`](linkedin/skill.md)
 
-When adding or updating a migrated site, prefer `domains/<site>/`.
+When adding or updating a site, prefer `domains/<site>/`.
