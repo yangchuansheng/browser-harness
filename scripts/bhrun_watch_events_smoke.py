@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Run a live end-to-end smoke test for `bhrun watch-events`.
 
-Required:
-  BROWSER_USE_API_KEY
-
 Optional:
   BU_NAME                   defaults to "bhrun-watch-events-smoke"
+  BU_BROWSER_MODE           defaults to "remote"; set to "local" to attach via DevToolsActivePort
   BU_DAEMON_IMPL            defaults to "rust"
   BU_REMOTE_TIMEOUT_MINUTES defaults to "1"
+  BU_LOCAL_DAEMON_WAIT_SECONDS defaults to "15"
   BU_RUST_RUNNER_BIN        override the bhrun binary path
 """
 
@@ -23,7 +22,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 os.environ.setdefault("BU_NAME", "bhrun-watch-events-smoke")
 
-from admin import _browser_use, restart_daemon, start_remote_daemon  # noqa: E402
+from admin import _browser_use, ensure_daemon, restart_daemon, start_remote_daemon  # noqa: E402
 from helpers import drain_events, goto, new_tab, page_info, wait_for_load  # noqa: E402
 
 
@@ -99,18 +98,31 @@ def run_runner_json_command(subcommand, payload, timeout_seconds=10):
 
 
 def main():
-    if not os.environ.get("BROWSER_USE_API_KEY"):
+    browser_mode = os.environ.get("BU_BROWSER_MODE", "remote").strip().lower() or "remote"
+    if browser_mode not in {"remote", "local"}:
+        raise SystemExit("BU_BROWSER_MODE must be 'remote' or 'local'")
+    if browser_mode == "remote" and not os.environ.get("BROWSER_USE_API_KEY"):
         raise SystemExit("BROWSER_USE_API_KEY is required")
 
     os.environ.setdefault("BU_DAEMON_IMPL", "rust")
     name = os.environ["BU_NAME"]
     timeout = int(os.environ.get("BU_REMOTE_TIMEOUT_MINUTES", "1"))
+    local_wait = float(os.environ.get("BU_LOCAL_DAEMON_WAIT_SECONDS", "15"))
 
     browser = None
-    result = {"name": name, "daemon_impl": os.environ["BU_DAEMON_IMPL"]}
+    result = {
+        "name": name,
+        "daemon_impl": os.environ["BU_DAEMON_IMPL"],
+        "browser_mode": browser_mode,
+    }
     try:
-        browser = start_remote_daemon(name=name, timeout=timeout)
-        result["browser_id"] = browser["id"]
+        if browser_mode == "remote":
+            browser = start_remote_daemon(name=name, timeout=timeout)
+            result["browser_id"] = browser["id"]
+        else:
+            ensure_daemon(name=name, wait=local_wait)
+            result["local_attach"] = "DevToolsActivePort"
+
         result["initial_page"] = page_info()
         result["new_tab_target"] = new_tab("https://example.com/?via=bhrun-watch-events-smoke")
         result["loaded"] = wait_for_load()
