@@ -184,6 +184,7 @@ def main():
             "wait",
             "page_info",
             "js",
+            "press_key",
         ]
         result["guest_config"] = sample_config
 
