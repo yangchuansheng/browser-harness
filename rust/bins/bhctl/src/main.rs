@@ -363,6 +363,13 @@ fn daemon_launch_command() -> Result<Command, String> {
         }
     }
 
+    if let Ok(current_exe) = std::env::current_exe() {
+        let sibling = current_exe.with_file_name("bhd");
+        if sibling.is_file() {
+            return Ok(Command::new(sibling));
+        }
+    }
+
     let mut command = Command::new("cargo");
     command
         .args(["run", "--quiet", "--bin", "bhd", "--"])

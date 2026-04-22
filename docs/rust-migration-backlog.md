@@ -11,6 +11,13 @@ early.
 an interaction skill when a real domain workflow proves that the pattern is
 stable enough to deserve a typed reusable primitive.
 
+The backlog now also has an explicit Python sunset track:
+
+- move the default control surface to the Rust-native `browser-harness` CLI
+- keep Python compatibility only as a temporary shim
+- allow some interaction-skill work to land after that interface shift instead
+  of treating it as a pre-sunset blocker
+
 ## Global Rules
 
 - [ ] use local browser smokes as the primary acceptance gate
@@ -100,6 +107,14 @@ enough to be high-value early migration work.
 - [x] mark the current domain-skills-first migration wave complete
 - [ ] choose the next wave only after deciding whether to deepen interaction-skill extraction or tackle one delayed anti-bot/login-heavy domain
 
+## Python Sunset Track
+
+- [x] sunset the Python daemon path; `admin.py` now uses Rust control-plane commands only
+- [x] add a Rust-native top-level CLI facade: `rust/bins/browser-harness-cli`
+- [x] make the Rust-native CLI the primary documented/default repo-local interface
+- [ ] decide which remaining `helpers.py` conveniences are intentionally legacy versus worth moving to guests/runner
+- [x] replace the final public Python entrypoint; `browser-harness` now installs the Rust-native CLI and the Python shell is explicit legacy `browser-harness-py`
+
 ## Secondary Track: Capability Pull List
 
 Do these only when a domain skill proves the need.
@@ -139,6 +154,10 @@ domain migrations make the guidance concrete enough to stabilize.
 
 ### Interaction Skills Waiting On New Typed Host Work
 
+These are no longer treated as Python-sunset blockers by default. They belong
+to the post-sunset Rust-native capability wave unless a concrete domain
+migration pulls one forward.
+
 - [ ] `interaction-skills/dialogs.md`
 - [ ] `interaction-skills/uploads.md`
 - [ ] `interaction-skills/viewport.md`
@@ -157,7 +176,6 @@ domain migrations make the guidance concrete enough to stabilize.
 
 If work resumes from the top of the backlog, do these first:
 
-- [ ] port the Etsy slice
-- [ ] add the local Etsy smoke
-- [ ] verify it locally
-- [ ] only then pull the first missing reusable primitive into the interaction-skill track
+- [x] switch repo-facing docs and install guidance to the Rust-native CLI first
+- [ ] decide the first post-sunset interaction capability to pull forward only if a real domain migration needs it
+- [ ] only then choose between another delayed domain slice or the first post-sunset interaction primitive

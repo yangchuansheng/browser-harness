@@ -4,10 +4,11 @@
 
 Rewrite the stable runtime parts of Browser Harness in Rust without breaking the current user-facing workflow:
 
-- keep `browser-harness <<'PY'` as the short-term interface
-- keep `helpers.py` and `admin.py` as thin dynamic wrappers first
+- keep `browser-harness-py <<'PY'` only as a short-term compatibility mode
+- keep `helpers.py` and `admin.py` thin while the Rust-native replacement lands
 - replace the Python daemon/core with a Rust daemon
-- later replace the Python dynamic layer with Rust-hosted WASM modules
+- replace the Python-first interface with a Rust-native top-level CLI
+- later replace the remaining Python dynamic layer with Rust-hosted WASM modules
 
 The rewrite should be incremental, not a clean-room replacement.
 
@@ -67,8 +68,9 @@ Phase 1 is complete for the in-repo hybrid rewrite.
 That means the boundary freeze below has been reached:
 
 - Rust owns the stateful browser runtime, admin lifecycle, remote-browser lifecycle, and the common typed helper surface
-- Python remains the compatibility shell and keeps the intentional leftovers (`cdp()`, dynamic skills, and the legacy wrapper surface), while `wait()` and `http_get()` now also exist on the runner side
+- Python remains only the legacy compatibility shell and keeps the intentional leftovers (`cdp()`, dynamic skills, and the legacy wrapper surface), while `wait()` and `http_get()` now also exist on the runner side
 - existing workflows now have both remote-browser plumbing coverage and local Chrome/Edge attach coverage through the Rust path, including local domain-skill acceptance smokes for `domain-skills/github/scraping.md`, `domain-skills/reddit/scraping.md`, `domain-skills/producthunt/scraping.md`, `domain-skills/letterboxd/scraping.md`, `domain-skills/spotify/scraping.md`, and `domain-skills/etsy/scraping.md`
+- the Python daemon path is sunset; `admin.py` now uses the Rust control plane only
 
 ### Phase 2 target
 
@@ -84,6 +86,7 @@ Phase 2 has started as design + scaffolding.
 
 Current runner-owned preview surface:
 
+- the new Rust-native top-level CLI facade is `browser-harness`, forwarding admin commands to `bhctl` and runner/helper commands to `bhrun`
 - one-shot guest execution via `bhrun run-guest`
 - persistent guest execution via `bhrun serve-guest`
 - browser-free runner utility coverage via `wait`
@@ -106,6 +109,7 @@ Current runner-owned preview surface:
 See also:
 
 - `docs/rust-migration-backlog.md` for the current domain-skills-first migration backlog and the secondary interaction-skill support track
+- `docs/rust-native-replacement-plan.md` for the Python sunset and Rust-native CLI replacement path
 
 More specifically, the target shape is:
 
@@ -139,8 +143,8 @@ These correspond mainly to the current responsibilities in `daemon.py` and the l
 
 These parts should remain Python for the POC:
 
-- stdin execution model in `run.py`
-- public helper names in `helpers.py`
+- the legacy stdin execution model in `run.py`
+- legacy public helper names in `helpers.py`
 - convenience helpers and small JS snippets
 - exploratory or experimental helpers
 - site-specific logic in `domain-skills/`
@@ -321,7 +325,7 @@ Current design scaffold:
 
 Success means:
 
-- existing `browser-harness <<'PY'` scripts still run
+- existing legacy `browser-harness-py <<'PY'` scripts still run
 - Rust daemon handles core helpers reliably
 - common attach/navigation/screenshot/click flows work
 
@@ -354,6 +358,10 @@ Only after Milestone D should the project decide whether to:
 - keep Python as an optional compatibility mode
 - replace Python entirely with WASM guests
 - support both for a period
+
+The current repo is now at the start of that decision window: the daemon path is
+already Rust-only, a Rust-native top-level CLI exists, and the remaining work is
+mostly interface/default-path migration rather than runtime ownership.
 
 ## Risks
 
