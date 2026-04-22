@@ -165,6 +165,17 @@ pub fn press_key(key: &str, modifiers: i64) -> Result<(), GuestError> {
     )
 }
 
+pub fn dispatch_key(selector: &str, key: &str, event: &str) -> Result<(), GuestError> {
+    call_json(
+        "dispatch_key",
+        &json!({
+            "selector": selector,
+            "key": key,
+            "event": event,
+        }),
+    )
+}
+
 pub fn scroll(x: f64, y: f64, dy: f64, dx: f64) -> Result<(), GuestError> {
     call_json(
         "scroll",
@@ -182,6 +193,29 @@ pub fn screenshot(full: bool) -> Result<String, GuestError> {
         "screenshot",
         &json!({
             "full": full,
+        }),
+    )
+}
+
+pub fn upload_file<I, S>(
+    selector: &str,
+    files: I,
+    target_id: Option<&str>,
+) -> Result<(), GuestError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let files = files
+        .into_iter()
+        .map(|item| item.as_ref().to_string())
+        .collect::<Vec<_>>();
+    call_json(
+        "upload_file",
+        &json!({
+            "selector": selector,
+            "files": files,
+            "target_id": target_id,
         }),
     )
 }
@@ -279,10 +313,11 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 #[cfg(test)]
 mod tests {
     use super::{
-        call_json_with, click, current_session, current_tab, ensure_real_tab, goto, http_get,
-        iframe_target, js, list_tabs, new_tab, page_info, press_key, screenshot, scroll,
-        switch_tab, type_text, wait, wait_for_load, wait_for_load_event, wait_for_response,
-        CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary, WaitResult,
+        call_json_with, click, current_session, current_tab, dispatch_key, ensure_real_tab, goto,
+        http_get, iframe_target, js, list_tabs, new_tab, page_info, press_key, screenshot, scroll,
+        switch_tab, type_text, upload_file, wait, wait_for_load, wait_for_load_event,
+        wait_for_response, CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult,
+        TabSummary, WaitResult,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -573,6 +608,29 @@ mod tests {
         .expect("press key result");
         assert_eq!(press_result, ());
 
+        let dispatch_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"dispatch_key");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("selector").and_then(Value::as_str),
+                    Some("#search")
+                );
+                assert_eq!(request.get("key").and_then(Value::as_str), Some("Tab"));
+                assert_eq!(
+                    request.get("event").and_then(Value::as_str),
+                    Some("keydown")
+                );
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "dispatch_key",
+            &json!({"selector":"#search","key":"Tab","event":"keydown"}),
+        )
+        .expect("dispatch key result");
+        assert_eq!(dispatch_result, ());
+
         let scroll_result: () = call_json_with(
             |operation, request, output| {
                 assert_eq!(operation, b"scroll");
@@ -603,6 +661,40 @@ mod tests {
         )
         .expect("screenshot result");
         assert_eq!(screenshot_result, "cG5nLWJ5dGVz");
+
+        let upload_result: () = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"upload_file");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(
+                    request.get("selector").and_then(Value::as_str),
+                    Some("#file")
+                );
+                assert_eq!(
+                    request.pointer("/files/0").and_then(Value::as_str),
+                    Some("/tmp/one.txt")
+                );
+                assert_eq!(
+                    request.pointer("/files/1").and_then(Value::as_str),
+                    Some("/tmp/two.txt")
+                );
+                assert_eq!(
+                    request.get("target_id").and_then(Value::as_str),
+                    Some("iframe-1")
+                );
+                let response = serde_json::to_vec(&Value::Null).expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "upload_file",
+            &json!({
+                "selector":"#file",
+                "files":["/tmp/one.txt","/tmp/two.txt"],
+                "target_id":"iframe-1"
+            }),
+        )
+        .expect("upload file result");
+        assert_eq!(upload_result, ());
     }
 
     #[test]
@@ -729,8 +821,10 @@ mod tests {
         let _ = click;
         let _ = type_text;
         let _ = press_key;
+        let _ = dispatch_key;
         let _ = scroll;
         let _ = screenshot;
+        let _ = upload_file::<Vec<&str>, &str>;
         let _ = wait_for_load_event;
         let _ = wait_for_response;
         let _ = js::<String>;

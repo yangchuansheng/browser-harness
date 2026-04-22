@@ -121,8 +121,8 @@ Do these only when a domain skill proves the need.
 
 - [ ] typed dialog handling (`accept` / `dismiss` / optional prompt text)
 - [x] typed screenshot support
-- [ ] typed file upload support
-- [ ] typed `dispatch_key` support
+- [x] typed file upload support
+- [x] typed `dispatch_key` support
 - [ ] viewport control helpers (`set_viewport` or equivalent emulation wrapper)
 - [ ] typed print-to-PDF support
 - [ ] cookie read/write helpers
