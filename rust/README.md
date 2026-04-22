@@ -273,9 +273,9 @@ BU_BROWSER_MODE=local BU_DAEMON_IMPL=rust cargo run --quiet --manifest-path rust
 Runner-local `http_get` domain-skill guest smokes:
 
 ```bash
-python3 scripts/bhrun_metacritic_game_scores_guest_smoke.py
-python3 scripts/bhrun_walmart_search_guest_smoke.py
-python3 scripts/bhrun_tradingview_symbol_search_guest_smoke.py
+cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- metacritic-game-scores-guest
+cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- walmart-search-guest
+cargo run --quiet --manifest-path rust/Cargo.toml --bin bhsmoke -- tradingview-symbol-search-guest
 ```
 
 Live `bhrun serve-guest` smoke:
