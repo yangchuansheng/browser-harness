@@ -78,6 +78,7 @@ These preserve the current product ergonomics while the project transitions:
 - `press_key`
 - `dispatch_key`
 - `scroll`
+- `screenshot`
 - `upload_file`
 
 These helpers are useful, but they should be layered above generated protocol
@@ -202,6 +203,9 @@ cargo run --quiet --bin bhrun -- press-key <<'JSON'
 JSON
 cargo run --quiet --bin bhrun -- scroll <<'JSON'
 {"daemon_name":"default","x":100,"y":200,"dy":-300,"dx":0}
+JSON
+cargo run --quiet --bin bhrun -- screenshot <<'JSON'
+{"daemon_name":"default","full":true}
 JSON
 cargo run --quiet --bin bhrun -- current-session <<'JSON'
 {"daemon_name":"default"}

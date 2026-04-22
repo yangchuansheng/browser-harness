@@ -177,6 +177,15 @@ pub fn scroll(x: f64, y: f64, dy: f64, dx: f64) -> Result<(), GuestError> {
     )
 }
 
+pub fn screenshot(full: bool) -> Result<String, GuestError> {
+    call_json(
+        "screenshot",
+        &json!({
+            "full": full,
+        }),
+    )
+}
+
 pub fn wait_for_load_event(
     timeout_ms: u64,
     poll_interval_ms: u64,
@@ -271,9 +280,9 @@ fn imported_call_json(_operation: &[u8], _request: &[u8], _output: &mut [u8]) ->
 mod tests {
     use super::{
         call_json_with, click, current_session, current_tab, ensure_real_tab, goto, http_get,
-        iframe_target, js, list_tabs, new_tab, page_info, press_key, scroll, switch_tab, type_text,
-        wait, wait_for_load, wait_for_load_event, wait_for_response, CurrentSessionResult,
-        GuestError, NewTabResult, SwitchTabResult, TabSummary, WaitResult,
+        iframe_target, js, list_tabs, new_tab, page_info, press_key, screenshot, scroll,
+        switch_tab, type_text, wait, wait_for_load, wait_for_load_event, wait_for_response,
+        CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary, WaitResult,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -579,6 +588,21 @@ mod tests {
         )
         .expect("scroll result");
         assert_eq!(scroll_result, ());
+
+        let screenshot_result: String = call_json_with(
+            |operation, request, output| {
+                assert_eq!(operation, b"screenshot");
+                let request: Value = serde_json::from_slice(request).expect("parse request");
+                assert_eq!(request.get("full").and_then(Value::as_bool), Some(true));
+                let response = serde_json::to_vec("cG5nLWJ5dGVz").expect("serialize");
+                output[..response.len()].copy_from_slice(&response);
+                response.len() as i32
+            },
+            "screenshot",
+            &json!({"full":true}),
+        )
+        .expect("screenshot result");
+        assert_eq!(screenshot_result, "cG5nLWJ5dGVz");
     }
 
     #[test]
@@ -706,6 +730,7 @@ mod tests {
         let _ = type_text;
         let _ = press_key;
         let _ = scroll;
+        let _ = screenshot;
         let _ = wait_for_load_event;
         let _ = wait_for_response;
         let _ = js::<String>;
