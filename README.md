@@ -6,6 +6,12 @@ LLMs to a real browser over CDP without adding a large framework in between.
 It exposes stable browser operations, keeps the control plane small, and still
 lets the agent extend missing behavior mid-task when it needs to.
 
+`domains/<site>/skill.md` is the knowledge layer: URL patterns, selectors,
+waits, traps, APIs, and site-specific workflow notes. Rust guests are optional
+packaged workflows, not the default artifact for every domain. Some domain docs
+use Python-like helper syntax as pseudocode for harness operations; that does
+not mean Python is required to use this repo.
+
 ```
   ● agent: needs a site-specific browser workflow
   │
