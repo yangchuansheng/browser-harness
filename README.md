@@ -1,4 +1,6 @@
-# Browser Harness ♞
+# Browser Harness Rust ♞
+
+![Browser Harness hero](docs/hero.jpeg)
 
 Browser Harness is a thin, Rust-native browser runtime for agents. It connects
 LLMs to a real browser over CDP without adding a large framework in between.
