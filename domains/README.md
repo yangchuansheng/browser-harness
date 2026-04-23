@@ -81,6 +81,7 @@ Knowledge-only sites:
 - [`openalex/skill.md`](openalex/skill.md)
 - [`openstreetmap/skill.md`](openstreetmap/skill.md)
 - [`package-registries/skill.md`](package-registries/skill.md)
+- [`play2048-co/skill.md`](play2048-co/skill.md)
 - [`pubmed/skill.md`](pubmed/skill.md)
 - [`quora/skill.md`](quora/skill.md)
 - [`rawg/skill.md`](rawg/skill.md)
