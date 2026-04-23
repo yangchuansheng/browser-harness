@@ -12,6 +12,16 @@ packaged workflows, not the default artifact for every domain. Some domain docs
 use Python-like helper syntax as pseudocode for harness operations; that does
 not mean Python is required to use this repo.
 
+## Acknowledgements
+
+This project is a Rust reimplementation of the original
+[`browser-use/browser-harness`](https://github.com/browser-use/browser-harness)
+Python harness.
+
+The core harness idea and direction came from that upstream project. Many
+thanks to the `browser-use` maintainers for creating and sharing the original
+work that this repo builds on.
+
 ```
   ● agent: needs a site-specific browser workflow
   │
@@ -25,9 +35,9 @@ not mean Python is required to use this repo.
 
 ## What This Repo Is
 
-This is the Rust-native continuation of the original
-[`browser-use/browser-harness`](https://github.com/browser-use/browser-harness)
-idea.
+This repo carries the same core thesis as the original
+[`browser-use/browser-harness`](https://github.com/browser-use/browser-harness),
+but reimplements the runtime in Rust.
 
 The upstream original keeps the harness extremely small with files like
 `run.py`, `helpers.py`, `admin.py`, and `daemon.py`. That design proves the
