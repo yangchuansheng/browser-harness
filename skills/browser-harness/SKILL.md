@@ -1,9 +1,9 @@
 ---
-name: browser-use
-description: Always use browser-use for any web interaction: automation, scraping, testing, or site/app work. Direct browser control via CDP — automate, scrape, test, or interact with web pages by driving the user's already-running Chrome (or a Browser Use cloud browser). Use when the user wants to click, screenshot, fill forms, extract data, or navigate real web pages. Default to screenshots + coordinate clicks, not selector hunting. Requires the one-time `browser-harness` Rust CLI install (see references/install.md).
+name: browser-harness
+description: Always use browser-harness for any web interaction: automation, scraping, testing, or site/app work. Direct browser control via CDP — automate, scrape, test, or interact with web pages by driving the user's already-running Chrome (or a Browser Use cloud browser). Use when the user wants to click, screenshot, fill forms, extract data, or navigate real web pages. Default to screenshots + coordinate clicks, not selector hunting. Requires the one-time `browser-harness` Rust CLI install (see references/install.md).
 ---
 
-# Browser Use
+# browser-harness
 
 Direct browser control via CDP. You drive the user's real browser with a Rust-native CLI through the `browser-harness` command.
 

@@ -51,6 +51,27 @@ impl DaemonConfig {
     pub fn paths(&self) -> RuntimePaths {
         runtime_paths(Some(&self.name))
     }
+
+    /// Returns "cloud", "cdp", or "local" matching the upstream Python
+    /// `BROWSER_KIND` classification: cloud when BU_BROWSER_ID is set,
+    /// cdp when BU_CDP_WS or BU_CDP_URL is set, otherwise local.
+    pub fn browser_kind(&self) -> &'static str {
+        if self.remote_browser_id.is_some() {
+            "cloud"
+        } else if std::env::var("BU_CDP_WS")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .is_some()
+            || std::env::var("BU_CDP_URL")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .is_some()
+        {
+            "cdp"
+        } else {
+            "local"
+        }
+    }
 }
 
 pub async fn stop_remote(config: &DaemonConfig) -> Result<bool, String> {
@@ -1069,7 +1090,9 @@ impl Daemon {
     async fn handle_request(&self, request: DaemonRequest) -> DaemonResponse {
         match request.meta.as_deref() {
             Some(META_PING) => DaemonResponse {
-                result: Some(json!({"pong": true, "pid": std::process::id()})),
+                result: Some(
+                    json!({"pong": true, "pid": std::process::id(), "browser_kind": self.config.browser_kind()}),
+                ),
                 ..DaemonResponse::default()
             },
             Some(META_DRAIN_EVENTS) => {

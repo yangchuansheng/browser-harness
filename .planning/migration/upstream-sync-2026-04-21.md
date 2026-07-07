@@ -304,3 +304,34 @@
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed.
 - `git diff --check` passed.
 - `./scripts/scan_sensitive.sh` could not run because `rg` is not installed in this cron environment; a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (all hits were pre-existing public Metacritic API keys and localhost CDP examples common across docs/tests).
+
+## Daily Upstream Sync — 2026-07-08
+
+- Fetched `origin/main` and `upstream/main`; local `main` started clean and equal to `origin/main`.
+- Previous target: `4d75f115c039bf769d614fbd8d996a961e143567`; new upstream target: `12e3152e5254a5e304e3bedcfa90be7d27906360`.
+- New upstream range `4d75f115c039bf769d614fbd8d996a961e143567..12e3152e5254a5e304e3bedcfa90be7d27906360`: 5 non-merge commits + 3 merge commits.
+- Upstream changes analyzed:
+  - `20d3cbd`: Renamed skill identity from "browser-use" back to "browser-harness" in `SKILL.md` and `tests/unit/test_skill.py`.
+  - `0db04a8`: Major telemetry rework — added helper step tracing, output tail capture, detached telemetry sender subprocess, agent client detection, richer `capture_cli_event`, and `ANONYMIZED_TELEMETRY` env support.
+  - `edaecbc`: Added cloud browser nudge text to `SKILL.md` (when to proactively suggest cloud browsers for concurrency and captcha avoidance).
+  - `4301714`: Added `daemon_browser_kind()` to admin module and `BROWSER_KIND` to daemon, reporting "cloud"/"cdp"/"local" in ping responses for telemetry.
+  - `b4da250`: Guarded daemon browser-kind ping behind telemetry enable check.
+- Rust migration decisions:
+  - Reverted root `SKILL.md` frontmatter from `name: browser-use` to `name: browser-harness`, description from "Always use browser-use" to "Always use browser-harness", and title from "# Browser Use" to "# browser-harness".
+  - Reverted `skills/browser-harness/SKILL.md` frontmatter identically.
+  - Added cloud browser nudge paragraph to root `SKILL.md` remote browsers section.
+  - Added `browser_kind()` method to `DaemonConfig` that classifies as "cloud" (BU_BROWSER_ID), "cdp" (BU_CDP_WS/BU_CDP_URL), or "local" (default).
+  - Included `browser_kind` in the daemon ping response alongside `pong` and `pid`, matching upstream's self-reported browser type.
+  - Did not add Rust telemetry network calls — the fork continues to not send telemetry POSTs. The `ANONYMIZED_TELEMETRY` env is already documented in the telemetry opt-out docs; agent client detection constants and detached sender mechanics were not ported because the fork has no telemetry POST path.
+  - Did not copy Python runtime files or `tests/unit/test_skill.py`.
+  - No version bump needed — the workspace version stays at `0.1.4`.
+
+## Daily Sync Verification Evidence — 2026-07-08
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed (after rustfmt run).
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed (169 tests, 0 failures).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed.
+- `git diff --check` passed.
+- `./scripts/scan_sensitive.sh` could not run because `rg` is not installed in this cron environment; a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (all 31 hits were pre-existing public UUIDs in domain docs and test UUIDs).
