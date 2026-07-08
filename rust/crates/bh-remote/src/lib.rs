@@ -341,6 +341,9 @@ fn load_auth_file(path: &Path) -> Result<Value, String> {
             }
         }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(json!({})),
+        Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+            Err(format!("auth file is not valid JSON: {}", path.display()))
+        }
         Err(err) => Err(format!("read auth file {}: {err}", path.display())),
     }
 }
@@ -439,9 +442,14 @@ pub fn resolve_profile_name_in_profiles(
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use serde_json::json;
 
-    use super::{normalize_api_key, resolve_profile_name_in_profiles, BrowserUseClient};
+    use super::{
+        load_auth_file, normalize_api_key, resolve_profile_name_in_profiles, BrowserUseClient,
+    };
 
     #[test]
     fn stop_browser_request_uses_expected_url_and_payload() {
@@ -514,5 +522,23 @@ mod tests {
         assert!(normalize_api_key("sk_12345678901234567890")
             .unwrap_err()
             .contains("must start with bu_"));
+    }
+
+    #[test]
+    fn load_auth_file_reports_non_utf8_as_invalid_json() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("browser-harness-auth-{stamp}.json"));
+        fs::write(&path, [0xff, 0xfe]).unwrap();
+
+        let result = load_auth_file(&path);
+
+        let _ = fs::remove_file(&path);
+        assert_eq!(
+            result.unwrap_err(),
+            format!("auth file is not valid JSON: {}", path.display())
+        );
     }
 }

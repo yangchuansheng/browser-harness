@@ -72,10 +72,10 @@ pub fn validate_runtime_name(name: &str) -> Result<&str, String> {
 }
 
 pub fn default_browser_profiles() -> Vec<PathBuf> {
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_default();
-    vec![
+    let home = home_dir();
+
+    #[cfg(target_os = "macos")]
+    let profiles = vec![
         home.join("Library/Application Support/Google/Chrome"),
         home.join("Library/Application Support/Google/Chrome Canary"),
         home.join("Library/Application Support/Comet"),
@@ -86,6 +86,10 @@ pub fn default_browser_profiles() -> Vec<PathBuf> {
         home.join("Library/Application Support/Microsoft Edge Dev"),
         home.join("Library/Application Support/Microsoft Edge Canary"),
         home.join("Library/Application Support/BraveSoftware/Brave-Browser"),
+    ];
+
+    #[cfg(target_os = "linux")]
+    let profiles = vec![
         home.join(".config/google-chrome"),
         home.join(".config/chromium"),
         home.join(".config/chromium-browser"),
@@ -96,15 +100,51 @@ pub fn default_browser_profiles() -> Vec<PathBuf> {
         home.join(".var/app/com.google.Chrome/config/google-chrome"),
         home.join(".var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser"),
         home.join(".var/app/com.microsoft.Edge/config/microsoft-edge"),
-        home.join("AppData/Local/Google/Chrome/User Data"),
-        home.join("AppData/Local/Google/Chrome SxS/User Data"),
-        home.join("AppData/Local/Chromium/User Data"),
-        home.join("AppData/Local/Microsoft/Edge/User Data"),
-        home.join("AppData/Local/Microsoft/Edge Beta/User Data"),
-        home.join("AppData/Local/Microsoft/Edge Dev/User Data"),
-        home.join("AppData/Local/Microsoft/Edge SxS/User Data"),
-        home.join("AppData/Local/BraveSoftware/Brave-Browser/User Data"),
+    ];
+
+    #[cfg(target_os = "windows")]
+    let profiles = windows_browser_profiles(&home);
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    let profiles = Vec::new();
+
+    profiles
+}
+
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .or_else(|| {
+            let drive = std::env::var_os("HOMEDRIVE")?;
+            let path = std::env::var_os("HOMEPATH")?;
+            let mut combined = std::ffi::OsString::from(drive);
+            combined.push(path);
+            Some(PathBuf::from(combined))
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_browser_profiles(home: &std::path::Path) -> Vec<PathBuf> {
+    let local_app_data = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join("AppData").join("Local"));
+    [
+        "Google/Chrome/User Data",
+        "Google/Chrome SxS/User Data",
+        "Google/Chrome Beta/User Data",
+        "Google/Chrome Dev/User Data",
+        "Chromium/User Data",
+        "Microsoft/Edge/User Data",
+        "Microsoft/Edge Beta/User Data",
+        "Microsoft/Edge Dev/User Data",
+        "Microsoft/Edge SxS/User Data",
+        "BraveSoftware/Brave-Browser/User Data",
     ]
+    .into_iter()
+    .map(|relative| local_app_data.join(relative))
+    .collect()
 }
 
 pub fn is_internal_url(url: &str) -> bool {
@@ -190,11 +230,23 @@ fn ws_from_cdp_url(url: &str, timeout_duration: Duration) -> Result<String, Stri
         };
         if Instant::now() >= deadline {
             return Err(format!(
-                "BU_CDP_URL={url} unreachable after {}s: {last_err} -- is the dedicated automation Chrome running?",
-                timeout_duration.as_secs()
+                "BU_CDP_URL={url} unreachable after {}s: {last_err} -- is the dedicated automation Chrome running? {}",
+                timeout_duration.as_secs(),
+                cdp_url_launch_hint()
             ));
         }
         thread::sleep(Duration::from_secs(1));
+    }
+}
+
+fn cdp_url_launch_hint() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "Launch it with --remote-debugging-port=<port> --user-data-dir=<dedicated dir>; on Windows also check that a firewall/antivirus is not blocking localhost connections"
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "Launch it with --remote-debugging-port=<port> --user-data-dir=<dedicated dir>"
     }
 }
 
@@ -344,10 +396,12 @@ fn ws_from_devtools_active_port(host: &str, port: u16) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use std::sync::{Mutex, OnceLock};
 
     use super::{
-        get_ws_url, is_internal_url, parse_http_endpoint, runtime_paths, validate_runtime_name,
+        cdp_url_launch_hint, get_ws_url, is_internal_url, parse_http_endpoint, runtime_paths,
+        validate_runtime_name, windows_browser_profiles,
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -411,5 +465,35 @@ mod tests {
             result.unwrap(),
             "wss://example.test/devtools/browser/abc".to_string()
         );
+    }
+
+    #[test]
+    fn windows_profiles_include_chrome_beta_and_dev_channels() {
+        let _guard = env_lock().lock().unwrap();
+        let previous = std::env::var_os("LOCALAPPDATA");
+        std::env::remove_var("LOCALAPPDATA");
+
+        let profiles = windows_browser_profiles(Path::new("C:/Users/test"));
+
+        if let Some(previous) = previous {
+            std::env::set_var("LOCALAPPDATA", previous);
+        }
+
+        let rendered = profiles
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert!(rendered
+            .iter()
+            .any(|path| path.ends_with("AppData/Local/Google/Chrome Beta/User Data")));
+        assert!(rendered
+            .iter()
+            .any(|path| path.ends_with("AppData/Local/Google/Chrome Dev/User Data")));
+    }
+
+    #[test]
+    fn cdp_url_hint_includes_remote_debugging_launch_flags() {
+        assert!(cdp_url_launch_hint().contains("--remote-debugging-port=<port>"));
+        assert!(cdp_url_launch_hint().contains("--user-data-dir=<dedicated dir>"));
     }
 }

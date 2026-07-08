@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `12e3152e5254a5e304e3bedcfa90be7d27906360`
-- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..12e3152e5254a5e304e3bedcfa90be7d27906360`
-- Count: 310 commits
+- Upstream target commit: `0846918624ef195df8039af626e65617de3d5711`
+- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..0846918624ef195df8039af626e65617de3d5711`
+- Count: 313 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -335,3 +335,32 @@
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed.
 - `git diff --check` passed.
 - `./scripts/scan_sensitive.sh` could not run because `rg` is not installed in this cron environment; a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (all 31 hits were pre-existing public UUIDs in domain docs and test UUIDs).
+
+## Daily Upstream Sync — 2026-07-09
+
+- Previous target: `12e3152e5254a5e304e3bedcfa90be7d27906360`; new upstream target: `0846918624ef195df8039af626e65617de3d5711`.
+- New upstream range `12e3152e5254a5e304e3bedcfa90be7d27906360..0846918624ef195df8039af626e65617de3d5711`: 3 commits (2 non-merge commits plus merge `0846918`).
+- Upstream changes analyzed:
+  - `d06bd76`: Split browser profile discovery by operating system, added Chrome Beta and Chrome Dev profile roots on Windows, and expanded the `BU_CDP_URL` connection hint with dedicated automation Chrome launch flags plus a Windows localhost-blocking note.
+  - `7d10d81`: Treated undecodable `auth.json` content as a corrupt JSON auth file instead of exposing the raw decoding error.
+- Rust migration decisions:
+  - Reworked `default_browser_profiles()` in `bh-discovery` into OS-specific profile lists while preserving the Rust `PathBuf` return API.
+  - Added Windows profile root resolution from `LOCALAPPDATA`, falling back to the user's home directory plus `AppData/Local`, and included the upstream Chrome Beta and Chrome Dev profile roots.
+  - Kept the existing Rust CDP URL resolution flow and added the improved unreachable hint through a Rust helper with Windows-specific text behind `cfg(target_os = "windows")`.
+  - Updated `bh-remote` auth loading so invalid UTF-8 data maps to `auth file is not valid JSON: <path>`, matching upstream corrupt-auth behavior while preserving missing-file handling.
+  - No Python runtime files were copied; all changes are Rust-native adaptations.
+
+## Daily Sync Verification Evidence — 2026-07-09
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all` passed.
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+- `env -u CFLAGS -u CC cargo build --manifest-path rust/Cargo.toml --workspace` passed.
+- `cargo test --manifest-path rust/Cargo.toml --workspace` was run; this local shell has `CFLAGS=-fsanitize=...`, causing macOS linker failures for UBSan runtime symbols in native C dependencies.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` reached runtime tests and failed only the three existing `bhrun` HTTP fixture tests that bind `127.0.0.1:0`, which this sandbox reports as `Operation not permitted`.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml -p bh-discovery -p bh-remote` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace -- --skip cli_http_get_prints_json_result --skip dispatch_guest_operation_executes_http_get_when_enabled --skip http_get_merges_default_and_custom_headers` passed.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed.
+- `BH_CONFIG_DIR=/tmp/browser-harness-auth-qa.UZyWtZ env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- auth status` reported `auth file is not valid JSON: /tmp/browser-harness-auth-qa.UZyWtZ/auth.json` for a non-UTF-8 auth file.
+- `git diff --check` passed.
+- `git diff --name-only` showed only the migration audit plus the two Rust source files changed.
