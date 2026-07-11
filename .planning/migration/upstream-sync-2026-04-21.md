@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `0846918624ef195df8039af626e65617de3d5711`
-- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..0846918624ef195df8039af626e65617de3d5711`
-- Count: 313 commits
+- Upstream target commit: `9c95cea713ae4890df7518f0cff27f41427fbf5b`
+- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..9c95cea713ae4890df7518f0cff27f41427fbf5b`
+- Count: 315 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -364,3 +364,26 @@
 - `BH_CONFIG_DIR=/tmp/browser-harness-auth-qa.UZyWtZ env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- auth status` reported `auth file is not valid JSON: /tmp/browser-harness-auth-qa.UZyWtZ/auth.json` for a non-UTF-8 auth file.
 - `git diff --check` passed.
 - `git diff --name-only` showed only the migration audit plus the two Rust source files changed.
+
+## Daily Upstream Sync — 2026-07-12
+
+- Fetched `origin/main` and `upstream/main`; local `main` started clean and equal to `origin/main`.
+- Previous target: `0846918624ef195df8039af626e65617de3d5711`; new upstream target: `9c95cea713ae4890df7518f0cff27f41427fbf5b`.
+- New upstream range `0846918624ef195df8039af626e65617de3d5711..9c95cea713ae4890df7518f0cff27f41427fbf5b`: 1 commit (Release 0.1.5).
+- Upstream changes analyzed:
+  - `295a972`: bumped `pyproject.toml` version from 0.1.4 to 0.1.5 (Release 0.1.5).
+- Rust migration decisions:
+  - Bumped Rust workspace version in `rust/Cargo.toml` from `0.1.4` to `0.1.5` (and auto-updated `rust/Cargo.lock`).
+  - No Python runtime files were copied; no Rust code logic changed.
+  - This is a packaging-only version bump — no upstream code behavior changes.
+
+## Daily Sync Verification Evidence — 2026-07-12
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed (169 tests, 0 failures).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed (42 operations, all live except `cdp_raw=experimental`, `wasm_guests=preview`, `persistent_guest_runner=preview`).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and lists all admin/runner commands including `auth`, `close-tab`, `fill-input`, `wait-for-element`, `wait-for-network-idle`.
+- `git diff --check` passed.
+- `scripts/scan_sensitive.sh` not available (`rg` not installed); a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (all hits are pre-existing public Metacritic API keys and localhost CDP examples common across docs/tests).
+
