@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `9c95cea713ae4890df7518f0cff27f41427fbf5b`
-- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..9c95cea713ae4890df7518f0cff27f41427fbf5b`
-- Count: 315 commits
+- Upstream target commit: `67e3852d2fc33af46344e6fd7b3ac12930420a67`
+- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..67e3852d2fc33af46344e6fd7b3ac12930420a67`
+- Count: 316 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -386,4 +386,30 @@
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and lists all admin/runner commands including `auth`, `close-tab`, `fill-input`, `wait-for-element`, `wait-for-network-idle`.
 - `git diff --check` passed.
 - `scripts/scan_sensitive.sh` not available (`rg` not installed); a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (all hits are pre-existing public Metacritic API keys and localhost CDP examples common across docs/tests).
+
+## Daily Upstream Sync — 2026-07-13
+
+- Fetched `origin/main` and `upstream/main`; local `main` started clean and equal to `origin/main`.
+- Previous target: `9c95cea713ae4890df7518f0cff27f41427fbf5b`; new upstream target: `67e3852d2fc33af46344e6fd7b3ac12930420a67`.
+- New upstream range `9c95cea713ae4890df7518f0cff27f41427fbf5b..67e3852d2fc33af46344e6fd7b3ac12930420a67`: 1 non-merge commit + 1 merge commit.
+- Upstream changes analyzed:
+  - `0ab39e3`: encouraged AX tree usage in `SKILL.md` prompt section, replacing screenshots-first guidance with AX tree element discovery, box-model coordinate computation, and fallback hierarchy.
+- Rust migration decisions:
+  - Updated root `SKILL.md` "What actually works" section to replace "Screenshots first" with "AX tree first" using `browser-harness cdp-raw` for `Accessibility.getFullAXTree` and `DOM.getBoxModel`.
+  - Updated clicking guidance to AX node → box center → `click(x, y)` → verify with `js(...)` / `page_info()`.
+  - Added fallback hierarchy: AX tree → raw DOM via `js(...)` → screenshot for layout/imagery.
+  - Removed "DOM reads" bullet (superseded by AX tree guidance).
+  - Updated "Verification" bullet to prefer AX box-model checks over screenshots.
+  - No Python runtime files were copied; no Rust code logic changed.
+  - This is a documentation-only AX tree guidance update.
+
+## Daily Sync Verification Evidence — 2026-07-13
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed (72 tests, 0 failures).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed (42 operations live).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed.
+- `git diff --check` passed.
+- `scripts/scan_sensitive.sh` not available (`rg` not installed); a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (68 hits are all pre-existing `BROWSER_USE_API_KEY` references in docs, examples, and code).
 

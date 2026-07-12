@@ -194,15 +194,15 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 
 ## What actually works
 
-- **Screenshots first**: use `screenshot()` to understand the current page quickly, find visible targets, and decide whether you need a click, a selector, or more navigation.
-- **Clicking**: `screenshot()` → look → `click(x, y)` → `screenshot()` again to verify the result. Coordinate clicks pass through iframes/shadow/cross-origin at the compositor level.
+- **AX tree first**: prefer `browser-harness cdp-raw` with `Accessibility.getFullAXTree` to find elements by role, name, and `backendDOMNodeId` (the tree is thousands of nodes — filter before printing). Get coordinates with `DOM.getBoxModel` and compute the center: `x = (q[0]+q[2]+q[4]+q[6])/4, y = (q[1]+q[3]+q[5]+q[7])/4` (viewport px, ready for `click`; negative/oversized means scroll first).
+- **Clicking**: AX node → box center → `click(x, y)` → verify with a targeted `js(...)` / `page_info()` check.
+- **Fall back to raw DOM** via `js(...)` only when the AX tree lacks the element (canvas, exotic widgets); screenshot when layout or imagery matters.
 - **Bulk HTTP**: `browser-harness http-get` or a thin subprocess wrapper +
   `ThreadPoolExecutor`. No browser for static pages (249 Netflix pages in
   2.8s).
 - **After goto**: `wait_for_load()`.
 - **Wrong/stale tab**: `ensure_real_tab()`. Use it when the current tab is stale or internal; the daemon also auto-recovers from stale sessions on the next call.
-- **Verification**: `print(page_info())` is the simplest "is this alive?" check, but screenshots are the default way to verify whether a visible action actually worked.
-- **DOM reads**: use `js(...)` for inspection and extraction when the screenshot shows that coordinates are the wrong tool.
+- **Verification**: `print(page_info())` is the simplest "is this alive?" check; AX box-model checks are the preferred way to verify whether a visible action actually worked.
 - **Iframe sites** (Azure blades, Salesforce): `click(x, y)` passes through; only drop to iframe DOM work when coordinate clicks are the wrong tool.
 - **Auth wall**: redirected to login → stop and ask the user. Don't type credentials from screenshots.
 - **Raw CDP** for typed gaps: `browser-harness cdp-raw <<'JSON' ... JSON` or `bh_guest_sdk::cdp_raw(...)`.
