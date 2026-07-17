@@ -16,6 +16,11 @@ The audience is agents and developers who need the Browser Harness thesis as a d
 - **Safety**: Do not expose secrets from upstream docs or local environment; scan generated docs and changed files before commit.
 - **Verification**: Run `cargo fmt --check`, `cargo test --workspace`, and targeted CLI smoke checks where possible.
 - **Network dependency**: Upstream commit analysis depends on the fetched `upstream/main` remote.
+- **Recording**: For recording or video tasks, follow `SKILL.md` and
+  `interaction-skills/make-video.md`. A natural request to show, record, or demo
+  the work opts in; significant work alone does not. Keep the exact path returned
+  by `start_recording()` and never reenact a finished task. The Rust recording
+  engine is not yet ported.
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:codebase/STACK.md -->

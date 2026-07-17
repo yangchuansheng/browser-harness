@@ -184,6 +184,23 @@ browser-harness restart-daemon
 
 8. After install and browser bootstrap succeeds, navigate to `https://github.com/browser-use/browser-harness` so the user can see the harness has attached to their browser, then continue with the user's requested browser task.
 
+## Recording Consent
+
+Run `browser-harness recordings`. If it reports `(default)`, ask the user once:
+
+> Enable local browser recordings? This saves screenshots and action traces on
+> this machine, which may include sensitive page content, so you can later ask
+> "show me what you did" or request a video. Videos are never generated
+> automatically. [y/N]
+
+Default to no. Run `browser-harness recordings enable` only after yes; otherwise
+run `browser-harness recordings disable`. Preserve an existing `(config)` or
+`(BH_RECORD)` preference during upgrades instead of asking again.
+
+> **Rust fork note:** The recording engine is not yet ported to Rust.
+> `browser-harness recordings` subcommand is not available in the Rust CLI;
+> recording consent applies to the upstream Python harness only.
+
 ## Cold-start reminders
 
 - Try attaching before asking the user to change anything. Decide what to escalate based on the harness's error message, not on whether Chrome is visibly running.

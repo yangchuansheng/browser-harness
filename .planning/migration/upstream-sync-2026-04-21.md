@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `67e3852d2fc33af46344e6fd7b3ac12930420a67`
-- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..67e3852d2fc33af46344e6fd7b3ac12930420a67`
-- Count: 316 commits
+- Upstream target commit: `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`
+- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`
+- Count: 335 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -413,3 +413,45 @@
 - `git diff --check` passed.
 - `scripts/scan_sensitive.sh` not available (`rg` not installed); a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks (68 hits are all pre-existing `BROWSER_USE_API_KEY` references in docs, examples, and code).
 
+## Daily Upstream Sync — 2026-07-18
+
+- Fetched `origin/main` and `upstream/main` separately; local `main` started clean and equal to `origin/main`.
+- Previous target: `67e3852d2fc33af46344e6fd7b3ac12930420a67`; new upstream target: `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`.
+- New upstream range `67e3852d2fc33af46344e6fd7b3ac12930420a67..6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`: 18 commits (17 non-merge + 1 merge).
+- Upstream changes analyzed:
+
+  - `e88f4e3`–`492e303`: Added built-in session recording + video generation pipeline. This is the bulk of the range: `recorder.py` (+324 lines, session screenshot/action tracing), `video.py` (+749, video composition), `video_render.py` (+523, export rendering), `video-template.html` (+970, HTML video template), `helpers.py` (+5), `run.py` (+40). All are Python runtime code.
+  - `ea2c208`: Bumped `pyproject.toml` version from 0.1.5 to 0.1.6 (Release 0.1.6).
+  - `c5de1e5`, `c9742a9`: Trimmed and compressed `make-video.md` skill docs.
+  - `ab9a9b4`: Added secret redaction in recording traces (credential URL scrubbing, pixelation).
+  - `d724466`: Auto-record via `BH_RECORD=1`, opt-in via `start_recording()`.
+  - Pipeline commits (`0f78a99`, `2cecabb`, `3220402`, `23f4c88`, plus visual polish `15964f2`, `7158926`, `bd8dfdb`, `e017498`, `611fc04`): video template visual polish and UX adjustments.
+
+- Upstream documentation changes:
+  - `SKILL.md`: Added "Recordings and Videos" section, `make-video.md` to interaction skills list.
+  - `install.md`: Added "Recording Consent" section with opt-in prompt + `browser-harness recordings enable/disable/status`.
+  - `AGENTS.md`: Added recording/video guidance (source checkout invocation, `start_recording()`, `make-video.md`).
+  - `CLAUDE.md`: New file — Claude Code instructions referencing `AGENTS.md`.
+  - `README.md`: Added recording-consent sentence to the setup prompt.
+  - `interaction-skills/make-video.md`: New file — video creation workflow, edit brief schema, privacy review, and cut guidance.
+
+- Rust migration decisions:
+  - **Documentation ported:** Updated root `SKILL.md` (added "Recordings and Videos" section, Rust fork note, `make-video.md` in interaction skills list), `install.md` (added "Recording Consent" section with Rust fork note), `AGENTS.md` (added recording constraint), `README.md` (added recording-consent sentence to setup prompt). Created `CLAUDE.md` (Claude Code instructions adapted for Rust fork). Created `interaction-skills/make-video.md` (adapted upstream content with Rust fork note).
+  - **Version bumped:** Rust workspace version in `rust/Cargo.toml` from `0.1.5` to `0.1.6`; `rust/Cargo.lock` auto-updated.
+  - **Python recording runtime deferred:** The full recording + video pipeline (commits `e88f4e3`, `d0f2649`, `d724466`, `ab9a9b4`, `15964f2`, `7158926`, `bd8dfdb`, `e017498`, `611fc04`, `0f78a99`, `2cecabb`, `3220402`, `23f4c88`, `492e303`) — encompassing `recorder.py`, `video.py`, `video_render.py`, `video-template.html`, `helpers.py` changes, and `run.py` changes — is **not applicable** to this sync run. These commits implement a significant Python session-recording engine, HTML template rendering, and video export pipeline requiring a dedicated Rust recording crate with browser-integrated frame capture. Marked as **deferred** — will be ported in a future Rust recording release.
+  - **Python packaging not copied:** `pyproject.toml` changes were not copied; the Rust workspace version is the source of truth.
+  - **Domain-skills:** No new domain-skill files in this upstream range.
+  - No Python runtime files were copied; no Rust code logic changed.
+
+## Daily Sync Verification Evidence — 2026-07-18
+
+- `cargo fmt --all --manifest-path rust/Cargo.toml` passed; `cargo fmt --all --manifest-path rust/Cargo.toml -- --check` passed.
+- `cargo check --workspace --manifest-path rust/Cargo.toml` passed.
+- `cargo build --workspace --manifest-path rust/Cargo.toml` passed.
+- `env -u CFLAGS -u CC cargo test --workspace --manifest-path rust/Cargo.toml` passed (172 tests, 0 failures).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed (42 operations live).
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and lists all admin/runner commands.
+- `git diff --check` passed.
+- `./scripts/scan_sensitive.sh` failed because `rg` is not installed on macOS; a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks in changed/new files (28 hits all pre-existing in metacritic API keys, localhost CDP examples, and test constants).
+- `git diff --name-only` + `git status --short` confirmed only expected files changed: `AGENTS.md`, `CLAUDE.md` (new), `README.md`, `SKILL.md`, `install.md`, `interaction-skills/make-video.md` (new), `rust/Cargo.lock`, `rust/Cargo.toml`, `.planning/migration/upstream-sync-2026-04-21.md`.
+- Codex CLI was attempted for core migration (`proc_7096eef71f3a`) but timed out before making changes. Parent agent recovered and completed the migration directly following autonomous-coding-agents recovery pattern. All doc-only changes were straightforward and did not require a subagent round-trip after the timeout.

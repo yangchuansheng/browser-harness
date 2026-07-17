@@ -164,7 +164,7 @@ Paste into Claude Code or Codex:
 ```text
 Set up https://github.com/yangchuansheng/browser-harness.git for me.
 
-Read `install.md` first to install and connect this repo to my real browser. Then read `SKILL.md` for normal usage. Prefer the Rust-native CLI path first. When you open a setup or verification tab, activate it so I can see the active browser tab. After it is installed, open this repository in my browser so I can see the harness has attached, then continue with my requested browser task.
+Read `install.md` first to install and connect this repo to my real browser. Then read `SKILL.md` for normal usage. Ask whether I want local browser recordings enabled; default to no and preserve my existing preference on upgrades. Prefer the Rust-native CLI path first. When you open a setup or verification tab, activate it so I can see the active browser tab. After it is installed, open this repository in my browser so I can see the harness has attached, then continue with my requested browser task.
 ```
 
 When this page appears, tick the checkbox so the agent can connect to your browser:
