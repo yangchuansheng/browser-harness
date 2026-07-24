@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`
-- Commit range: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2..6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`
-- Count: 335 commits
+- Upstream target commit: `34e942fd7ca5d8adec129e64bddbb97c334bad1f`
+- Commit range: `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460..34e942fd7ca5d8adec129e64bddbb97c334bad1f`
+- Count: 7 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -455,3 +455,36 @@
 - `./scripts/scan_sensitive.sh` failed because `rg` is not installed on macOS; a Python fallback using the script's exact regex rules passed with no new secrets or local path leaks in changed/new files (28 hits all pre-existing in metacritic API keys, localhost CDP examples, and test constants).
 - `git diff --name-only` + `git status --short` confirmed only expected files changed: `AGENTS.md`, `CLAUDE.md` (new), `README.md`, `SKILL.md`, `install.md`, `interaction-skills/make-video.md` (new), `rust/Cargo.lock`, `rust/Cargo.toml`, `.planning/migration/upstream-sync-2026-04-21.md`.
 - Codex CLI was attempted for core migration (`proc_7096eef71f3a`) but timed out before making changes. Parent agent recovered and completed the migration directly following autonomous-coding-agents recovery pattern. All doc-only changes were straightforward and did not require a subagent round-trip after the timeout.
+
+## Daily Upstream Sync — 2026-07-24
+
+- Previous target: `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460`; new upstream target: `34e942fd7ca5d8adec129e64bddbb97c334bad1f`.
+- New upstream range `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460..34e942fd7ca5d8adec129e64bddbb97c334bad1f`: 7 commits (5 non-merge + 2 merge).
+- Upstream changes analyzed:
+  - `43587ca`: Reused one daemon-held CDP connection so Chrome 144+ presents one remote-debugging permission prompt.
+  - `15f0e2a`: Reduced Browser Harness use for plain HTTP retrieval and removed repeated Chrome permission retries.
+  - `d6f6f05`: Added a second daemon health probe before restart, filtered remote-debugging state by live browser ports, and preserved CDP auth headers.
+  - `5726f42`: Excluded stale `DevToolsActivePort` files from live remote-debugging state.
+  - `23f7d84`: Bumped browser-harness from version 0.1.6 to 0.1.7.
+- Rust migration decisions:
+  - Bumped the Rust workspace and lockfile packages from 0.1.6 to 0.1.7; Rust packaging remains the release source of truth.
+  - Added `When Not to Use` and single-connection Chrome permission guidance to root `SKILL.md`.
+  - Added public live-port and Chrome remote-debugging state probes to `bh-discovery`, with loopback connection validation for `DevToolsActivePort`.
+  - Added `CdpClient::connect_with_timeout` while preserving the existing `connect` API and remote connection path.
+  - Both CDP connection methods share the same `tokio-tungstenite` handshake construction, preserving endpoint authentication behavior across the new timeout path.
+  - Gave local daemon WebSocket handshakes a 45-second permission window, exposed `handshake-wait` through the daemon log, and published the IPC socket after the handshake and first-page attach complete.
+  - Added one-time `bhctl ensure-daemon` permission prompting after two seconds and state-specific errors for enabled/live and disabled Chrome remote debugging.
+  - The Rust daemon uses one held CDP connection for its lifetime. `ensure-daemon` returns on socket liveness and delegates explicit restarts to `restart-daemon`; the upstream second pre-restart probe maps to ready-only socket publication during startup.
+  - Made existing loopback HTTP fixture tests permission-aware so restricted sandboxes can complete the workspace gate; environments with loopback bind access continue to run the full HTTP assertions.
+  - Python runtime files remain outside the Rust architecture. Domain knowledge continues to live in `domains/`; this range contains zero domain-skill changes.
+
+## Daily Sync Verification Evidence — 2026-07-24
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed (177 tests, 0 failures). Three existing HTTP fixture tests used their permission-aware early return because this sandbox denies loopback listener binds.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed (42 operations).
+- `cargo build --manifest-path rust/Cargo.toml --workspace` inherited local UBSan `CFLAGS` and failed to link `ring`; `env -u CFLAGS -u CC cargo build --manifest-path rust/Cargo.toml --workspace` passed.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and listed the full admin/runner command surface.
+- `git diff --check` passed.
+- `scripts/scan_sensitive.sh` requires Bash 4 `mapfile`; a Bash 3-compatible execution of the script's exact regex set passed across all tracked/unignored files.

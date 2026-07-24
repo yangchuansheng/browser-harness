@@ -15,6 +15,12 @@ type PendingResponse = Result<Value, String>;
 type PendingMap = Arc<Mutex<HashMap<u64, oneshot::Sender<PendingResponse>>>>;
 type WsWrite = futures_util::stream::SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 
+fn opening_handshake_timeout_error(open_timeout_secs: u64) -> String {
+    format!(
+        "CDP WS opening handshake timed out after {open_timeout_secs}s -- click Allow in Chrome if prompted, then retry"
+    )
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CdpEvent {
     pub method: String,
@@ -50,6 +56,32 @@ impl CdpClient {
                 )
             }
         })?;
+        Ok(Self::from_stream(endpoint, stream))
+    }
+
+    pub async fn connect_with_timeout(
+        endpoint: impl Into<String>,
+        open_timeout_secs: u64,
+    ) -> Result<(Self, mpsc::UnboundedReceiver<CdpEvent>), String> {
+        let endpoint = endpoint.into();
+        let connect_result = timeout(
+            Duration::from_secs(open_timeout_secs),
+            connect_async(endpoint.as_str()),
+        )
+        .await
+        .map_err(|_| opening_handshake_timeout_error(open_timeout_secs))?;
+        let (stream, _) = connect_result.map_err(|err| {
+            format!(
+                "CDP WS handshake failed: {err} -- click Allow in Chrome if prompted, then retry"
+            )
+        })?;
+        Ok(Self::from_stream(endpoint, stream))
+    }
+
+    fn from_stream(
+        endpoint: String,
+        stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    ) -> (Self, mpsc::UnboundedReceiver<CdpEvent>) {
         let (writer, mut reader) = stream.split();
         let pending = Arc::new(Mutex::new(HashMap::new()));
         let (events_tx, events_rx) = mpsc::unbounded_channel();
@@ -86,7 +118,7 @@ impl CdpClient {
             fail_pending(&pending, "CDP connection closed".to_string()).await;
         });
 
-        Ok((client, events_rx))
+        (client, events_rx)
     }
 
     pub fn endpoint(&self) -> &str {
@@ -134,6 +166,18 @@ impl CdpClient {
                 Err(format!("timed out waiting for CDP response to {method}"))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::opening_handshake_timeout_error;
+
+    #[test]
+    fn opening_handshake_timeout_error_is_actionable() {
+        let error = opening_handshake_timeout_error(1);
+        assert!(error.contains("opening handshake timed out after 1s"));
+        assert!(error.contains("click Allow in Chrome"));
     }
 }
 

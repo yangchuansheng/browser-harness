@@ -6,6 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use bh_daemon::{already_running, log_tail, stop_best_effort, DaemonConfig};
+use bh_discovery::remote_debugging_user_enabled;
 use bh_remote::{
     auth_status, browser_use_api_key, clear_browser_use_auth, store_browser_use_api_key,
     BrowserUseClient,
@@ -193,6 +194,7 @@ fn ensure_daemon_output() -> Result<Value, String> {
         }));
     }
 
+    let is_local = ensure_daemon_uses_local_browser(&options);
     let mut command = daemon_launch_command()?;
     command
         .stdin(Stdio::null())
@@ -206,7 +208,9 @@ fn ensure_daemon_output() -> Result<Value, String> {
     let mut child = command
         .spawn()
         .map_err(|err| format!("spawn daemon: {err}"))?;
-    let deadline = Instant::now() + Duration::from_secs_f64(options.wait_seconds);
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs_f64(options.wait_seconds);
+    let mut hinted = !is_local;
     while Instant::now() < deadline {
         if already_running(&config) {
             return Ok(json!({
@@ -222,6 +226,15 @@ fn ensure_daemon_output() -> Result<Value, String> {
         {
             break;
         }
+        if !hinted
+            && started.elapsed() > Duration::from_secs(2)
+            && log_tail(&config).is_some_and(|line| line.starts_with("handshake-wait"))
+        {
+            eprintln!(
+                "browser-harness: Chrome is asking \"Allow remote debugging?\" -- click Allow to continue."
+            );
+            hinted = true;
+        }
         thread::sleep(Duration::from_millis(200));
     }
 
@@ -232,7 +245,43 @@ fn ensure_daemon_output() -> Result<Value, String> {
             config.paths().log.display()
         )
     });
-    Err(message)
+    let remote_debugging_enabled = is_local.then(remote_debugging_user_enabled).flatten();
+    Err(daemon_startup_error(
+        message,
+        is_local,
+        remote_debugging_enabled,
+    ))
+}
+
+fn ensure_daemon_uses_local_browser(options: &EnsureDaemonOptions) -> bool {
+    ["BU_BROWSER_ID", "BU_CDP_WS", "BU_CDP_URL"]
+        .iter()
+        .all(|key| match options.env.get(*key) {
+            Some(value) => value.trim().is_empty(),
+            None => std::env::var(key)
+                .map(|value| value.trim().is_empty())
+                .unwrap_or(true),
+        })
+}
+
+fn daemon_startup_error(
+    message: String,
+    is_local: bool,
+    remote_debugging_enabled: Option<bool>,
+) -> String {
+    let is_remote_debugging_failure = message.starts_with("handshake-wait")
+        || message.contains("CDP WS handshake")
+        || message.contains("DevToolsActivePort")
+        || message.contains("remote-debugging");
+    if !is_local || !is_remote_debugging_failure {
+        return message;
+    }
+
+    match remote_debugging_enabled {
+        Some(true) => "permission-blocked: Chrome remote debugging is enabled and its DevTools port is live, but the Allow popup was not accepted -- click Allow in Chrome, then retry".to_string(),
+        Some(false) => "remote debugging is turned off for this browser instance -- enable chrome://inspect/#remote-debugging (tick \"Allow remote debugging for this browser instance\")".to_string(),
+        None => message,
+    }
 }
 
 fn restart_daemon_output(name: Option<&str>) -> Result<Value, String> {
@@ -514,9 +563,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        daemon_launch_command, parse_created_profile_id, parse_ensure_daemon_options,
-        parse_list_browsers_options, profile_use_sync_command, resolve_daemon_name,
-        EnsureDaemonOptions, ListBrowsersOptions,
+        daemon_launch_command, daemon_startup_error, ensure_daemon_uses_local_browser,
+        parse_created_profile_id, parse_ensure_daemon_options, parse_list_browsers_options,
+        profile_use_sync_command, resolve_daemon_name, EnsureDaemonOptions, ListBrowsersOptions,
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -593,6 +642,40 @@ mod tests {
                 .into_iter()
                 .collect(),
             }
+        );
+    }
+
+    #[test]
+    fn ensure_daemon_browser_kind_honors_env_overrides() {
+        let local = EnsureDaemonOptions {
+            name: None,
+            wait_seconds: 60.0,
+            env: ["BU_BROWSER_ID", "BU_CDP_WS", "BU_CDP_URL"]
+                .into_iter()
+                .map(|key| (key.to_string(), String::new()))
+                .collect(),
+        };
+        assert!(ensure_daemon_uses_local_browser(&local));
+
+        let mut remote = local;
+        remote.env.insert(
+            "BU_CDP_WS".to_string(),
+            "wss://example.test/devtools/browser/abc".to_string(),
+        );
+        assert!(!ensure_daemon_uses_local_browser(&remote));
+    }
+
+    #[test]
+    fn daemon_startup_error_classifies_local_remote_debugging_state() {
+        let message = "fatal: CDP WS handshake failed".to_string();
+        assert!(daemon_startup_error(message.clone(), true, Some(true))
+            .starts_with("permission-blocked:"));
+        assert!(daemon_startup_error(message.clone(), true, Some(false))
+            .starts_with("remote debugging is turned off"));
+        assert_eq!(daemon_startup_error(message.clone(), true, None), message);
+        assert_eq!(
+            daemon_startup_error(message.clone(), false, Some(true)),
+            message
         );
     }
 

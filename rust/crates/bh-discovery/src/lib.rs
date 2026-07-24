@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -151,6 +151,50 @@ pub fn is_internal_url(url: &str) -> bool {
     INTERNAL_PREFIXES
         .iter()
         .any(|prefix| url.starts_with(prefix))
+}
+
+pub fn devtools_port_live(base: &Path) -> bool {
+    let Ok(contents) = fs::read_to_string(base.join("DevToolsActivePort")) else {
+        return false;
+    };
+    let Some(port) = contents
+        .lines()
+        .next()
+        .and_then(|line| line.trim().parse::<u16>().ok())
+    else {
+        return false;
+    };
+    let addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+}
+
+pub fn remote_debugging_user_enabled() -> Option<bool> {
+    remote_debugging_user_enabled_in(&default_browser_profiles())
+}
+
+fn remote_debugging_user_enabled_in(profiles: &[PathBuf]) -> Option<bool> {
+    let mut seen = None;
+    for base in profiles {
+        let Ok(contents) = fs::read_to_string(base.join("Local State")) else {
+            continue;
+        };
+        let Ok(state) = serde_json::from_str::<serde_json::Value>(&contents) else {
+            continue;
+        };
+        let enabled = state
+            .get("devtools")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|devtools| devtools.get("remote_debugging"))
+            .and_then(serde_json::Value::as_object)
+            .and_then(|remote_debugging| remote_debugging.get("user-enabled"))
+            .and_then(serde_json::Value::as_bool);
+        match enabled {
+            Some(true) if devtools_port_live(base) => return Some(true),
+            Some(false) => seen = Some(false),
+            _ => {}
+        }
+    }
+    seen
 }
 
 pub fn get_ws_url() -> Result<String, String> {
@@ -396,17 +440,35 @@ fn ws_from_devtools_active_port(host: &str, port: u16) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::fs;
+    use std::io::ErrorKind;
+    use std::net::TcpListener;
+    use std::path::{Path, PathBuf};
     use std::sync::{Mutex, OnceLock};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        cdp_url_launch_hint, get_ws_url, is_internal_url, parse_http_endpoint, runtime_paths,
-        validate_runtime_name, windows_browser_profiles,
+        cdp_url_launch_hint, devtools_port_live, get_ws_url, is_internal_url, parse_http_endpoint,
+        remote_debugging_user_enabled_in, runtime_paths, validate_runtime_name,
+        windows_browser_profiles,
     };
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn temp_profile(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "browser-harness-discovery-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path).unwrap();
+        path
     }
 
     #[test]
@@ -433,6 +495,82 @@ mod tests {
         assert!(is_internal_url("chrome://settings"));
         assert!(is_internal_url("about:blank"));
         assert!(!is_internal_url("https://example.com"));
+    }
+
+    #[test]
+    fn devtools_port_live_requires_a_listening_port() {
+        let profile = temp_profile("port-live");
+        fs::write(
+            profile.join("DevToolsActivePort"),
+            "1\n/devtools/browser/test\n",
+        )
+        .unwrap();
+        assert!(!devtools_port_live(&profile));
+
+        let listener = match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                fs::remove_dir_all(profile).unwrap();
+                return;
+            }
+            Err(error) => panic!("bind loopback fixture: {error}"),
+        };
+        let port = listener.local_addr().unwrap().port();
+        fs::write(
+            profile.join("DevToolsActivePort"),
+            format!("{port}\n/devtools/browser/test\n"),
+        )
+        .unwrap();
+        assert!(devtools_port_live(&profile));
+
+        drop(listener);
+        fs::remove_dir_all(profile).unwrap();
+    }
+
+    #[test]
+    fn remote_debugging_status_requires_a_live_enabled_profile() {
+        let profile = temp_profile("remote-debugging");
+        fs::write(
+            profile.join("Local State"),
+            r#"{"devtools":{"remote_debugging":{"user-enabled":false}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            remote_debugging_user_enabled_in(std::slice::from_ref(&profile)),
+            Some(false)
+        );
+
+        fs::write(
+            profile.join("Local State"),
+            r#"{"devtools":{"remote_debugging":{"user-enabled":true}}}"#,
+        )
+        .unwrap();
+        fs::write(profile.join("DevToolsActivePort"), "1\n").unwrap();
+        assert_eq!(
+            remote_debugging_user_enabled_in(std::slice::from_ref(&profile)),
+            None
+        );
+
+        let listener = match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                fs::remove_dir_all(profile).unwrap();
+                return;
+            }
+            Err(error) => panic!("bind loopback fixture: {error}"),
+        };
+        fs::write(
+            profile.join("DevToolsActivePort"),
+            format!("{}\n", listener.local_addr().unwrap().port()),
+        )
+        .unwrap();
+        assert_eq!(
+            remote_debugging_user_enabled_in(std::slice::from_ref(&profile)),
+            Some(true)
+        );
+
+        drop(listener);
+        fs::remove_dir_all(profile).unwrap();
     }
 
     #[test]

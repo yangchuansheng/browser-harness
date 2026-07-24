@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 bh-daemon = { path = "../../crates/bh-daemon" }
+bh-discovery = { path = "../../crates/bh-discovery" }
 bh-remote = { path = "../../crates/bh-remote" }
 serde_json.workspace = true
 tokio.workspace = true

@@ -2047,8 +2047,15 @@ mod tests {
 
     fn spawn_http_fixture_server(
         response_body: &'static str,
-    ) -> (String, thread::JoinHandle<String>) {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind HTTP fixture");
+    ) -> Option<(String, thread::JoinHandle<String>)> {
+        let listener = match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                eprintln!("skipping HTTP fixture: loopback bind is not permitted");
+                return None;
+            }
+            Err(error) => panic!("bind HTTP fixture: {error}"),
+        };
         let address = listener.local_addr().expect("local addr");
         let handle = thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("accept connection");
@@ -2076,7 +2083,7 @@ mod tests {
             String::from_utf8(request).expect("request utf-8")
         });
 
-        (format!("http://{address}"), handle)
+        Some((format!("http://{address}"), handle))
     }
 
     #[test]
@@ -2229,7 +2236,9 @@ mod tests {
 
     #[test]
     fn http_get_merges_default_and_custom_headers() {
-        let (base_url, handle) = spawn_http_fixture_server("fixture-body");
+        let Some((base_url, handle)) = spawn_http_fixture_server("fixture-body") else {
+            return;
+        };
         let mut headers = BTreeMap::new();
         headers.insert("X-Test".to_string(), "value".to_string());
 
@@ -4160,7 +4169,9 @@ mod tests {
 
     #[test]
     fn cli_http_get_prints_json_result() {
-        let (base_url, handle) = spawn_http_fixture_server("cli-body");
+        let Some((base_url, handle)) = spawn_http_fixture_server("cli-body") else {
+            return;
+        };
         let input = serde_json::to_vec(&json!({
             "url": format!("{base_url}/cli"),
             "headers": {"X-Test":"cli"},
@@ -4235,7 +4246,9 @@ mod tests {
 
     #[test]
     fn dispatch_guest_operation_executes_http_get_when_enabled() {
-        let (base_url, handle) = spawn_http_fixture_server("guest-body");
+        let Some((base_url, handle)) = spawn_http_fixture_server("guest-body") else {
+            return;
+        };
         let mut state = GuestHostState {
             config: RunnerConfig {
                 daemon_name: "runner".to_string(),

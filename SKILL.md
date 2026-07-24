@@ -7,6 +7,10 @@ description: Always use browser-harness for any web interaction: automation, scr
 
 Easiest and most powerful way to interact with the browser. **Read this file in full before using or editing the harness** — it has to be in context.
 
+## When Not to Use
+
+A basic fetch of public information needs no browser. If a plain HTTP request can read it (a public page, an API, docs) use curl or your fetch tool, and leave the browser alone. Use browser-harness when the task needs interaction (click, type, navigate), the user logged-in session, JS rendering, or a bot-protected page. If a direct fetch fails or returns a shell page, then escalate to the browser.
+
 ## Fast start
 
 Read `install.md` first for first-time install or reconnect/bootstrap.
@@ -271,7 +275,7 @@ Chrome / Browser Use cloud -> CDP WS -> bhd -> /tmp/bu-<NAME>.sock -> bhrun / bh
 - **Chrome 144+ `chrome://inspect/#remote-debugging` does NOT always serve `/json/version`.** The Rust discovery path falls back to `DevToolsActivePort` when `/json/version` returns 404.
 - **Try attaching before asking for setup.** If `browser-harness page-info` already works, skip the remote-debugging instructions entirely. Decide what to escalate from the harness's error message, not from whether Chrome is visibly running.
 - **The remote-debugging checkbox is per-profile sticky in Chrome.** Once ticked on a profile, every future Chrome launch auto-enables CDP — only navigate to `chrome://inspect/#remote-debugging` when `DevToolsActivePort` is genuinely missing on a fresh profile.
-- **The first connect may block on Chrome's Allow dialog.** If setup hangs, explicitly tell the user to click `Allow` in Chrome if it appears, then keep polling for up to 30 seconds instead of treating follow-on errors as a new failure.
+- Chrome may show an "Allow remote debugging?" popup; wait for the user to click Allow. Do not retry in a loop (Chrome pops a fresh dialog for every new connection, and the daemon single held connection is what makes this a one-time click).
 - **`DevToolsActivePort` can exist before the port is actually listening.** Treat connection refused as "still enabling" and keep polling for up to 30 seconds.
 - **Chrome may open the profile picker before any real tab exists.** If Chrome opens both a profile picker and the remote-debugging page, tell the user to choose their normal profile first, then tick the checkbox and click `Allow` if shown.
 - **On macOS, if Chrome is already running, prefer AppleScript `open location` over `open -a ... URL`.** It reuses the current profile and avoids creating an extra startup path through the profile picker.

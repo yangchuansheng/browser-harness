@@ -1932,16 +1932,27 @@ pub async fn serve(config: &DaemonConfig) -> Result<(), String> {
     let paths = config.paths();
     let _ = fs::remove_file(&paths.sock);
 
-    let listener = UnixListener::bind(&paths.sock).map_err(|err| format!("bind socket: {err}"))?;
-    fs::set_permissions(&paths.sock, fs::Permissions::from_mode(0o600))
-        .map_err(|err| format!("chmod socket: {err}"))?;
-
     let url = get_ws_url()?;
     log_line(config, &format!("connecting to {url}"));
-    let (cdp, events_rx) = CdpClient::connect(url).await?;
+    let is_local = config.browser_kind() == "local";
+    if is_local {
+        log_line(
+            config,
+            "handshake-wait: if Chrome shows an Allow remote debugging popup, click Allow",
+        );
+    }
+    let (cdp, events_rx) = if is_local {
+        CdpClient::connect_with_timeout(url, 45).await?
+    } else {
+        CdpClient::connect(url).await?
+    };
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
     let daemon = Daemon::new(config.clone(), cdp.clone(), shutdown_tx);
     daemon.attach_first_page().await?;
+
+    let listener = UnixListener::bind(&paths.sock).map_err(|err| format!("bind socket: {err}"))?;
+    fs::set_permissions(&paths.sock, fs::Permissions::from_mode(0o600))
+        .map_err(|err| format!("chmod socket: {err}"))?;
     tokio::spawn(run_event_loop(daemon.clone(), events_rx));
 
     log_line(
