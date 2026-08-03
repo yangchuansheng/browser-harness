@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 use bh_cdp::{is_browser_level_method, CdpClient, CdpEvent};
-use bh_discovery::{get_ws_url, is_internal_url, runtime_paths, RuntimePaths};
+use bh_discovery::{get_ws_url, inspect_marker, is_internal_url, runtime_paths, RuntimePaths};
 use bh_protocol::{
     DaemonRequest, DaemonResponse, META_CLICK, META_CLOSE_TAB, META_CONFIGURE_DOWNLOADS,
     META_CONNECTION_STATUS, META_CURRENT_TAB, META_DISPATCH_KEY, META_DRAIN_EVENTS,
@@ -132,22 +132,41 @@ impl Daemon {
     }
 
     async fn attach_first_page(&self) -> Result<(), String> {
-        let page = if let Some(page) = self.first_real_page().await? {
+        let target_result = self
+            .cdp
+            .send_raw("Target.getTargets", json!({}), None)
+            .await?;
+        let targets = target_result
+            .get("targetInfos")
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(|| "Target.getTargets missing targetInfos".to_string())?;
+        let mut take_over_inspect = false;
+        let reusable = targets
+            .iter()
+            .find(|target| is_real_page(target))
+            .or_else(|| targets.iter().find(|target| is_reusable_blank_page(target)))
+            .or_else(|| {
+                targets
+                    .iter()
+                    .find(|target| is_reusable_new_tab_page(target))
+            })
+            .cloned();
+        let page = if let Some(page) = reusable {
             page
+        } else if harness_opened_inspect() {
+            if let Some(page) = targets
+                .iter()
+                .find(|target| is_inspect_tab(target))
+                .cloned()
+            {
+                take_over_inspect = true;
+                page
+            } else {
+                self.create_blank_page().await?
+            }
         } else {
-            let created = self
-                .cdp
-                .send_raw("Target.createTarget", json!({ "url": "about:blank" }), None)
-                .await?;
-            let target_id = created
-                .get("targetId")
-                .and_then(Value::as_str)
-                .ok_or_else(|| "Target.createTarget missing targetId".to_string())?;
-            log_line(
-                &self.config,
-                &format!("no real pages found, created about:blank ({target_id})"),
-            );
-            json!({"targetId": target_id, "url": "about:blank", "type": "page"})
+            self.create_blank_page().await?
         };
 
         let target_id = page
@@ -166,7 +185,47 @@ impl Daemon {
             ),
         );
 
+        if take_over_inspect {
+            match self
+                .cdp
+                .send_raw(
+                    "Page.navigate",
+                    json!({"url": "about:blank"}),
+                    Some(&session_id),
+                )
+                .await
+            {
+                Ok(_) => log_line(
+                    &self.config,
+                    &format!("took over inspect tab {target_id} -> about:blank"),
+                ),
+                Err(err) => log_line(
+                    &self.config,
+                    &format!("take over inspect tab {target_id}: {err}"),
+                ),
+            }
+        }
+        if self.config.browser_kind() == "local" {
+            self.close_inspect_tabs(&targets).await;
+        }
+
         Ok(())
+    }
+
+    async fn create_blank_page(&self) -> Result<Value, String> {
+        let created = self
+            .cdp
+            .send_raw("Target.createTarget", json!({ "url": "about:blank" }), None)
+            .await?;
+        let target_id = created
+            .get("targetId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Target.createTarget missing targetId".to_string())?;
+        log_line(
+            &self.config,
+            &format!("no real pages found, created about:blank ({target_id})"),
+        );
+        Ok(json!({"targetId": target_id, "url": "about:blank", "type": "page"}))
     }
 
     async fn first_real_page(&self) -> Result<Option<Value>, String> {
@@ -205,6 +264,36 @@ impl Daemon {
 
         self.enable_session_domains(&session_id).await;
         Ok(session_id)
+    }
+
+    async fn close_inspect_tabs(&self, targets: &[Value]) {
+        if !harness_opened_inspect() {
+            return;
+        }
+        let current_target = self.current_target().await;
+        for target in targets.iter().filter(|target| is_inspect_tab(target)) {
+            let Some(target_id) = target.get("targetId").and_then(Value::as_str) else {
+                continue;
+            };
+            if current_target.as_deref() == Some(target_id) {
+                continue;
+            }
+            match self
+                .cdp
+                .send_raw("Target.closeTarget", json!({"targetId": target_id}), None)
+                .await
+            {
+                Ok(_) => log_line(
+                    &self.config,
+                    &format!("closed leftover chrome://inspect tab {target_id}"),
+                ),
+                Err(err) => log_line(
+                    &self.config,
+                    &format!("close inspect tab {target_id}: {err}"),
+                ),
+            }
+        }
+        let _ = fs::remove_file(inspect_marker());
     }
 
     async fn mark_session(&self, session_id: &str) {
@@ -410,6 +499,36 @@ impl Daemon {
     }
 
     async fn new_tab_result(&self, url: &str) -> Result<Value, String> {
+        if url != "about:blank" {
+            if let Some(target_id) = self.current_target().await {
+                if let Ok(info) = self
+                    .cdp
+                    .send_raw("Target.getTargetInfo", json!({"targetId": target_id}), None)
+                    .await
+                {
+                    let target = info.get("targetInfo").cloned().unwrap_or(Value::Null);
+                    if can_reuse_for_new_tab(&target, url) {
+                        let current_url = target.get("url").and_then(Value::as_str).unwrap_or("");
+                        let navigate_result = if url == current_url {
+                            Ok(())
+                        } else {
+                            let session_id = self.ensure_session().await?;
+                            self.send_with_retry(
+                                "Page.navigate",
+                                json!({"url": url}),
+                                Some(session_id),
+                            )
+                            .await
+                            .map(|_| ())
+                        };
+                        if navigate_result.is_ok() {
+                            return Ok(Value::String(target_id));
+                        }
+                    }
+                }
+            }
+        }
+
         let created = self
             .cdp
             .send_raw("Target.createTarget", json!({"url": "about:blank"}), None)
@@ -2019,6 +2138,59 @@ fn is_real_page(target: &Value) -> bool {
         && !is_internal_url(target.get("url").and_then(Value::as_str).unwrap_or(""))
 }
 
+fn is_reusable_blank_page(target: &Value) -> bool {
+    let url = target.get("url").and_then(Value::as_str).unwrap_or("");
+    target.get("type").and_then(Value::as_str) == Some("page")
+        && (url == "about:blank" || url.starts_with("about:blank#"))
+        && !target
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .starts_with("Starting agent ")
+}
+
+fn is_reusable_new_tab_page(target: &Value) -> bool {
+    let url = target.get("url").and_then(Value::as_str).unwrap_or("");
+    target.get("type").and_then(Value::as_str) == Some("page")
+        && [
+            "chrome://newtab",
+            "chrome://new-tab-page",
+            "edge://newtab",
+            "about:newtab",
+        ]
+        .iter()
+        .any(|prefix| url.starts_with(prefix))
+}
+
+fn is_inspect_tab(target: &Value) -> bool {
+    target.get("type").and_then(Value::as_str) == Some("page")
+        && target
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .starts_with("chrome://inspect")
+}
+
+fn can_reuse_for_new_tab(target: &Value, requested_url: &str) -> bool {
+    if requested_url == "about:blank" {
+        return false;
+    }
+    if target.get("type").and_then(Value::as_str) != Some("page") {
+        return false;
+    }
+    target
+        .get("url")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .is_empty()
+        || is_reusable_blank_page(target)
+        || is_reusable_new_tab_page(target)
+}
+
+fn harness_opened_inspect() -> bool {
+    inspect_marker().exists()
+}
+
 fn tab_summary(target: &Value) -> serde_json::Map<String, Value> {
     let mut summary = serde_json::Map::new();
     summary.insert(
@@ -2254,8 +2426,10 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{
-        encode_base64_standard, is_real_page, key_fields, log_tail, png_dimensions_from_base64,
-        push_event, shrink_png_data_url, stop_best_effort, stop_remote, tab_summary, DaemonConfig,
+        can_reuse_for_new_tab, encode_base64_standard, is_inspect_tab, is_real_page,
+        is_reusable_blank_page, is_reusable_new_tab_page, key_fields, log_tail,
+        png_dimensions_from_base64, push_event, shrink_png_data_url, stop_best_effort, stop_remote,
+        tab_summary, DaemonConfig,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -2290,6 +2464,76 @@ mod tests {
         assert!(!is_real_page(&json!({
             "type": "iframe",
             "url": "https://example.com"
+        })));
+    }
+
+    #[test]
+    fn reusable_blank_page_excludes_agent_starting_tabs() {
+        assert!(is_reusable_blank_page(&json!({
+            "type": "page",
+            "url": "about:blank#ready",
+            "title": ""
+        })));
+        assert!(!is_reusable_blank_page(&json!({
+            "type": "page",
+            "url": "about:blank",
+            "title": "Starting agent task"
+        })));
+        assert!(!is_reusable_blank_page(&json!({
+            "type": "iframe",
+            "url": "about:blank"
+        })));
+    }
+
+    #[test]
+    fn reusable_new_tab_page_matches_chromium_family_urls() {
+        for url in [
+            "chrome://newtab/",
+            "chrome://new-tab-page/",
+            "edge://newtab/",
+            "about:newtab",
+        ] {
+            assert!(is_reusable_new_tab_page(&json!({
+                "type": "page",
+                "url": url
+            })));
+        }
+        assert!(!is_reusable_new_tab_page(&json!({
+            "type": "page",
+            "url": "https://example.com"
+        })));
+    }
+
+    #[test]
+    fn new_tab_reuses_blank_pages_only_for_navigation() {
+        let blank = json!({
+            "type": "page",
+            "url": "about:blank",
+            "title": ""
+        });
+        let new_tab = json!({
+            "type": "page",
+            "url": "chrome://newtab/"
+        });
+
+        assert!(can_reuse_for_new_tab(&blank, "https://example.com"));
+        assert!(can_reuse_for_new_tab(&new_tab, "https://example.com"));
+        assert!(!can_reuse_for_new_tab(&blank, "about:blank"));
+        assert!(!can_reuse_for_new_tab(
+            &json!({"type": "iframe", "url": ""}),
+            "https://example.com"
+        ));
+    }
+
+    #[test]
+    fn inspect_tab_requires_page_target() {
+        assert!(is_inspect_tab(&json!({
+            "type": "page",
+            "url": "chrome://inspect/#remote-debugging"
+        })));
+        assert!(!is_inspect_tab(&json!({
+            "type": "iframe",
+            "url": "chrome://inspect/#remote-debugging"
         })));
     }
 

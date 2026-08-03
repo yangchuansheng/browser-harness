@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `34e942fd7ca5d8adec129e64bddbb97c334bad1f`
-- Commit range: `6d0ac1634325b8b042a1431ba0bf3b75b4fbb460..34e942fd7ca5d8adec129e64bddbb97c334bad1f`
-- Count: 7 commits
+- Upstream target commit: `188383b9adf7dfa67fee07358381bb03f090e554`
+- Commit range: `34e942fd7ca5d8adec129e64bddbb97c334bad1f..188383b9adf7dfa67fee07358381bb03f090e554`
+- Count: 8 commits (5 non-merge + 3 merge)
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -488,3 +488,33 @@
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and listed the full admin/runner command surface.
 - `git diff --check` passed.
 - `scripts/scan_sensitive.sh` requires Bash 4 `mapfile`; a Bash 3-compatible execution of the script's exact regex set passed across all tracked/unignored files.
+
+## Daily Upstream Sync — 2026-08-03
+
+- Previous target: `34e942fd7ca5d8adec129e64bddbb97c334bad1f`; new upstream target: `188383b9adf7dfa67fee07358381bb03f090e554`.
+- New upstream range `34e942fd7ca5d8adec129e64bddbb97c334bad1f..188383b9adf7dfa67fee07358381bb03f090e554`: 8 commits (5 non-merge + 3 merge).
+- Upstream changes analyzed:
+  - `4000dd1`: added local browser liveness detection, automatic browser launch recovery, remote-debugging permission errors, and tab/session reuse foundations; `2e89e13` completed inspect-tab cleanup and new-tab reuse.
+  - `c99966a`: bumped the upstream release to 0.1.8; `2c1b722` and `63d0ed1` refined CDP hostname telemetry logging.
+  - Merge commits `dbe6f8f`, `d785139`, and `188383b` carry the release, browser-launch, and telemetry changes into `upstream/main`.
+- Rust migration decisions:
+  - Added `config_dir()` and `inspect_marker()` to `bh-discovery` with `BH_CONFIG_DIR`, `BH_HOME`/`BROWSER_HARNESS_HOME`, `XDG_CONFIG_HOME`, and private-directory handling.
+  - Added `remote_debugging_toggle_profiles()`, `browser_running_for_profile()`, and platform-aware `supported_browser_running()`; `get_ws_url()` now performs two-second liveness probes, toggle-dependent grace periods, 403 permission classification, and the disabled-toggle hint.
+  - Added Rust-native browser launch specs in `bhctl`: `BH_CHROME_PATH`/`CHROME_PATH` precedence, profile-aware app selection, `--profile-directory` recovery, macOS/Windows/Linux launch paths, one-time `chrome://inspect` opening, and three startup attempts.
+  - Reused safe `about:blank`, Chromium new-tab, and harness-opened inspect tabs in `bh-daemon`; inspect tabs are taken over, cleaned up, and marker state is removed after local attach. Default `new-tab` continues to create a fresh blank tab while navigated new tabs reuse safe placeholders.
+  - Bumped the Rust workspace and lockfile package versions from 0.1.7 to 0.1.8.
+  - Updated the root `SKILL.md` with closed-browser launch recovery and the running-browser `chrome://inspect` permission flow.
+  - Rust CLI `Result` entrypoints already print setup failures to stderr and exit with status 1, so the upstream Python `run.py` exception wrapper maps to existing behavior. The fork has no telemetry capture/sender path; CDP hostname telemetry remains deferred with no Rust runtime surface to port.
+  - No upstream domain-skill files changed in this range; the existing `domains/` mapping and legacy-path policy remain unchanged. No Python runtime files were copied.
+
+## Daily Sync Verification Evidence — 2026-08-03
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed (12 crates compiled).
+- `cargo build --workspace --manifest-path rust/Cargo.toml` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed: 192 tests, 0 failures across all crates (bh-cdp 1, bh-daemon 13, bh-discovery 16, bh-guest-sdk 18, bh-protocol 2, bh-remote 8, bh-wasm-host 49, bhctl 13, bhd 0, bhrun 65, bhsmoke 0, browser-harness-cli 7).
+- `cargo run --bin bhrun -- summary` passed: 42 operations all live, wasm_guests=preview, persistent_guest_runner=preview.
+- `cargo run --bin browser-harness -- --help` passed: admin/runner command surface listed correctly.
+- `git diff --check` passed.
+- `./scripts/scan_sensitive.sh` requires `rg` (not available); equivalent Python fallback matched the script's exact regex set across 273 tracked/unignored files — clean, no secrets or local path leaks found.
+- Re-ran `git fetch origin main --prune` before reconciliation; `origin/main` equals `HEAD` (a4142ce), confirming the uncommitted migration is a direct descendant. No origin advancement to reconcile.

@@ -2,10 +2,17 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "windows")]
+use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 pub const DEFAULT_NAME: &str = "default";
+const NO_TOGGLE_GRACE: Duration = Duration::from_secs(3);
+const TOGGLE_BOOT_GRACE: Duration = Duration::from_secs(12);
 pub const INTERNAL_PREFIXES: &[&str] = &[
     "chrome://",
     "chrome-untrusted://",
@@ -48,6 +55,24 @@ pub fn tmp_dir() -> PathBuf {
     std::env::var_os("BH_TMP_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir())
+}
+
+pub fn config_dir() -> PathBuf {
+    let path = env_path("BH_CONFIG_DIR")
+        .or_else(|| env_path("BH_HOME"))
+        .or_else(|| env_path("BROWSER_HARNESS_HOME"))
+        .or_else(|| env_path("XDG_CONFIG_HOME").map(|base| base.join("browser-harness")))
+        .unwrap_or_else(|| home_dir().join(".config/browser-harness"));
+    let existed = path.exists();
+    if fs::create_dir_all(&path).is_ok() && !existed {
+        #[cfg(unix)]
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o700));
+    }
+    path
+}
+
+pub fn inspect_marker() -> PathBuf {
+    config_dir().join("inspect-opened")
 }
 
 pub fn runtime_dir() -> PathBuf {
@@ -125,6 +150,19 @@ fn home_dir() -> PathBuf {
         .unwrap_or_default()
 }
 
+fn env_path(key: &str) -> Option<PathBuf> {
+    let raw = std::env::var_os(key).filter(|value| !value.is_empty())?;
+    let path = PathBuf::from(raw);
+    if path == Path::new("~") {
+        return Some(home_dir());
+    }
+    path.strip_prefix("~")
+        .ok()
+        .filter(|relative| !relative.as_os_str().is_empty())
+        .map(|relative| home_dir().join(relative))
+        .or(Some(path))
+}
+
 #[cfg(any(target_os = "windows", test))]
 fn windows_browser_profiles(home: &std::path::Path) -> Vec<PathBuf> {
     let local_app_data = std::env::var_os("LOCALAPPDATA")
@@ -172,29 +210,94 @@ pub fn remote_debugging_user_enabled() -> Option<bool> {
     remote_debugging_user_enabled_in(&default_browser_profiles())
 }
 
+pub fn remote_debugging_toggle_profiles() -> Vec<PathBuf> {
+    remote_debugging_toggle_profiles_in(&default_browser_profiles())
+}
+
+fn remote_debugging_toggle_profiles_in(profiles: &[PathBuf]) -> Vec<PathBuf> {
+    profiles
+        .iter()
+        .filter(|base| remote_debugging_toggle_value(base) == Some(true))
+        .cloned()
+        .collect()
+}
+
+fn remote_debugging_toggle_value(base: &Path) -> Option<bool> {
+    let contents = fs::read_to_string(base.join("Local State")).ok()?;
+    let state = serde_json::from_str::<serde_json::Value>(&contents).ok()?;
+    state
+        .get("devtools")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|devtools| devtools.get("remote_debugging"))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|remote_debugging| remote_debugging.get("user-enabled"))
+        .and_then(serde_json::Value::as_bool)
+}
+
 fn remote_debugging_user_enabled_in(profiles: &[PathBuf]) -> Option<bool> {
     let mut seen = None;
     for base in profiles {
-        let Ok(contents) = fs::read_to_string(base.join("Local State")) else {
-            continue;
-        };
-        let Ok(state) = serde_json::from_str::<serde_json::Value>(&contents) else {
-            continue;
-        };
-        let enabled = state
-            .get("devtools")
-            .and_then(serde_json::Value::as_object)
-            .and_then(|devtools| devtools.get("remote_debugging"))
-            .and_then(serde_json::Value::as_object)
-            .and_then(|remote_debugging| remote_debugging.get("user-enabled"))
-            .and_then(serde_json::Value::as_bool);
-        match enabled {
+        match remote_debugging_toggle_value(base) {
             Some(true) if devtools_port_live(base) => return Some(true),
             Some(false) => seen = Some(false),
             _ => {}
         }
     }
     seen
+}
+
+#[cfg(unix)]
+pub fn browser_running_for_profile(base: &Path) -> bool {
+    let Ok(target) = fs::read_link(base.join("SingletonLock")) else {
+        return false;
+    };
+    let Some(pid) = target
+        .to_string_lossy()
+        .rsplit('-')
+        .next()
+        .and_then(|value| value.parse::<libc::pid_t>().ok())
+        .filter(|pid| *pid > 0)
+    else {
+        return false;
+    };
+    let result = unsafe { libc::kill(pid, 0) };
+    result == 0 || std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+}
+
+#[cfg(not(unix))]
+pub fn browser_running_for_profile(_base: &Path) -> bool {
+    false
+}
+
+pub fn supported_browser_running() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let Ok(output) = Command::new("tasklist").output() else {
+            return true;
+        };
+        let processes = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+        return [
+            "chrome.exe",
+            "msedge.exe",
+            "chromium.exe",
+            "brave.exe",
+            "helium.exe",
+        ]
+        .iter()
+        .any(|name| processes.contains(name));
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        return default_browser_profiles()
+            .iter()
+            .any(|base| browser_running_for_profile(base));
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        false
+    }
 }
 
 pub fn get_ws_url() -> Result<String, String> {
@@ -213,31 +316,66 @@ pub fn get_ws_url() -> Result<String, String> {
     }
 
     let profiles = default_browser_profiles();
-    for base in &profiles {
-        let Some((port, ws_path)) = read_devtools_active_port(base) else {
-            continue;
-        };
-        let deadline = Instant::now() + Duration::from_secs(30);
-        loop {
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(30);
+    let mut next_liveness_check = started;
+    while Instant::now() < deadline {
+        for base in &profiles {
+            let Some((port, ws_path)) = read_devtools_active_port(base) else {
+                continue;
+            };
             match ws_from_json_version("127.0.0.1", port, Duration::from_secs(1)) {
                 Ok(url) => return Ok(url),
+                Err(err) if is_permission_blocked_error(&err) => {
+                    return Err(
+                        "permission-blocked: Chrome is reachable, but the per-session Allow remote debugging popup has not been accepted"
+                            .to_string(),
+                    );
+                }
                 Err(err) if err.contains("HTTP 404") && !ws_path.is_empty() => {
                     return Ok(format!("ws://127.0.0.1:{port}{ws_path}"));
                 }
-                Err(_) if Instant::now() < deadline => thread::sleep(Duration::from_secs(1)),
-                Err(_) => {
-                    return Err(format!(
-                        "Chrome's remote-debugging page is open, but DevTools is not live yet on 127.0.0.1:{port} — if Chrome opened a profile picker, choose your normal profile first, then tick the checkbox and click Allow if shown"
-                    ));
-                }
+                Err(_) => {}
             }
         }
+
+        let now = Instant::now();
+        if now >= next_liveness_check {
+            if !supported_browser_running() {
+                return Err(
+                    "chrome-not-running: no supported Chromium-family browser is running -- start Chrome, then retry"
+                        .to_string(),
+                );
+            }
+            next_liveness_check = now + Duration::from_secs(2);
+        }
+
+        let grace = if remote_debugging_toggle_profiles_in(&profiles).is_empty() {
+            NO_TOGGLE_GRACE
+        } else {
+            TOGGLE_BOOT_GRACE
+        };
+        if now.duration_since(started) > grace {
+            break;
+        }
+        thread::sleep(Duration::from_millis(200));
     }
 
     for probe_port in [9222, 9223] {
-        if let Ok(url) = ws_from_json_version("127.0.0.1", probe_port, Duration::from_secs(1)) {
-            return Ok(url);
+        match ws_from_json_version("127.0.0.1", probe_port, Duration::from_secs(1)) {
+            Ok(url) => return Ok(url),
+            Err(err) if is_permission_blocked_error(&err) => {
+                return Err(
+                    "permission-blocked: Chrome is reachable, but the per-session Allow remote debugging popup has not been accepted"
+                        .to_string(),
+                );
+            }
+            Err(_) => {}
         }
+    }
+
+    if remote_debugging_user_enabled_in(&profiles) == Some(false) {
+        return Err("remote debugging is turned off for this browser instance -- enable chrome://inspect/#remote-debugging (tick \"Allow remote debugging for this browser instance\")".to_string());
     }
 
     let searched = profiles
@@ -264,6 +402,12 @@ fn ws_from_cdp_url(url: &str, timeout_duration: Duration) -> Result<String, Stri
     loop {
         let last_err = match ws_from_json_version_url(url, Duration::from_secs(5)) {
             Ok(url) => return Ok(url),
+            Err(err) if is_permission_blocked_error(&err) => {
+                return Err(
+                    "permission-blocked: Chrome is reachable, but the per-session Allow remote debugging popup has not been accepted"
+                        .to_string(),
+                );
+            }
             Err(err) if err.contains("HTTP 404") => {
                 if let Some(ws_url) = ws_from_devtools_active_port(&host, port) {
                     return Ok(ws_url);
@@ -281,6 +425,10 @@ fn ws_from_cdp_url(url: &str, timeout_duration: Duration) -> Result<String, Stri
         }
         thread::sleep(Duration::from_secs(1));
     }
+}
+
+fn is_permission_blocked_error(error: &str) -> bool {
+    error.contains("HTTP 403") || error.contains(" 403 ")
 }
 
 fn cdp_url_launch_hint() -> &'static str {
@@ -448,9 +596,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        cdp_url_launch_hint, devtools_port_live, get_ws_url, is_internal_url, parse_http_endpoint,
-        remote_debugging_user_enabled_in, runtime_paths, validate_runtime_name,
-        windows_browser_profiles,
+        browser_running_for_profile, cdp_url_launch_hint, config_dir, devtools_port_live,
+        get_ws_url, inspect_marker, is_internal_url, is_permission_blocked_error,
+        parse_http_endpoint, remote_debugging_toggle_profiles_in, remote_debugging_user_enabled_in,
+        runtime_paths, validate_runtime_name, windows_browser_profiles,
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -571,6 +720,150 @@ mod tests {
 
         drop(listener);
         fs::remove_dir_all(profile).unwrap();
+    }
+
+    #[test]
+    fn remote_debugging_toggle_profiles_returns_only_enabled_profiles() {
+        let enabled = temp_profile("toggle-enabled");
+        let disabled = temp_profile("toggle-disabled");
+        fs::write(
+            enabled.join("Local State"),
+            r#"{"devtools":{"remote_debugging":{"user-enabled":true}}}"#,
+        )
+        .unwrap();
+        fs::write(
+            disabled.join("Local State"),
+            r#"{"devtools":{"remote_debugging":{"user-enabled":false}}}"#,
+        )
+        .unwrap();
+
+        let profiles = remote_debugging_toggle_profiles_in(&[enabled.clone(), disabled.clone()]);
+
+        assert_eq!(profiles, vec![enabled.clone()]);
+        fs::remove_dir_all(enabled).unwrap();
+        fs::remove_dir_all(disabled).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn browser_running_for_profile_reads_singleton_lock_pid() {
+        use std::os::unix::fs::symlink;
+
+        let profile = temp_profile("singleton-lock");
+        symlink(
+            format!("host-{}", std::process::id()),
+            profile.join("SingletonLock"),
+        )
+        .unwrap();
+
+        assert!(browser_running_for_profile(&profile));
+
+        fs::remove_dir_all(profile).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn browser_running_for_profile_rejects_a_stale_pid() {
+        use std::os::unix::fs::symlink;
+
+        let profile = temp_profile("stale-singleton-lock");
+        symlink("host-2147483647", profile.join("SingletonLock")).unwrap();
+
+        assert!(!browser_running_for_profile(&profile));
+
+        fs::remove_dir_all(profile).unwrap();
+    }
+
+    #[test]
+    fn inspect_marker_uses_config_dir_override() {
+        let _guard = env_lock().lock().unwrap();
+        let config_dir = temp_profile("config-dir");
+        let previous = std::env::var_os("BH_CONFIG_DIR");
+        std::env::set_var("BH_CONFIG_DIR", &config_dir);
+
+        let marker = inspect_marker();
+
+        if let Some(previous) = previous {
+            std::env::set_var("BH_CONFIG_DIR", previous);
+        } else {
+            std::env::remove_var("BH_CONFIG_DIR");
+        }
+
+        assert_eq!(marker, config_dir.join("inspect-opened"));
+        fs::remove_dir_all(config_dir).unwrap();
+    }
+
+    #[test]
+    fn config_dir_honors_environment_priority() {
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_profile("config-priority");
+        let keys = [
+            "BH_CONFIG_DIR",
+            "BH_HOME",
+            "BROWSER_HARNESS_HOME",
+            "XDG_CONFIG_HOME",
+            "HOME",
+        ];
+        let previous = keys.map(|key| (key, std::env::var_os(key)));
+
+        std::env::set_var("HOME", root.join("home"));
+        std::env::set_var("XDG_CONFIG_HOME", root.join("xdg"));
+        std::env::set_var("BROWSER_HARNESS_HOME", root.join("legacy-home"));
+        std::env::set_var("BH_HOME", root.join("bh-home"));
+        std::env::set_var("BH_CONFIG_DIR", root.join("explicit"));
+        assert_eq!(config_dir(), root.join("explicit"));
+
+        std::env::remove_var("BH_CONFIG_DIR");
+        assert_eq!(config_dir(), root.join("bh-home"));
+        std::env::remove_var("BH_HOME");
+        assert_eq!(config_dir(), root.join("legacy-home"));
+        std::env::remove_var("BROWSER_HARNESS_HOME");
+        assert_eq!(config_dir(), root.join("xdg/browser-harness"));
+        std::env::remove_var("XDG_CONFIG_HOME");
+        assert_eq!(config_dir(), root.join("home/.config/browser-harness"));
+
+        for (key, value) in previous {
+            if let Some(value) = value {
+                std::env::set_var(key, value);
+            } else {
+                std::env::remove_var(key);
+            }
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_dir_creates_private_directory() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _guard = env_lock().lock().unwrap();
+        let root = temp_profile("private-config");
+        let path = root.join("config");
+        let previous = std::env::var_os("BH_CONFIG_DIR");
+        std::env::set_var("BH_CONFIG_DIR", &path);
+
+        assert_eq!(config_dir(), path);
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+
+        if let Some(previous) = previous {
+            std::env::set_var("BH_CONFIG_DIR", previous);
+        } else {
+            std::env::remove_var("BH_CONFIG_DIR");
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn permission_blocked_error_detects_http_403_variants() {
+        assert!(is_permission_blocked_error("HTTP 403 from /json/version"));
+        assert!(is_permission_blocked_error(
+            "unexpected /json/version status: HTTP/1.1 403 Forbidden"
+        ));
+        assert!(!is_permission_blocked_error("HTTP 404 from /json/version"));
     }
 
     #[test]

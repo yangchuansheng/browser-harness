@@ -1,6 +1,6 @@
 ---
 name: browser-harness
-description: Always use browser-harness for any web interaction: automation, scraping, testing, or site/app work. Direct browser control via CDP. Connects to the user's already-running Chrome.
+description: Always use browser-harness for any web interaction: automation, scraping, testing, or site/app work. Direct browser control via CDP. Connects to the user's Chrome and launches it during closed-browser recovery.
 ---
 
 # browser-harness
@@ -32,6 +32,11 @@ If the global command is not installed yet, use the repo-local fallback:
 cd rust
 cargo run --quiet --bin browser-harness -- --help
 ```
+
+When Chrome is closed, the harness launches it automatically and retries. Click Allow when a permission popup appears.
+When Chrome is running with remote debugging disabled, the harness opens
+`chrome://inspect/#remote-debugging` and reports the required checkbox and
+Allow action.
 
 - For repo-local Rust-native use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
 - First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
@@ -248,7 +253,7 @@ The *durable* shape of the site — the map, not the diary. Focus on what the ne
 ## Design constraints
 
 - **Coordinate clicks default.** `Input.dispatchMouseEvent` goes through iframes/shadow/cross-origin at the compositor level.
-- **Connect to the user's running Chrome.** Don't launch your own browser.
+- **Connect to the user's running Chrome.** Automatic launch supports closed-browser recovery and preserves the discovered profile.
 - **`cdp-use` is only for `CDPClient.send_raw`.** Prefer raw CDP strings over typed wrappers.
 - **The Rust CLI stays thin.** `browser-harness` is only a facade over `bhctl` and `bhrun`.
 - **Use the Rust CLI directly.** Prefer `browser-harness`, `bhrun`, `bhctl`,
@@ -276,7 +281,7 @@ Chrome / Browser Use cloud -> CDP WS -> bhd -> /tmp/bu-<NAME>.sock -> bhrun / bh
 - **Try attaching before asking for setup.** If `browser-harness page-info` already works, skip the remote-debugging instructions entirely. Decide what to escalate from the harness's error message, not from whether Chrome is visibly running.
 - **The remote-debugging checkbox is per-profile sticky in Chrome.** Once ticked on a profile, every future Chrome launch auto-enables CDP — only navigate to `chrome://inspect/#remote-debugging` when `DevToolsActivePort` is genuinely missing on a fresh profile.
 - Chrome may show an "Allow remote debugging?" popup; wait for the user to click Allow. Do not retry in a loop (Chrome pops a fresh dialog for every new connection, and the daemon single held connection is what makes this a one-time click).
-- **`DevToolsActivePort` can exist before the port is actually listening.** Treat connection refused as "still enabling" and keep polling for up to 30 seconds.
+- **`DevToolsActivePort` can exist before the port is actually listening.** Treat connection refused as "still enabling" and keep polling within the toggle-aware startup grace period.
 - **Chrome may open the profile picker before any real tab exists.** If Chrome opens both a profile picker and the remote-debugging page, tell the user to choose their normal profile first, then tick the checkbox and click `Allow` if shown.
 - **On macOS, if Chrome is already running, prefer AppleScript `open location` over `open -a ... URL`.** It reuses the current profile and avoids creating an extra startup path through the profile picker.
 - **Omnibox popups are fake `page` targets.** Filter `chrome://omnibox-popup...` and other internals when you need a real tab.

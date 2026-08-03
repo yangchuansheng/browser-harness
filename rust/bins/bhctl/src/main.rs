@@ -1,17 +1,24 @@
 use std::collections::BTreeMap;
+use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use bh_daemon::{already_running, log_tail, stop_best_effort, DaemonConfig};
-use bh_discovery::remote_debugging_user_enabled;
+use bh_discovery::{
+    default_browser_profiles, inspect_marker, remote_debugging_toggle_profiles,
+    remote_debugging_user_enabled, supported_browser_running,
+};
 use bh_remote::{
     auth_status, browser_use_api_key, clear_browser_use_auth, store_browser_use_api_key,
     BrowserUseClient,
 };
 use serde_json::{json, Value};
+
+const INSPECT_REOPEN_TTL: Duration = Duration::from_secs(180);
+const CHROME_INSPECT_URL: &str = "chrome://inspect/#remote-debugging";
 
 #[tokio::main]
 async fn main() {
@@ -195,62 +202,128 @@ fn ensure_daemon_output() -> Result<Value, String> {
     }
 
     let is_local = ensure_daemon_uses_local_browser(&options);
-    let mut command = daemon_launch_command()?;
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    if options.name.is_some() {
-        command.env("BU_NAME", &config.name);
-    }
-    command.envs(options.env.iter());
+    let mut launched_browser = false;
+    let mut last_message = None;
 
-    let mut child = command
-        .spawn()
-        .map_err(|err| format!("spawn daemon: {err}"))?;
-    let started = Instant::now();
-    let deadline = started + Duration::from_secs_f64(options.wait_seconds);
-    let mut hinted = !is_local;
-    while Instant::now() < deadline {
-        if already_running(&config) {
-            return Ok(json!({
-                "ok": true,
-                "alreadyRunning": false,
-                "name": config.name,
-            }));
+    for _ in 0..3 {
+        let mut command = daemon_launch_command()?;
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if options.name.is_some() {
+            command.env("BU_NAME", &config.name);
         }
-        if child
-            .try_wait()
-            .map_err(|err| format!("wait for daemon startup: {err}"))?
-            .is_some()
-        {
-            break;
+        command.envs(options.env.iter());
+
+        let mut child = command
+            .spawn()
+            .map_err(|err| format!("spawn daemon: {err}"))?;
+        let started = Instant::now();
+        let deadline = started + Duration::from_secs_f64(options.wait_seconds);
+        let mut hinted = !is_local;
+        while Instant::now() < deadline {
+            if already_running(&config) {
+                return Ok(json!({
+                    "ok": true,
+                    "alreadyRunning": false,
+                    "name": config.name,
+                }));
+            }
+            if child
+                .try_wait()
+                .map_err(|err| format!("wait for daemon startup: {err}"))?
+                .is_some()
+            {
+                break;
+            }
+            if !hinted
+                && started.elapsed() > Duration::from_secs(2)
+                && log_tail(&config).is_some_and(|line| line.starts_with("handshake-wait"))
+            {
+                eprintln!(
+                    "browser-harness: Chrome is asking \"Allow remote debugging?\" -- click Allow to continue."
+                );
+                hinted = true;
+            }
+            thread::sleep(Duration::from_millis(200));
         }
-        if !hinted
-            && started.elapsed() > Duration::from_secs(2)
-            && log_tail(&config).is_some_and(|line| line.starts_with("handshake-wait"))
-        {
-            eprintln!(
-                "browser-harness: Chrome is asking \"Allow remote debugging?\" -- click Allow to continue."
+
+        let message = log_tail(&config).unwrap_or_else(|| {
+            format!(
+                "daemon {} didn't come up -- check {}",
+                config.name,
+                config.paths().log.display()
+            )
+        });
+        last_message = Some(message.clone());
+
+        if is_local && needs_chrome_permission_popup(&message) {
+            let _ = stop_best_effort(&config);
+            return Err(
+                "permission-blocked: wait for the user to click Allow in the Chrome permission popup before retrying"
+                    .to_string(),
             );
-            hinted = true;
         }
-        thread::sleep(Duration::from_millis(200));
+
+        if is_local && !launched_browser && chrome_not_running(&message) {
+            launched_browser = true;
+            let _ = stop_best_effort(&config);
+            if !launch_browser() {
+                return Err(
+                    "chrome-not-running: no supported browser is running and none could be launched -- open Chrome, then retry"
+                        .to_string(),
+                );
+            }
+            eprintln!(
+                "browser-harness: Chrome is not running -- launching it. Click Allow if Chrome shows an \"Allow remote debugging?\" popup."
+            );
+            let boot_deadline = Instant::now() + Duration::from_secs(15);
+            while Instant::now() < boot_deadline && !supported_browser_running() {
+                thread::sleep(Duration::from_millis(300));
+            }
+            continue;
+        }
+
+        if is_local && needs_chrome_remote_debugging_prompt(&message) {
+            let toggle_enabled = !remote_debugging_toggle_profiles().is_empty();
+            let _ = stop_best_effort(&config);
+            if remote_debugging_user_enabled() == Some(true) {
+                return Err(
+                    "permission-blocked: Chrome remote debugging is enabled -- click Allow in Chrome, then retry"
+                        .to_string(),
+                );
+            }
+
+            let opened = open_chrome_inspect_once();
+            let action = if opened {
+                "opened chrome://inspect/#remote-debugging in Chrome"
+            } else {
+                "open chrome://inspect/#remote-debugging in Chrome"
+            };
+            let todo = if toggle_enabled {
+                "click Allow on Chrome's \"Allow remote debugging?\" popup (the checkbox is already ticked; if no popup appears, untick and re-tick it)"
+            } else {
+                "tick \"Allow remote debugging for this browser instance\" and click Allow on the popup"
+            };
+            return Err(format!(
+                "remote-debugging-setup: {action} -- {todo}. Chrome shows one more Allow popup when the harness connects on the next attempt; retry after the user confirms"
+            ));
+        }
+
+        let remote_debugging_enabled = is_local.then(remote_debugging_user_enabled).flatten();
+        let message = daemon_startup_error(message, is_local, remote_debugging_enabled);
+        let _ = stop_best_effort(&config);
+        return Err(message);
     }
 
-    let message = log_tail(&config).unwrap_or_else(|| {
+    Err(last_message.unwrap_or_else(|| {
         format!(
             "daemon {} didn't come up -- check {}",
             config.name,
             config.paths().log.display()
         )
-    });
-    let remote_debugging_enabled = is_local.then(remote_debugging_user_enabled).flatten();
-    Err(daemon_startup_error(
-        message,
-        is_local,
-        remote_debugging_enabled,
-    ))
+    }))
 }
 
 fn ensure_daemon_uses_local_browser(options: &EnsureDaemonOptions) -> bool {
@@ -262,6 +335,10 @@ fn ensure_daemon_uses_local_browser(options: &EnsureDaemonOptions) -> bool {
                 .map(|value| value.trim().is_empty())
                 .unwrap_or(true),
         })
+}
+
+fn chrome_not_running(message: &str) -> bool {
+    message.to_ascii_lowercase().contains("chrome-not-running")
 }
 
 fn daemon_startup_error(
@@ -282,6 +359,24 @@ fn daemon_startup_error(
         Some(false) => "remote debugging is turned off for this browser instance -- enable chrome://inspect/#remote-debugging (tick \"Allow remote debugging for this browser instance\")".to_string(),
         None => message,
     }
+}
+
+fn needs_chrome_permission_popup(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("permission-blocked") || lower.starts_with("handshake-wait")
+}
+
+fn needs_chrome_remote_debugging_prompt(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("devtoolsactiveport")
+        || lower.contains("enable chrome://inspect")
+        || lower.contains("not live yet")
+        || lower.contains("remote debugging is turned off")
+        || (lower.contains("cdp ws")
+            && (lower.contains("403")
+                || lower.contains("opening handshake")
+                || lower.contains("timed out")
+                || lower.contains("timeout")))
 }
 
 fn restart_daemon_output(name: Option<&str>) -> Result<Value, String> {
@@ -485,6 +580,334 @@ fn parse_env_map(value: Option<&Value>) -> Result<BTreeMap<String, String>, Stri
     Ok(env)
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+struct BrowserLaunchSpec {
+    profile_fragment: &'static str,
+    macos_app: &'static str,
+    posix_commands: &'static [&'static str],
+    windows_target: Option<&'static str>,
+}
+
+const BROWSER_LAUNCH_SPECS: &[BrowserLaunchSpec] = &[
+    BrowserLaunchSpec {
+        profile_fragment: "chrome canary",
+        macos_app: "Google Chrome Canary",
+        posix_commands: &["google-chrome-canary"],
+        windows_target: Some("chrome"),
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "chromium",
+        macos_app: "Chromium",
+        posix_commands: &["chromium", "chromium-browser"],
+        windows_target: Some("chromium"),
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "chrome",
+        macos_app: "Google Chrome",
+        posix_commands: &["google-chrome-stable", "google-chrome"],
+        windows_target: Some("chrome"),
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "edge",
+        macos_app: "Microsoft Edge",
+        posix_commands: &["microsoft-edge", "microsoft-edge-stable"],
+        windows_target: Some("msedge"),
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "brave",
+        macos_app: "Brave Browser",
+        posix_commands: &["brave-browser", "brave"],
+        windows_target: Some("brave"),
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "arc",
+        macos_app: "Arc",
+        posix_commands: &[],
+        windows_target: None,
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "dia",
+        macos_app: "Dia",
+        posix_commands: &[],
+        windows_target: None,
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "comet",
+        macos_app: "Comet",
+        posix_commands: &[],
+        windows_target: None,
+    },
+];
+
+const DEFAULT_BROWSER_LAUNCH: BrowserLaunchSpec = BrowserLaunchSpec {
+    profile_fragment: "",
+    macos_app: "Google Chrome",
+    posix_commands: &[
+        "google-chrome-stable",
+        "google-chrome",
+        "chromium",
+        "chromium-browser",
+        "microsoft-edge",
+    ],
+    windows_target: Some("chrome"),
+};
+
+fn browser_launch_spec(base: Option<&Path>) -> &'static BrowserLaunchSpec {
+    let Some(base) = base else {
+        return &DEFAULT_BROWSER_LAUNCH;
+    };
+    let mut tail = base
+        .components()
+        .rev()
+        .take(2)
+        .map(|component| component.as_os_str().to_string_lossy().to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    tail.reverse();
+    let tail = tail.join("/");
+    BROWSER_LAUNCH_SPECS
+        .iter()
+        .find(|spec| tail.contains(spec.profile_fragment))
+        .unwrap_or(&DEFAULT_BROWSER_LAUNCH)
+}
+
+fn profile_directory_args(base: &Path) -> Vec<String> {
+    let last_used = fs::read_to_string(base.join("Local State"))
+        .ok()
+        .and_then(|contents| serde_json::from_str::<Value>(&contents).ok())
+        .and_then(|state| {
+            state
+                .get("profile")
+                .and_then(Value::as_object)
+                .and_then(|profile| profile.get("last_used"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "Default".to_string());
+    if base.join(&last_used).is_dir() {
+        vec![format!("--profile-directory={last_used}")]
+    } else {
+        Vec::new()
+    }
+}
+
+fn expand_home_path(raw: &str) -> PathBuf {
+    if raw == "~" {
+        return user_home_dir();
+    }
+    if let Some(relative) = raw.strip_prefix("~/") {
+        return user_home_dir().join(relative);
+    }
+    PathBuf::from(raw)
+}
+
+fn user_home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_default()
+}
+
+fn launch_browser() -> bool {
+    for key in ["BH_CHROME_PATH", "CHROME_PATH"] {
+        let Some(raw) = std::env::var(key)
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        let path = expand_home_path(&raw);
+        if path.is_file()
+            && Command::new(&path)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .is_ok()
+        {
+            return true;
+        }
+    }
+
+    let enabled_profiles = remote_debugging_toggle_profiles();
+    let base = enabled_profiles.into_iter().next().or_else(|| {
+        default_browser_profiles()
+            .into_iter()
+            .find(|base| base.join("Local State").is_file())
+    });
+    let spec = browser_launch_spec(base.as_deref());
+    let profile_args = base
+        .as_deref()
+        .map(profile_directory_args)
+        .unwrap_or_default();
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = Command::new("open");
+        command.args(["-a", spec.macos_app]);
+        if !profile_args.is_empty() {
+            command.arg("--args").args(&profile_args);
+        }
+        let launched = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+        if launched {
+            return true;
+        }
+        if spec.macos_app != DEFAULT_BROWSER_LAUNCH.macos_app {
+            return Command::new("open")
+                .args(["-a", DEFAULT_BROWSER_LAUNCH.macos_app])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|status| status.success());
+        }
+        false
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let target = spec
+            .windows_target
+            .unwrap_or(DEFAULT_BROWSER_LAUNCH.windows_target.unwrap_or("chrome"));
+        Command::new("cmd")
+            .args(["/c", "start", "", target])
+            .args(&profile_args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .is_ok()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let commands = if spec.posix_commands.is_empty() {
+            DEFAULT_BROWSER_LAUNCH.posix_commands
+        } else {
+            spec.posix_commands
+        };
+        for candidate in commands {
+            let Ok(output) = Command::new("which").arg(candidate).output() else {
+                continue;
+            };
+            if !output.status.success() {
+                continue;
+            }
+            let executable = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map(str::to_string);
+            if let Some(executable) = executable {
+                if Command::new(executable)
+                    .args(&profile_args)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .is_ok()
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+fn inspect_marker_is_fresh(marker: &Path, now: SystemTime) -> bool {
+    let Ok(modified) = fs::metadata(marker).and_then(|metadata| metadata.modified()) else {
+        return false;
+    };
+    now.duration_since(modified)
+        .map(|age| age < INSPECT_REOPEN_TTL)
+        .unwrap_or(true)
+}
+
+fn open_chrome_inspect() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let result = Command::new("osascript")
+            .args([
+                "-e",
+                "tell application \"Google Chrome\" to activate",
+                "-e",
+                &format!(
+                    "tell application \"Google Chrome\" to open location \"{CHROME_INSPECT_URL}\""
+                ),
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        if result.is_ok_and(|status| status.success()) {
+            return true;
+        }
+        return Command::new("open")
+            .arg(CHROME_INSPECT_URL)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/c", "start", "", CHROME_INSPECT_URL])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .is_ok()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        [
+            ("xdg-open", Vec::new()),
+            ("gio", vec!["open"]),
+            ("sensible-browser", Vec::new()),
+        ]
+        .into_iter()
+        .any(|(program, prefix_args)| {
+            Command::new(program)
+                .args(prefix_args)
+                .arg(CHROME_INSPECT_URL)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .is_ok()
+        })
+    }
+}
+
+fn open_chrome_inspect_once() -> bool {
+    let marker = inspect_marker();
+    if inspect_marker_is_fresh(&marker, SystemTime::now()) {
+        return true;
+    }
+    if !open_chrome_inspect() {
+        return false;
+    }
+    if let Some(parent) = marker.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(marker, b"");
+    true
+}
+
 fn daemon_launch_command() -> Result<Command, String> {
     if let Ok(custom) = std::env::var("BU_RUST_DAEMON_BIN") {
         let trimmed = custom.trim();
@@ -558,19 +981,37 @@ fn parse_created_profile_id(stdout: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
     use std::sync::{Mutex, OnceLock};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use serde_json::json;
 
     use super::{
-        daemon_launch_command, daemon_startup_error, ensure_daemon_uses_local_browser,
-        parse_created_profile_id, parse_ensure_daemon_options, parse_list_browsers_options,
+        browser_launch_spec, chrome_not_running, daemon_launch_command, daemon_startup_error,
+        ensure_daemon_uses_local_browser, inspect_marker_is_fresh, needs_chrome_permission_popup,
+        needs_chrome_remote_debugging_prompt, parse_created_profile_id,
+        parse_ensure_daemon_options, parse_list_browsers_options, profile_directory_args,
         profile_use_sync_command, resolve_daemon_name, EnsureDaemonOptions, ListBrowsersOptions,
     };
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "browser-harness-bhctl-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path).unwrap();
+        path
     }
 
     #[test]
@@ -666,7 +1107,29 @@ mod tests {
     }
 
     #[test]
-    fn daemon_startup_error_classifies_local_remote_debugging_state() {
+    fn daemon_startup_classifiers_cover_recovery_paths() {
+        assert!(chrome_not_running(
+            "fatal: chrome-not-running: no supported browser"
+        ));
+        assert!(needs_chrome_permission_popup(
+            "fatal: permission-blocked: click Allow in Chrome"
+        ));
+        assert!(needs_chrome_permission_popup(
+            "handshake-wait: click Allow in Chrome"
+        ));
+        assert!(needs_chrome_remote_debugging_prompt(
+            "fatal: CDP WS opening handshake timed out after 45s"
+        ));
+        assert!(needs_chrome_remote_debugging_prompt(
+            "fatal: DevToolsActivePort not found"
+        ));
+        assert!(needs_chrome_remote_debugging_prompt(
+            "remote debugging is turned off for this browser instance"
+        ));
+    }
+
+    #[test]
+    fn daemon_startup_error_preserves_remote_debugging_state_messages() {
         let message = "fatal: CDP WS handshake failed".to_string();
         assert!(daemon_startup_error(message.clone(), true, Some(true))
             .starts_with("permission-blocked:"));
@@ -677,6 +1140,61 @@ mod tests {
             daemon_startup_error(message.clone(), false, Some(true)),
             message
         );
+    }
+
+    #[test]
+    fn profile_directory_args_uses_last_profile_and_default_fallback() {
+        let base = temp_dir("profile-args");
+        fs::create_dir_all(base.join("Profile 2")).unwrap();
+        fs::write(
+            base.join("Local State"),
+            r#"{"profile":{"last_used":"Profile 2"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            profile_directory_args(&base),
+            vec!["--profile-directory=Profile 2".to_string()]
+        );
+
+        fs::write(base.join("Local State"), "{}").unwrap();
+        fs::create_dir_all(base.join("Default")).unwrap();
+        assert_eq!(
+            profile_directory_args(&base),
+            vec!["--profile-directory=Default".to_string()]
+        );
+        fs::remove_dir_all(base.join("Default")).unwrap();
+        assert!(profile_directory_args(&base).is_empty());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn browser_launch_spec_matches_profile_family() {
+        assert_eq!(
+            browser_launch_spec(Some(Path::new(
+                "profiles/Library/Application Support/Microsoft Edge"
+            )))
+            .macos_app,
+            "Microsoft Edge"
+        );
+        assert_eq!(
+            browser_launch_spec(Some(Path::new(
+                "profiles/Library/Application Support/Google/Chrome Canary"
+            )))
+            .macos_app,
+            "Google Chrome Canary"
+        );
+    }
+
+    #[test]
+    fn inspect_marker_freshness_honors_recent_marker() {
+        let dir = temp_dir("inspect-marker");
+        let marker = dir.join("inspect-opened");
+        fs::write(&marker, "").unwrap();
+
+        assert!(inspect_marker_is_fresh(&marker, SystemTime::now()));
+
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
