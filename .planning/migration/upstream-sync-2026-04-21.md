@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `188383b9adf7dfa67fee07358381bb03f090e554`
-- Commit range: `34e942fd7ca5d8adec129e64bddbb97c334bad1f..188383b9adf7dfa67fee07358381bb03f090e554`
-- Count: 8 commits (5 non-merge + 3 merge)
+- Upstream target commit: `f5eaf904b221dde0118eba1496961c3dc20fda88`
+- Commit range: `34e942fd7ca5d8adec129e64bddbb97c334bad1f..f5eaf904b221dde0118eba1496961c3dc20fda88`
+- Count: 10 commits (6 non-merge + 4 merge)
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -518,3 +518,24 @@
 - `git diff --check` passed.
 - `./scripts/scan_sensitive.sh` requires `rg` (not available); equivalent Python fallback matched the script's exact regex set across 273 tracked/unignored files — clean, no secrets or local path leaks found.
 - Re-ran `git fetch origin main --prune` before reconciliation; `origin/main` equals `HEAD` (a4142ce), confirming the uncommitted migration is a direct descendant. No origin advancement to reconcile.
+
+## Daily Sync Migration — 2026-08-05
+
+- Range: `188383b9..f5eaf90` (2 commits: 1 non-merge + 1 merge)
+- Commits:
+  - `6dcc79d` — Bump pillow to 12.3.0 to fix Dependabot security alerts (non-merge)
+  - `f5eaf90` — Merge pull request #578 (merge, no diff delta)
+- Full diff: 1 file, 1 insertion, 1 deletion (`pyproject.toml`: `pillow==12.2.0` → `pillow==12.3.0`)
+- Applicability: **Not applicable to Rust fork** — this is a pure Python dependency version bump in `pyproject.toml`, which does not exist in the Rust architecture. No Rust runtime, domain skill, CLI, or documentation files were affected.
+- Rust migration decisions: None required. No Rust code, docs, or configuration changed.
+- Verification evidence:
+  - `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` passed (no format drift).
+  - `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+  - `cargo build --workspace --manifest-path rust/Cargo.toml` passed.
+  - `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed.
+  - `cargo run --bin bhrun -- summary` passed.
+  - `cargo run --bin browser-harness -- --help` passed.
+  - `git diff --check` passed.
+  - `./scripts/scan_sensitive.sh` requires `rg` (not available); Python fallback scan clean across all tracked files — no secrets or local path leaks.
+  - `git status --short` clean (only expected audit file change).
+- Audit metadata updated: target → `f5eaf90`, range extended, count updated to 10 (6 non-merge + 4 merge).
