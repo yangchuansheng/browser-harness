@@ -584,8 +584,8 @@
   inherited UBSan linker failure in `ring`; `env -u CFLAGS -u CC cargo build
   --workspace --manifest-path rust/Cargo.toml` passed.
 - `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace`
-  passed: 193 unit tests, 0 failures. This includes 14 `bhctl` tests and 7
-  top-level CLI tests.
+  passed after the parent-review correction: 194 unit tests, 0 failures. This
+  includes 15 `bhctl` tests and 7 top-level CLI tests.
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin
   bhrun -- summary` passed and reported 42 operations.
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin
