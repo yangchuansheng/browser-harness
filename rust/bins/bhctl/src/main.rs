@@ -25,6 +25,9 @@ const MAC_APPROVE_ACCESSIBILITY_DETAIL: &str =
     "allow the app launching browser-harness (for example Terminal, iTerm, or Codex) in System Settings > Privacy & Security > Accessibility";
 
 #[cfg(target_os = "macos")]
+const MAC_APPROVE_CHROME_ROOT_SUFFIX: &str = "Library/Application Support/Google/Chrome";
+
+#[cfg(target_os = "macos")]
 const MAC_APPROVE_APPLESCRIPT: &str = r#"using terms from application "System Events"
     on clickAllow(nodeRef)
         try
@@ -249,7 +252,11 @@ fn mac_approve_output() -> (&'static str, Option<String>) {
         if already_running(&config) {
             return ("ready", None);
         }
-        if remote_debugging_toggle_profiles().is_empty() {
+        let chrome_root = default_browser_profiles()
+            .into_iter()
+            .find(|profile| profile.ends_with(MAC_APPROVE_CHROME_ROOT_SUFFIX));
+        let enabled_profiles = remote_debugging_toggle_profiles();
+        if !mac_approve_toggle_enabled(chrome_root.as_deref(), &enabled_profiles) {
             return (
                 "setup-required",
                 Some(
@@ -313,6 +320,10 @@ fn mac_approve_output() -> (&'static str, Option<String>) {
         let ready_after = stdout.trim() == "not-found" && already_running(&config);
         classify_mac_approve_output(output.status.success(), &stdout, &stderr, ready_after)
     }
+}
+
+fn mac_approve_toggle_enabled(chrome_root: Option<&Path>, enabled_profiles: &[PathBuf]) -> bool {
+    chrome_root.is_some_and(|root| enabled_profiles.iter().any(|profile| profile == root))
 }
 
 fn classify_mac_approve_output(
@@ -1184,7 +1195,7 @@ mod tests {
     use super::{
         browser_launch_spec, chrome_not_running, classify_mac_approve_output,
         daemon_launch_command, daemon_startup_error, ensure_daemon_uses_local_browser,
-        inspect_marker_is_fresh, needs_chrome_permission_popup,
+        inspect_marker_is_fresh, mac_approve_toggle_enabled, needs_chrome_permission_popup,
         needs_chrome_remote_debugging_prompt, parse_created_profile_id,
         parse_ensure_daemon_options, parse_list_browsers_options, profile_directory_args,
         profile_use_sync_command, resolve_daemon_name, EnsureDaemonOptions, ListBrowsersOptions,
@@ -1238,6 +1249,23 @@ mod tests {
                 Some("unexpected osascript result: unexpected".to_string())
             )
         );
+    }
+
+    #[test]
+    fn mac_approve_setup_accepts_only_the_google_chrome_toggle() {
+        let chrome_root = PathBuf::from("/tmp/Google/Chrome");
+        let edge_root = PathBuf::from("/tmp/Microsoft Edge");
+        let enabled_profiles = [edge_root, chrome_root.clone()];
+
+        assert!(mac_approve_toggle_enabled(
+            Some(&chrome_root),
+            &enabled_profiles
+        ));
+        assert!(!mac_approve_toggle_enabled(
+            Some(&chrome_root),
+            &enabled_profiles[..1]
+        ));
+        assert!(!mac_approve_toggle_enabled(None, &enabled_profiles));
     }
 
     #[test]

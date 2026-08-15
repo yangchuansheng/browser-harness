@@ -24,7 +24,8 @@ architecture.
 
 - Core migration delegated to Codex CLI (full-auto, unattended).
 - Rust port: `mac-approve` in `bhctl` + facade; `daemon_browser_ready` via
-  `already_running`; ensure-daemon macOS hint.
+  `already_running`; Google-Chrome-only toggle validation; ensure-daemon macOS
+  hint.
 - No Python runtime files copied.
 - Verification: cargo fmt/check/build/test, bhrun summary, facade --help,
   git diff --check, Python-fallback secret scan.

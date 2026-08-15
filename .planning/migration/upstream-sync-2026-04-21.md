@@ -557,8 +557,10 @@
     for `ready`.
   - Reused `bh_daemon::already_running` for the attached-browser readiness
     check and `bh_discovery::remote_debugging_toggle_profiles` for initial setup
-    detection. The AppleScript subprocess uses piped input/output and a
-    five-second timeout.
+    detection. Setup validation accepts only the Google Chrome profile toggle,
+    matching the AppleScript's `Google Chrome` process scope rather than treating
+    an enabled Edge/other Chromium profile as sufficient. The AppleScript
+    subprocess uses piped input/output and a five-second timeout.
   - Routed `mac-approve` through the top-level `browser-harness` facade and
     added the macOS helper option to the delayed `ensure-daemon` permission hint.
   - Adapted `README.md`, `SKILL.md`, `install.md`, and `CONTRIBUTING.md` to the
@@ -597,3 +599,5 @@
   and intended new text files with the four supplied regexes: 20 pre-existing
   matches (13 secret-reference examples, 2 local paths, 2 local websocket
   examples, and 3 local CDP examples), with 0 new matches.
+- Parent review caught and corrected an initial setup-check mismatch: an enabled
+  Edge/other Chromium toggle no longer bypasses Google Chrome setup validation.
