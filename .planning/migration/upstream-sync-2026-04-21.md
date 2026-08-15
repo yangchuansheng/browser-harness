@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `f5eaf904b221dde0118eba1496961c3dc20fda88`
-- Commit range: `34e942fd7ca5d8adec129e64bddbb97c334bad1f..f5eaf904b221dde0118eba1496961c3dc20fda88`
-- Count: 10 commits (6 non-merge + 4 merge)
+- Upstream target commit: `6a80dbbce51e8c1776af061282546627f007be4e`
+- Commit range: `34e942fd7ca5d8adec129e64bddbb97c334bad1f..6a80dbbce51e8c1776af061282546627f007be4e`
+- Count: 31 commits (21 non-merge + 10 merge)
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -539,3 +539,61 @@
   - `./scripts/scan_sensitive.sh` requires `rg` (not available); Python fallback scan clean across all tracked files — no secrets or local path leaks.
   - `git status --short` clean (only expected audit file change).
 - Audit metadata updated: target → `f5eaf90`, range extended, count updated to 10 (6 non-merge + 4 merge).
+
+## Daily Upstream Sync — 2026-08-16
+
+- Range: `f5eaf90..6a80dbb` (21 commits: 15 non-merge + 6 merge).
+- Upstream changes analyzed:
+  - Added the macOS `mac-approve` helper, including the embedded System Events
+    AppleScript, setup/accessibility diagnostics, daemon-ready race handling,
+    CLI wiring, and the macOS-specific `ensure_daemon` hint.
+  - Updated `SKILL.md` and `install.md` for per-connection Chrome approval.
+  - Reworked the README demo and cloud sections, added an X video showcase GIF,
+    and added `CONTRIBUTING.md`.
+- Rust migration decisions:
+  - Ported `mac-approve` into `bhctl` with the upstream status contract:
+    `ready`, `unsupported`, `setup-required`, `accessibility-required`, `error`,
+    and `not-found`. The command writes plain text and exits successfully only
+    for `ready`.
+  - Reused `bh_daemon::already_running` for the attached-browser readiness
+    check and `bh_discovery::remote_debugging_toggle_profiles` for initial setup
+    detection. The AppleScript subprocess uses piped input/output and a
+    five-second timeout.
+  - Routed `mac-approve` through the top-level `browser-harness` facade and
+    added the macOS helper option to the delayed `ensure-daemon` permission hint.
+  - Adapted `README.md`, `SKILL.md`, `install.md`, and `CONTRIBUTING.md` to the
+    Rust CLI, typed JSON commands, existing `domains/` tree, and current Rust
+    architecture. Copied the 1,352,637-byte showcase GIF byte-for-byte from
+    upstream.
+  - Added focused Rust tests for status classification and facade routing.
+- Adapted versus copied:
+  - The Python runtime files and Python unit tests were not copied. Their
+    applicable behavior lives in the existing Rust binaries and shared crates.
+  - Python launcher, packaging, workspace, and telemetry wording was omitted;
+    Cargo/installed-binary commands and `domains/` paths were used instead.
+
+## Daily Sync Verification Evidence — 2026-08-16
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check` initially reported
+  three rustfmt-only diffs. `cargo fmt --manifest-path rust/Cargo.toml --all`
+  applied them, and the required check then passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace` passed.
+- `cargo build --workspace --manifest-path rust/Cargo.toml` reproduced the
+  inherited UBSan linker failure in `ring`; `env -u CFLAGS -u CC cargo build
+  --workspace --manifest-path rust/Cargo.toml` passed.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace`
+  passed: 193 unit tests, 0 failures. This includes 14 `bhctl` tests and 7
+  top-level CLI tests.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin
+  bhrun -- summary` passed and reported 42 operations.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin
+  browser-harness -- --help` passed; `/tmp/bh-help.txt` lists `mac-approve` in
+  the admin command set.
+- A plain-text usage smoke check printed `usage: browser-harness mac-approve`
+  and returned exit status 2 for an extra argument, matching the upstream CLI.
+- `git diff --check` passed.
+- The macOS Bash 3.2 environment cannot run the Bash 4 `mapfile` path in
+  `scripts/scan_sensitive.sh`. The required Python fallback scanned 272 tracked
+  and intended new text files with the four supplied regexes: 20 pre-existing
+  matches (13 secret-reference examples, 2 local paths, 2 local websocket
+  examples, and 3 local CDP examples), with 0 new matches.

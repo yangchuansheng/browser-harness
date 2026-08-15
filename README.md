@@ -37,6 +37,12 @@ work that this repo builds on.
   ✓ task completed
 ```
 
+## See it work
+
+**Task:** "Open my X profile, find my latest 20 video posts, and download them."
+
+[![Download my latest 20 X videos](docs/download-latest-20-x-videos.gif)](https://browser-use.com/showcase/videos/download-latest-20-x-videos.mp4)
+
 ## What This Repo Is
 
 This repo carries the same core thesis as the original
@@ -171,24 +177,33 @@ When this page appears, tick the checkbox so the agent can connect to your brows
 
 <img src="docs/setup-remote-debugging.png" alt="Remote debugging setup" width="520" style="border-radius: 12px;" />
 
-On Chrome 144+ also click `Allow` when the per-attach popup appears:
-
-<img src="docs/allow-remote-debugging.png" alt="Allow remote debugging popup" width="520" style="border-radius: 12px;" />
+On macOS, when Chrome asks for remote-debugging permission, run
+`browser-harness mac-approve` in another shell. Continue when it returns
+`ready`; otherwise follow its printed instruction.
 
 See [domains/](domains/) for the active site-specific knowledge tree.
 
-## Remote Browsers
+## Scale with Browser Use Cloud
 
-If you want to use a remote browser instead of attaching to a local Chrome or
-Edge instance, create one at [cloud.browser-use.com](https://cloud.browser-use.com).
+Use the local browser for logged-in, personal work. For many browsers in
+parallel—with live previews, proxies, stealth, CAPTCHA solving, and isolated
+sessions—scale with [Browser Use Cloud](https://cloud.browser-use.com/new-api-key).
 
-That flow gives you the remote browser information needed by the harness, such
-as the live browser session and CDP connection details.
+The Rust CLI can create a browser with `browser-harness create-browser`; pass
+its `cdpWsUrl` and browser ID to `browser-harness ensure-daemon` through
+`BU_CDP_WS` and `BU_BROWSER_ID`. See [SKILL.md](SKILL.md) for the complete typed
+payload flow.
+
+## Contributing
+
+Bug fixes, documentation improvements, focused runtime changes, and domain
+skills are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Docs
 
 - [install.md](install.md) — first-time install and browser bootstrap
 - [SKILL.md](SKILL.md) — day-to-day operator/agent guide
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development and domain-skill contributions
 - [docs/architecture.md](docs/architecture.md) — runtime layout and core components
 - [docs/development.md](docs/development.md) — workspace commands and verification
 - [docs/wasm-guests.md](docs/wasm-guests.md) — current guest model, capabilities, and build/run flow

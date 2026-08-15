@@ -89,9 +89,22 @@ persists the cloud profile state. Profile sync commands live in
 
 **Local Way 1 — real profile.** In the running browser, open
 `chrome://inspect/#remote-debugging` and tick "Allow remote debugging for this
-browser instance". The setting is per-profile and sticky. Chrome 144+ may show
-an in-browser "Allow remote debugging?" popup on attach; click `Allow` when it
-appears. This path uses the user's real logins, extensions, history, and tabs.
+browser instance". The setting is per-profile and sticky. This path uses the
+user's real logins, extensions, history, and tabs.
+
+On macOS, Chrome 144+ may show an "Allow remote debugging?" sheet for each new
+connection. Handle it without bringing Chrome to the foreground:
+
+```bash
+browser-harness mac-approve
+```
+
+Continue browser work when the helper returns `ready`; each other status
+includes the required action. The initial checkbox remains a one-time manual
+Chrome setup step because the harness only gains CDP access after it is enabled.
+The helper requires Accessibility permission for the app launching the CLI,
+such as Terminal, iTerm, Codex, or an IDE, in System Settings > Privacy &
+Security > Accessibility.
 
 **Local Way 2 — isolated automation profile.** Launch Chrome/Chromium with a
 non-default user-data-dir and a debugging port, then point the harness at it:
@@ -146,7 +159,7 @@ JSON
 3. If it failed, **read the error and escalate from there — do not assume you need `chrome://inspect`**. The remote-debugging checkbox is per-profile sticky in Chrome, so any profile that has had it toggled on once will auto-enable CDP on every future launch; the inspect page is only needed the first time per profile.
 
    - **No Chrome process running** → just start Chrome and re-run the harness. On macOS: `open -a "Google Chrome"`. Do *not* navigate to `chrome://inspect` yet — if the user has ever ticked the checkbox on this profile, the harness will attach on its own.
-   - **`DevToolsActivePort` missing or empty after Chrome is up** → remote-debugging has never been enabled on this profile. *This* is when you open `chrome://inspect/#remote-debugging` and ask the user to tick the checkbox and click `Allow`. Once ticked, the setting sticks.
+   - **`DevToolsActivePort` missing or empty after Chrome is up** → remote-debugging has never been enabled on this profile. *This* is when you open `chrome://inspect/#remote-debugging` and ask the user to tick the checkbox. Once ticked, the setting sticks.
    - **Port present but `connection refused` / `DevTools not live yet` / `/json/version` 404** → Chrome is mid-startup. Just keep polling for up to 30 seconds; do not restart Chrome and do not open the inspect page.
    - **`no close frame received or sent` / stale websocket** → the daemon (not Chrome) is the problem. Run `restart_daemon()` once and retry — see step 7 below.
 
@@ -159,8 +172,8 @@ osascript -e 'tell application "Google Chrome" to activate' \
 
    On Linux: open that URL manually in the existing Chrome window.
    If Chrome shows the profile picker first, tell the user to choose their normal profile, *then* (only if `DevToolsActivePort` is still missing) open the inspect page in that profile. Keep polling instead of waiting for the user to type a follow-up.
-4. Be explicit with the user about the two possible Chrome actions: choose their normal profile if the profile picker is open, and in the remote-debugging tab tick the checkbox and click `Allow` once if Chrome shows it.
-5. Try to do everything yourself. Only ask the user to do something if it is truly necessary, like selecting the Chrome profile or clicking `Allow`. While the user is doing that, sleep and check every 3 seconds whether it is completed. After asking, keep retrying for at least 30 seconds even if you see connection-refused, stale websocket, or other weird transient attach errors.
+4. Be explicit with the user about the manual Chrome actions: choose their normal profile if the profile picker is open, and tick the checkbox in the remote-debugging tab. On macOS, run `browser-harness mac-approve` for the per-connection sheet.
+5. Try to do everything yourself. Ask the user for the profile selection or initial checkbox when needed. Run `browser-harness mac-approve` yourself on macOS, continue when it returns `ready`, and follow any other printed status. Keep retrying startup for at least 30 seconds through connection-refused, stale websocket, and similar transient attach errors.
 6. If setup still lands on the profile picker, have the user choose their normal profile, then (only if `DevToolsActivePort` is still missing) open `chrome://inspect/#remote-debugging` in that profile and keep polling instead of restarting the explanation. As soon as attach succeeds, continue immediately with the verification task without asking again.
 7. Verify with:
 
@@ -205,7 +218,7 @@ run `browser-harness recordings disable`. Preserve an existing `(config)` or
 
 - Try attaching before asking the user to change anything. Decide what to escalate based on the harness's error message, not on whether Chrome is visibly running.
 - The remote-debugging checkbox is per-profile sticky in Chrome. If it has ever been ticked on a profile, just launching Chrome is enough — only navigate to `chrome://inspect/#remote-debugging` when `DevToolsActivePort` is genuinely missing.
-- The first connect may block on Chrome's `Allow` dialog, and Chrome may also stop first on the profile picker.
+- On macOS, the first connect may block on Chrome's `Allow` sheet; run `browser-harness mac-approve`. Chrome may also stop first on the profile picker.
 - `DevToolsActivePort` can exist before the port is actually listening. Treat connection refused as "still enabling" and keep polling briefly.
 - If the port is listening but `/json/version` returns `404`, treat that as expected on newer Chrome builds and retry `browser-harness`.
 - Chrome may open the profile picker before any real tab exists.

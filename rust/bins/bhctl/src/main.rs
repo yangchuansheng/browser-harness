@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
+#[cfg(target_os = "macos")]
+use std::io::Write;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -19,26 +21,86 @@ use serde_json::{json, Value};
 
 const INSPECT_REOPEN_TTL: Duration = Duration::from_secs(180);
 const CHROME_INSPECT_URL: &str = "chrome://inspect/#remote-debugging";
+const MAC_APPROVE_ACCESSIBILITY_DETAIL: &str =
+    "allow the app launching browser-harness (for example Terminal, iTerm, or Codex) in System Settings > Privacy & Security > Accessibility";
+
+#[cfg(target_os = "macos")]
+const MAC_APPROVE_APPLESCRIPT: &str = r#"using terms from application "System Events"
+    on clickAllow(nodeRef)
+        try
+            if (role of nodeRef as text) is "AXButton" and ¬
+                (description of nodeRef as text) is "Allow" then
+                perform action "AXPress" of nodeRef
+                return true
+            end if
+        end try
+        try
+            repeat with childRef in UI elements of nodeRef
+                if my clickAllow(childRef) then return true
+            end repeat
+        end try
+        return false
+    end clickAllow
+end using terms from
+
+set resultText to "not-found"
+tell application "System Events"
+    if exists process "Google Chrome" then
+        tell process "Google Chrome"
+            repeat with w in windows
+                try
+                    repeat with s in sheets of w
+                        if (name of s as text) is "Allow remote debugging?" then
+                            if my clickAllow(s) then
+                                set resultText to "ready"
+                                exit repeat
+                            end if
+                        end if
+                    end repeat
+                end try
+                if resultText is "ready" then exit repeat
+            end repeat
+        end tell
+    end if
+end tell
+return resultText
+"#;
 
 #[tokio::main]
 async fn main() {
-    if let Err(err) = run().await {
-        eprintln!("{err}");
-        std::process::exit(1);
+    match run().await {
+        Ok(code) => std::process::exit(code),
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
     }
 }
 
-async fn run() -> Result<(), String> {
+async fn run() -> Result<i32, String> {
     let mut args = std::env::args().skip(1);
     let Some(command) = args.next() else {
         return Err(
-            "usage: bhctl <auth|create-browser|list-browsers|stop-browser|list-cloud-profiles|resolve-profile-name|list-local-profiles|sync-local-profile|daemon-alive|ensure-daemon|restart-daemon|stop-daemon>"
+            "usage: bhctl <auth|mac-approve|create-browser|list-browsers|stop-browser|list-cloud-profiles|resolve-profile-name|list-local-profiles|sync-local-profile|daemon-alive|ensure-daemon|restart-daemon|stop-daemon>"
                 .to_string(),
         );
     };
 
     let output = match command.as_str() {
         "auth" => auth_output(args.collect::<Vec<_>>())?,
+        "mac-approve" => {
+            if args.next().is_some() {
+                println!("usage: browser-harness mac-approve");
+                return Ok(2);
+            }
+            let (status, detail) = mac_approve_output();
+            if let Some(detail) = detail {
+                println!("{status}: {detail}");
+            } else {
+                println!("{status}");
+            }
+            return Ok(if status == "ready" { 0 } else { 1 });
+        }
         "create-browser" => {
             let client = browser_use_client()?;
             let mut payload = read_json_stdin()?.unwrap_or_else(|| json!({}));
@@ -88,7 +150,7 @@ async fn run() -> Result<(), String> {
         "restart-daemon" | "stop-daemon" => restart_daemon_output(args.next().as_deref())?,
         other => {
             return Err(format!(
-                "unknown bhctl command {:?}; expected auth, create-browser, list-browsers, stop-browser, list-cloud-profiles, resolve-profile-name, list-local-profiles, sync-local-profile, daemon-alive, ensure-daemon, restart-daemon, or stop-daemon",
+                "unknown bhctl command {:?}; expected auth, mac-approve, create-browser, list-browsers, stop-browser, list-cloud-profiles, resolve-profile-name, list-local-profiles, sync-local-profile, daemon-alive, ensure-daemon, restart-daemon, or stop-daemon",
                 other
             ))
         }
@@ -97,7 +159,7 @@ async fn run() -> Result<(), String> {
     let stdout =
         serde_json::to_string(&output).map_err(|err| format!("serialize bhctl output: {err}"))?;
     println!("{stdout}");
-    Ok(())
+    Ok(0)
 }
 
 #[derive(Debug, PartialEq)]
@@ -172,6 +234,132 @@ fn daemon_alive_output(name: Option<&str>) -> Value {
     })
 }
 
+fn mac_approve_output() -> (&'static str, Option<String>) {
+    #[cfg(not(target_os = "macos"))]
+    {
+        (
+            "unsupported",
+            Some("mac-approve is only available on macOS".to_string()),
+        )
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let config = daemon_config(None);
+        if already_running(&config) {
+            return ("ready", None);
+        }
+        if remote_debugging_toggle_profiles().is_empty() {
+            return (
+                "setup-required",
+                Some(
+                    "first enable \"Allow remote debugging for this browser instance\" at chrome://inspect/#remote-debugging, then run `browser-harness mac-approve` again"
+                        .to_string(),
+                ),
+            );
+        }
+
+        let mut child = match Command::new("osascript")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(err) => return ("error", Some(err.to_string())),
+        };
+        if let Err(err) = child
+            .stdin
+            .take()
+            .ok_or_else(|| "osascript stdin unavailable".to_string())
+            .and_then(|mut stdin| {
+                stdin
+                    .write_all(MAC_APPROVE_APPLESCRIPT.as_bytes())
+                    .map_err(|err| err.to_string())
+            })
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+            return ("error", Some(err));
+        }
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(20)),
+                Ok(None) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return (
+                        "accessibility-required",
+                        Some(MAC_APPROVE_ACCESSIBILITY_DETAIL.to_string()),
+                    );
+                }
+                Err(err) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return ("error", Some(err.to_string()));
+                }
+            }
+        }
+
+        let output = match child.wait_with_output() {
+            Ok(output) => output,
+            Err(err) => return ("error", Some(err.to_string())),
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let ready_after = stdout.trim() == "not-found" && already_running(&config);
+        classify_mac_approve_output(output.status.success(), &stdout, &stderr, ready_after)
+    }
+}
+
+fn classify_mac_approve_output(
+    success: bool,
+    stdout: &str,
+    stderr: &str,
+    daemon_ready: bool,
+) -> (&'static str, Option<String>) {
+    if !success {
+        let detail = stderr.trim();
+        let lower = detail.to_ascii_lowercase();
+        if lower.contains("not authorized") || lower.contains("assistive") {
+            return (
+                "accessibility-required",
+                Some(MAC_APPROVE_ACCESSIBILITY_DETAIL.to_string()),
+            );
+        }
+        return (
+            "error",
+            Some(if detail.is_empty() {
+                "osascript failed".to_string()
+            } else {
+                detail.to_string()
+            }),
+        );
+    }
+
+    match stdout.trim() {
+        "ready" => ("ready", None),
+        "not-found" if daemon_ready => ("ready", None),
+        "not-found" => (
+            "not-found",
+            Some(
+                "retry the browser command and run `browser-harness mac-approve` when the prompt appears"
+                    .to_string(),
+            ),
+        ),
+        status => (
+            "error",
+            Some(format!(
+                "unexpected osascript result: {}",
+                if status.is_empty() { "<empty>" } else { status }
+            )),
+        ),
+    }
+}
+
 fn parse_list_browsers_options(payload: Option<Value>) -> Result<ListBrowsersOptions, String> {
     let payload = payload.unwrap_or_else(|| json!({}));
     let Some(object) = payload.as_object() else {
@@ -241,8 +429,13 @@ fn ensure_daemon_output() -> Result<Value, String> {
                 && started.elapsed() > Duration::from_secs(2)
                 && log_tail(&config).is_some_and(|line| line.starts_with("handshake-wait"))
             {
+                let action = if cfg!(target_os = "macos") {
+                    "run `browser-harness mac-approve` in another shell or click Allow"
+                } else {
+                    "click Allow"
+                };
                 eprintln!(
-                    "browser-harness: Chrome is asking \"Allow remote debugging?\" -- click Allow to continue."
+                    "browser-harness: Chrome is asking \"Allow remote debugging?\" -- {action} to continue."
                 );
                 hinted = true;
             }
@@ -989,8 +1182,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        browser_launch_spec, chrome_not_running, daemon_launch_command, daemon_startup_error,
-        ensure_daemon_uses_local_browser, inspect_marker_is_fresh, needs_chrome_permission_popup,
+        browser_launch_spec, chrome_not_running, classify_mac_approve_output,
+        daemon_launch_command, daemon_startup_error, ensure_daemon_uses_local_browser,
+        inspect_marker_is_fresh, needs_chrome_permission_popup,
         needs_chrome_remote_debugging_prompt, parse_created_profile_id,
         parse_ensure_daemon_options, parse_list_browsers_options, profile_directory_args,
         profile_use_sync_command, resolve_daemon_name, EnsureDaemonOptions, ListBrowsersOptions,
@@ -1020,6 +1214,29 @@ mod tests {
         assert_eq!(
             parse_created_profile_id(stdout),
             Some("123e4567-e89b-12d3-a456-426614174000".to_string())
+        );
+    }
+
+    #[test]
+    fn mac_approve_classification_matches_cli_contract() {
+        assert_eq!(
+            classify_mac_approve_output(true, "ready\n", "", false),
+            ("ready", None)
+        );
+        assert_eq!(
+            classify_mac_approve_output(true, "not-found\n", "", true),
+            ("ready", None)
+        );
+        assert_eq!(
+            classify_mac_approve_output(false, "", "not authorized to send Apple events", false).0,
+            "accessibility-required"
+        );
+        assert_eq!(
+            classify_mac_approve_output(true, "unexpected\n", "", false),
+            (
+                "error",
+                Some("unexpected osascript result: unexpected".to_string())
+            )
         );
     }
 

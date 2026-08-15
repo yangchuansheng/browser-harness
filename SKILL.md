@@ -33,10 +33,12 @@ cd rust
 cargo run --quiet --bin browser-harness -- --help
 ```
 
-When Chrome is closed, the harness launches it automatically and retries. Click Allow when a permission popup appears.
+When Chrome is closed, the harness launches it automatically and retries.
 When Chrome is running with remote debugging disabled, the harness opens
-`chrome://inspect/#remote-debugging` and reports the required checkbox and
-Allow action.
+`chrome://inspect/#remote-debugging` and reports the required checkbox action.
+On macOS, when Chrome asks for remote-debugging permission, run
+`browser-harness mac-approve` in another shell. Continue browser work when it
+returns `ready`; otherwise follow its printed instruction.
 
 - For repo-local Rust-native use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
 - First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
@@ -280,9 +282,9 @@ Chrome / Browser Use cloud -> CDP WS -> bhd -> /tmp/bu-<NAME>.sock -> bhrun / bh
 - **Chrome 144+ `chrome://inspect/#remote-debugging` does NOT always serve `/json/version`.** The Rust discovery path falls back to `DevToolsActivePort` when `/json/version` returns 404.
 - **Try attaching before asking for setup.** If `browser-harness page-info` already works, skip the remote-debugging instructions entirely. Decide what to escalate from the harness's error message, not from whether Chrome is visibly running.
 - **The remote-debugging checkbox is per-profile sticky in Chrome.** Once ticked on a profile, every future Chrome launch auto-enables CDP — only navigate to `chrome://inspect/#remote-debugging` when `DevToolsActivePort` is genuinely missing on a fresh profile.
-- Chrome may show an "Allow remote debugging?" popup; wait for the user to click Allow. Do not retry in a loop (Chrome pops a fresh dialog for every new connection, and the daemon single held connection is what makes this a one-time click).
+- **On macOS, if Chrome shows an "Allow remote debugging?" popup, run `browser-harness mac-approve`.** Do not poll in a loop; the daemon holds one connection.
 - **`DevToolsActivePort` can exist before the port is actually listening.** Treat connection refused as "still enabling" and keep polling within the toggle-aware startup grace period.
-- **Chrome may open the profile picker before any real tab exists.** If Chrome opens both a profile picker and the remote-debugging page, tell the user to choose their normal profile first, then tick the checkbox and click `Allow` if shown.
+- **Chrome may open the profile picker before any real tab exists.** If Chrome opens both a profile picker and the remote-debugging page, tell the user to choose their normal profile first, then tick the checkbox. On macOS, run `browser-harness mac-approve` when the per-connection sheet appears.
 - **On macOS, if Chrome is already running, prefer AppleScript `open location` over `open -a ... URL`.** It reuses the current profile and avoids creating an extra startup path through the profile picker.
 - **Omnibox popups are fake `page` targets.** Filter `chrome://omnibox-popup...` and other internals when you need a real tab.
 - **CDP target order != Chrome's visible tab-strip order.** Use UI automation when the user means "the first/second tab I can see"; `Target.activateTarget` only shows a known target.
