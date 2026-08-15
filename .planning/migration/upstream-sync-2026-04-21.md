@@ -594,10 +594,11 @@
 - A plain-text usage smoke check printed `usage: browser-harness mac-approve`
   and returned exit status 2 for an extra argument, matching the upstream CLI.
 - `git diff --check` passed.
-- The macOS Bash 3.2 environment cannot run the Bash 4 `mapfile` path in
-  `scripts/scan_sensitive.sh`. The required Python fallback scanned 272 tracked
-  and intended new text files with the four supplied regexes: 20 pre-existing
-  matches (13 secret-reference examples, 2 local paths, 2 local websocket
-  examples, and 3 local CDP examples), with 0 new matches.
+- `scripts/scan_sensitive.sh` could not run because `rg` is unavailable; its
+  later Bash 4 `mapfile` path is also incompatible with macOS Bash 3.2. The
+  migration-time Python scan covered 272 tracked/intended text files and found
+  20 pre-existing matches with 0 new matches. The final skill fallback scan
+  covered 277 tracked/unignored files and found no obvious secrets or local-path
+  leaks.
 - Parent review caught and corrected an initial setup-check mismatch: an enabled
   Edge/other Chromium toggle no longer bypasses Google Chrome setup validation.
