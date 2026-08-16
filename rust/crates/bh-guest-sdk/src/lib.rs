@@ -118,10 +118,18 @@ pub fn close_tab(target_id: Option<&str>) -> Result<(), GuestError> {
 }
 
 pub fn switch_tab(target_id: &str) -> Result<SwitchTabResult, GuestError> {
+    switch_tab_with_activation(target_id, false)
+}
+
+pub fn switch_tab_with_activation(
+    target_id: &str,
+    activate: bool,
+) -> Result<SwitchTabResult, GuestError> {
     call_json(
         "switch_tab",
         &json!({
             "target_id": target_id,
+            "activate": activate,
         }),
     )
 }
@@ -602,11 +610,11 @@ mod tests {
         call_json_with, cdp_raw, click, close_tab, configure_downloads, current_session,
         current_tab, dispatch_key, ensure_real_tab, get_cookies, goto, handle_dialog, http_get,
         iframe_target, js, list_tabs, mouse_down, mouse_move, mouse_up, new_tab, page_info,
-        press_key, print_pdf, screenshot, scroll, set_cookies, set_viewport, switch_tab, type_text,
-        upload_file, wait, wait_for_console, wait_for_dialog, wait_for_download, wait_for_event,
-        wait_for_load, wait_for_load_event, wait_for_request, wait_for_response, watch_events,
-        CurrentSessionResult, GuestError, NewTabResult, SwitchTabResult, TabSummary, WaitResult,
-        WatchEventsLine,
+        press_key, print_pdf, screenshot, scroll, set_cookies, set_viewport, switch_tab,
+        switch_tab_with_activation, type_text, upload_file, wait, wait_for_console,
+        wait_for_dialog, wait_for_download, wait_for_event, wait_for_load, wait_for_load_event,
+        wait_for_request, wait_for_response, watch_events, CurrentSessionResult, GuestError,
+        NewTabResult, SwitchTabResult, TabSummary, WaitResult, WatchEventsLine,
     };
     use bh_wasm_host::WaitForEventResult;
     use serde_json::{json, Value};
@@ -1679,6 +1687,7 @@ mod tests {
         let _ = new_tab;
         let _ = close_tab;
         let _ = switch_tab;
+        let _ = switch_tab_with_activation;
         let _ = ensure_real_tab;
         let _ = iframe_target;
         let _ = goto;

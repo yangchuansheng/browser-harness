@@ -18,7 +18,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "MIT"
-version = "0.1.8"
+version = "0.1.9"
 
 [workspace.dependencies]
 futures-util = "0.3"

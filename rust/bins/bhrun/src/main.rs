@@ -826,7 +826,10 @@ where
     let session_id: String = typed_meta_result_with_sender(
         &request.daemon_name,
         META_SWITCH_TAB,
-        Some(json!({"target_id": request.target_id})),
+        Some(json!({
+            "target_id": request.target_id,
+            "activate": request.activate
+        })),
         &mut sender,
     )?;
     Ok(SwitchTabResult { session_id })
@@ -2514,6 +2517,7 @@ mod tests {
             SwitchTabRequest {
                 daemon_name: "runner".to_string(),
                 target_id: "target-9".to_string(),
+                activate: true,
             },
             |daemon, request| {
                 assert_eq!(daemon, "runner");
@@ -2525,6 +2529,14 @@ mod tests {
                         .and_then(|params| params.get("target_id"))
                         .and_then(Value::as_str),
                     Some("target-9")
+                );
+                assert_eq!(
+                    request
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("activate"))
+                        .and_then(Value::as_bool),
+                    Some(true)
                 );
                 Ok(DaemonResponse {
                     result: Some(json!("session-9")),

@@ -10,7 +10,7 @@ The Rust-native path is:
 - `bhrun new-tab`
 - `bhrun close-tab`
 - `bhrun switch-tab`
-- `bh_guest_sdk::{list_tabs,current_tab,new_tab,close_tab,switch_tab}`
+- `bh_guest_sdk::{list_tabs,current_tab,new_tab,close_tab,switch_tab,switch_tab_with_activation}`
 
 ## Recommended Flow
 
@@ -23,6 +23,10 @@ bhrun switch-tab <<'JSON'
 {"daemon_name":"default","target_id":"<target-id>"}
 JSON
 
+bhrun switch-tab <<'JSON'
+{"daemon_name":"default","target_id":"<target-id>","activate":true}
+JSON
+
 bhrun close-tab <<'JSON'
 {"daemon_name":"default","target_id":"<target-id>"}
 JSON
@@ -32,19 +36,27 @@ JSON
 
 - `list-tabs`: enumerate page targets
 - `current-tab`: inspect the currently attached target
-- `new-tab`: create a new page target
+- `new-tab`: create and attach to a background page target
 - `close-tab`: close a specific target, or the current target when `target_id`
   is omitted
-- `switch-tab`: attach to and activate a known target
+- `switch-tab`: attach to a known target and move the horse marker; `activate`
+  defaults to `false` and opts into a visible Chrome tab switch
 
 ## Rules
 
 - use `list-tabs(include_internal=false)` for user-facing work
 - use `switch-tab` when you already know the target id
+- keep `activate=false` for screenshots and normal CDP input in the background
+- set `activate=true` for a user-requested visible switch or a page that pauses
+  visibility-dependent rendering
 - use `close-tab` after temporary automation tabs are no longer needed
 - use `ensure-real-tab` if you suspect the daemon is attached to an internal tab
 - re-check `current-tab` or `page_info()` after switching if the flow is
   layout-sensitive
+
+Named local/CDP daemons retain one dedicated background target. Stale-session
+recovery reuses the current target, shares concurrent replacements, and keeps
+delayed requests scoped to the session that replaced their exact stale session.
 
 ## Local Verification
 

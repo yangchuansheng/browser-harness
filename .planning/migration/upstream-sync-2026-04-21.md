@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `6a80dbbce51e8c1776af061282546627f007be4e`
-- Commit range: `34e942fd7ca5d8adec129e64bddbb97c334bad1f..6a80dbbce51e8c1776af061282546627f007be4e`
-- Count: 31 commits (21 non-merge + 10 merge)
+- Upstream target commit: `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`
+- Commit range: `6a80dbbce51e8c1776af061282546627f007be4e..41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`
+- Count: 11 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -602,3 +602,45 @@
   leaks.
 - Parent review caught and corrected an initial setup-check mismatch: an enabled
   Edge/other Chromium toggle no longer bypasses Google Chrome setup validation.
+
+## Daily Upstream Sync — 2026-08-17
+
+- Previous target: `6a80dbbce51e8c1776af061282546627f007be4e`.
+- New target: `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`.
+- Range: `6a80dbbce51e8c1776af061282546627f007be4e..41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`.
+- Commits analyzed: 11 total (9 non-merge + 2 merge).
+
+### Commits Analyzed
+
+- `ff683255c10cad0e4f2c10134b2ee59a65ee5a05`: introduced reliable named-daemon tab cleanup; later commits in the same range superseded shutdown cleanup with reusable background tabs.
+- `0f9a3b6caeabcd388f4e9bf3209dae5f4218d739`: serialized stale-session recovery.
+- `8e88c5c38f196f094f483c37ae6565259a6e433d`: retained named tabs for reuse and preferred the selected target during recovery.
+- `b5fa3113be3e91f99519328e6be17e8f8ca8b2be`: shared one replacement tab across concurrent recovery requests.
+- `2c3a69ad09fd7b6f369f32d3eb5c5ad44d7832ed`: moved tab creation and switching to background attachment by default and updated tab guidance.
+- `ea005cab9ea48e868b18ed34ef2c4359a94f2fb0`: scoped stale retries to the exact recovered session.
+- `d44feeaa1c4d7c6537364df9e9f9b597fd1a32f7`: published replacement sessions before domain setup.
+- `f4c6ca2463830b228d374fb14a8abf32ade46cec`: serialized session recovery with deliberate tab switches.
+- `bbb0177ce7d6019c67dc371f6a0b0225d9bf0f27`: released upstream version `0.1.9`.
+- `c625a3aa3a7be6b89e77ba6084fe67c0a405b57e` and `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`: merged the named-tab work and `0.1.9` release into upstream main.
+
+### Migration Decisions
+
+- Ported named-tab ownership and stale-session recovery into `bh-daemon`. Named local/CDP daemons keep a dedicated background target, reuse the selected or dedicated target, share concurrent replacements, retain a bounded exact-session replacement chain, and serialize recovery with tab switches.
+- Replacement sessions enter daemon state before Page/DOM/Runtime/Network/Log/Console setup. Delayed requests retry against the session that replaced their exact stale session. Raw CDP requests carrying an explicit session keep exact-session semantics.
+- `Target.createTarget` uses `background: true`. `switch_tab` attaches in the background by default and performs `Target.activateTarget` only when the typed request sets `activate: true`.
+- Added backward-compatible `SwitchTabRequest.activate` handling in `bh-wasm-host`, forwarding in `bhrun`, and `switch_tab_with_activation` in `bh-guest-sdk`. `bh-protocol` continues to use the existing `META_SWITCH_TAB` command and protocol version because the new field defaults safely for older callers.
+- Adapted `SKILL.md`, `interaction-skills/connection.md`, and `interaction-skills/tabs.md` to the Rust CLI JSON shape, named-daemon recovery model, and background-tab behavior.
+- Bumped the Rust workspace and lockfile packages from `0.1.8` to `0.1.9`. The checked-in workspace already matched upstream's previous `0.1.8` release, so the upstream `0.1.9` release maps directly to the Rust package version.
+- Python daemon/helper runtime files and Python unit tests stayed upstream. Their applicable behavior and regression coverage live in the Rust daemon, typed request layer, runner, SDK, and Rust unit tests. `pyproject.toml` remains upstream packaging metadata.
+- This range contains zero domain-skill changes. The combined `agent-workspace/domain-skills/` and legacy `domain-skills/` mapping remains complete at 109/109, including the `scraping.md` to `domains/<site>/skill.md` convention.
+
+### Verification Evidence
+
+- `cargo fmt --all --manifest-path rust/Cargo.toml -- --check` initially reported two rustfmt-only line wraps; standard formatting was applied and the required check passed on rerun.
+- `cargo check --workspace --manifest-path rust/Cargo.toml` passed for all workspace packages at version `0.1.9`.
+- `env -u CFLAGS -u CC cargo test --workspace --manifest-path rust/Cargo.toml` passed: 198 tests, 0 failures.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed and reported 42 operations.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed; the captured facade help lists the complete admin and runner command surfaces.
+- Domain mapping verification passed: 109 upstream files, 109 mapped files, 0 missing.
+- `git diff --check` passed.
+- The Bash 4 `mapfile` requirement in `scripts/scan_sensitive.sh` was handled with a Python fallback over `git ls-files --cached --others --exclude-standard`. It scanned 275 text files, skipped 4 binary/non-text files, found 5 existing CDP URL environment examples, and found 0 new secret or local-path hits across 13 changed files.

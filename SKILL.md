@@ -42,6 +42,10 @@ returns `ready`; otherwise follow its printed instruction.
 
 - For repo-local Rust-native use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
 - First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
+- `new-tab` and `switch-tab` attach in the background and move the horse marker.
+  Screenshots and normal CDP input work on that attached tab. Set
+  `"activate":true` on `switch-tab` when the user requests a visible switch or
+  a page demonstrably pauses visibility-dependent rendering.
 
 The code is the doc.
 
@@ -288,7 +292,12 @@ Chrome / Browser Use cloud -> CDP WS -> bhd -> /tmp/bu-<NAME>.sock -> bhrun / bh
 - **On macOS, if Chrome is already running, prefer AppleScript `open location` over `open -a ... URL`.** It reuses the current profile and avoids creating an extra startup path through the profile picker.
 - **Omnibox popups are fake `page` targets.** Filter `chrome://omnibox-popup...` and other internals when you need a real tab.
 - **CDP target order != Chrome's visible tab-strip order.** Use UI automation when the user means "the first/second tab I can see"; `Target.activateTarget` only shows a known target.
-- **Default daemon sessions can go stale.** `ensure_real_tab()` re-attaches to a real page.
+- **Named local/CDP daemons own reusable background tabs.** Each daemon keeps a
+  dedicated target and prefers its current target during stale-session recovery.
+- **Stale-session recovery follows exact replacement chains.** Concurrent
+  requests share one replacement, and tab switches serialize with recovery.
+- **Default daemon sessions can go stale.** Recovery re-attaches to a real page;
+  `ensure_real_tab()` remains the explicit attachment repair command.
 - **`no close frame received or sent` usually means a stale daemon / websocket.** Restart the daemon once with:
   `cd rust && cargo run --quiet --bin browser-harness -- restart-daemon`
   before assuming setup is wrong.

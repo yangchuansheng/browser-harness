@@ -27,6 +27,7 @@ use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::{sleep, Instant};
 
 pub const DEFAULT_EVENT_CAPACITY: usize = 500;
+const MAX_SESSION_REPLACEMENTS: usize = 32;
 const MARK_JS: &str =
     "const m=String.fromCodePoint(0x1F434);if(!document.title.startsWith(m))document.title=m+' '+document.title";
 
@@ -72,6 +73,10 @@ impl DaemonConfig {
             "local"
         }
     }
+
+    fn uses_dedicated_tab(&self) -> bool {
+        self.name != "default" && self.remote_browser_id.is_none()
+    }
 }
 
 pub async fn stop_remote(config: &DaemonConfig) -> Result<bool, String> {
@@ -94,6 +99,8 @@ pub struct DaemonState {
     pub target_id: Option<String>,
     pub dialog: Option<Value>,
     pub events: VecDeque<Value>,
+    dedicated_target_id: Option<String>,
+    session_replacements: VecDeque<(String, String)>,
 }
 
 impl DaemonState {
@@ -111,6 +118,38 @@ impl DaemonState {
         self.session_id = None;
         self.target_id = None;
     }
+
+    fn replacement_for(&self, stale_session: &str) -> Option<String> {
+        self.session_replacements
+            .iter()
+            .rev()
+            .find(|(source, _)| source == stale_session)
+            .map(|(_, replacement)| replacement.clone())
+    }
+
+    fn record_session_replacement(
+        &mut self,
+        stale_session: Option<&str>,
+        replacement_session: &str,
+    ) {
+        let Some(stale_session) = stale_session.filter(|stale| *stale != replacement_session)
+        else {
+            return;
+        };
+
+        for (_, replacement) in &mut self.session_replacements {
+            if replacement == stale_session {
+                *replacement = replacement_session.to_string();
+            }
+        }
+        self.session_replacements
+            .retain(|(source, _)| source != stale_session);
+        self.session_replacements
+            .push_back((stale_session.to_string(), replacement_session.to_string()));
+        while self.session_replacements.len() > MAX_SESSION_REPLACEMENTS {
+            self.session_replacements.pop_front();
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -118,6 +157,7 @@ struct Daemon {
     config: DaemonConfig,
     cdp: CdpClient,
     state: Arc<Mutex<DaemonState>>,
+    session_state_lock: Arc<Mutex<()>>,
     shutdown_tx: watch::Sender<bool>,
 }
 
@@ -127,11 +167,21 @@ impl Daemon {
             config,
             cdp,
             state: Arc::new(Mutex::new(DaemonState::default())),
+            session_state_lock: Arc::new(Mutex::new(())),
             shutdown_tx,
         }
     }
 
     async fn attach_first_page(&self) -> Result<(), String> {
+        let _session_guard = self.session_state_lock.lock().await;
+        self.attach_first_page_locked(None, true).await.map(|_| ())
+    }
+
+    async fn attach_first_page_locked(
+        &self,
+        replaces_session: Option<&str>,
+        enable_domains: bool,
+    ) -> Result<String, String> {
         let target_result = self
             .cdp
             .send_raw("Target.getTargets", json!({}), None)
@@ -141,6 +191,67 @@ impl Daemon {
             .and_then(Value::as_array)
             .cloned()
             .ok_or_else(|| "Target.getTargets missing targetInfos".to_string())?;
+
+        if self.config.uses_dedicated_tab() {
+            if self.config.browser_kind() == "local" {
+                self.close_inspect_tabs(&targets).await;
+            }
+
+            let (current_target, dedicated_target) = {
+                let state = self.state.lock().await;
+                (state.target_id.clone(), state.dedicated_target_id.clone())
+            };
+            let mut page = find_named_page(
+                &targets,
+                current_target.as_deref(),
+                dedicated_target.as_deref(),
+            );
+
+            if page.is_none() {
+                let refreshed = self
+                    .cdp
+                    .send_raw("Target.getTargets", json!({}), None)
+                    .await?;
+                let refreshed = refreshed
+                    .get("targetInfos")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .ok_or_else(|| "Target.getTargets missing targetInfos".to_string())?;
+                let (current_target, dedicated_target) = {
+                    let state = self.state.lock().await;
+                    (state.target_id.clone(), state.dedicated_target_id.clone())
+                };
+                page = find_named_page(
+                    &refreshed,
+                    current_target.as_deref(),
+                    dedicated_target.as_deref(),
+                );
+            }
+
+            let page = match page {
+                Some(page) => page,
+                None => {
+                    let page = self.create_blank_page().await?;
+                    let target_id = page
+                        .get("targetId")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| "target missing targetId".to_string())?;
+                    self.state.lock().await.dedicated_target_id = Some(target_id.to_string());
+                    log_line(
+                        &self.config,
+                        &format!(
+                            "named daemon {}: created dedicated tab ({target_id})",
+                            self.config.name
+                        ),
+                    );
+                    page
+                }
+            };
+            return self
+                .attach_page_locked(&page, replaces_session, enable_domains)
+                .await;
+        }
+
         let mut take_over_inspect = false;
         let reusable = targets
             .iter()
@@ -169,21 +280,14 @@ impl Daemon {
             self.create_blank_page().await?
         };
 
+        let session_id = self
+            .attach_page_locked(&page, replaces_session, enable_domains)
+            .await?;
+
         let target_id = page
             .get("targetId")
             .and_then(Value::as_str)
             .ok_or_else(|| "target missing targetId".to_string())?;
-        let session_id = self.attach_to_target(target_id).await?;
-
-        log_line(
-            &self.config,
-            &format!(
-                "attached {} ({}) session={}",
-                target_id,
-                page.get("url").and_then(Value::as_str).unwrap_or(""),
-                session_id
-            ),
-        );
 
         if take_over_inspect {
             match self
@@ -209,13 +313,42 @@ impl Daemon {
             self.close_inspect_tabs(&targets).await;
         }
 
-        Ok(())
+        Ok(session_id)
+    }
+
+    async fn attach_page_locked(
+        &self,
+        page: &Value,
+        replaces_session: Option<&str>,
+        enable_domains: bool,
+    ) -> Result<String, String> {
+        let target_id = page
+            .get("targetId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "target missing targetId".to_string())?;
+        let session_id = self
+            .attach_to_target_locked(target_id, replaces_session, enable_domains)
+            .await?;
+        log_line(
+            &self.config,
+            &format!(
+                "attached {} ({}) session={}",
+                target_id,
+                page.get("url").and_then(Value::as_str).unwrap_or(""),
+                session_id
+            ),
+        );
+        Ok(session_id)
     }
 
     async fn create_blank_page(&self) -> Result<Value, String> {
         let created = self
             .cdp
-            .send_raw("Target.createTarget", json!({ "url": "about:blank" }), None)
+            .send_raw(
+                "Target.createTarget",
+                create_target_params("about:blank"),
+                None,
+            )
             .await?;
         let target_id = created
             .get("targetId")
@@ -242,7 +375,12 @@ impl Daemon {
             .cloned())
     }
 
-    async fn attach_to_target(&self, target_id: &str) -> Result<String, String> {
+    async fn attach_to_target_locked(
+        &self,
+        target_id: &str,
+        replaces_session: Option<&str>,
+        enable_domains: bool,
+    ) -> Result<String, String> {
         let attached = self
             .cdp
             .send_raw(
@@ -259,10 +397,13 @@ impl Daemon {
 
         {
             let mut state = self.state.lock().await;
+            state.record_session_replacement(replaces_session, &session_id);
             state.set_attachment(session_id.clone(), target_id.to_string());
         }
 
-        self.enable_session_domains(&session_id).await;
+        if enable_domains {
+            self.enable_session_domains(&session_id).await;
+        }
         Ok(session_id)
     }
 
@@ -332,7 +473,11 @@ impl Daemon {
         if let Some(session_id) = self.current_session().await {
             return Ok(session_id);
         }
-        self.attach_first_page().await?;
+        let _session_guard = self.session_state_lock.lock().await;
+        if let Some(session_id) = self.current_session().await {
+            return Ok(session_id);
+        }
+        self.attach_first_page_locked(None, true).await?;
         self.current_session()
             .await
             .ok_or_else(|| "no active session after attach".to_string())
@@ -366,20 +511,40 @@ impl Daemon {
             Err(err)
                 if err.contains("Session with given id not found")
                     && !is_browser_level_method(method)
-                    && session_id.is_some()
-                    && session_id == current_session =>
+                    && session_id.is_some() =>
             {
-                log_line(
-                    &self.config,
-                    &format!(
-                        "stale session {}, re-attaching",
-                        session_id.unwrap_or_default()
-                    ),
-                );
-                self.attach_first_page().await?;
-                self.cdp
-                    .send_raw(method, params, self.current_session().await.as_deref())
-                    .await
+                let stale_session = session_id.as_deref().unwrap_or_default();
+                let (replacement_session, recovered_here) = {
+                    let _session_guard = self.session_state_lock.lock().await;
+                    let replacement = self.state.lock().await.replacement_for(stale_session);
+                    if replacement.is_some() {
+                        (replacement, false)
+                    } else if current_session.as_deref() == Some(stale_session)
+                        && self.current_session().await.as_deref() == Some(stale_session)
+                    {
+                        log_line(
+                            &self.config,
+                            &format!("stale session {stale_session}, re-attaching"),
+                        );
+                        let replacement = self
+                            .attach_first_page_locked(Some(stale_session), false)
+                            .await?;
+                        (Some(replacement), true)
+                    } else {
+                        (None, false)
+                    }
+                };
+
+                if let Some(replacement_session) = replacement_session {
+                    if recovered_here {
+                        self.enable_session_domains(&replacement_session).await;
+                    }
+                    self.cdp
+                        .send_raw(method, params, Some(&replacement_session))
+                        .await
+                } else {
+                    Err(err)
+                }
             }
             Err(err) => Err(err),
         }
@@ -482,18 +647,24 @@ impl Daemon {
         }
     }
 
-    async fn switch_tab_result(&self, target_id: &str) -> Result<Value, String> {
-        if let Some(session_id) = self.current_session().await {
-            self.unmark_session(&session_id).await;
-        }
-        self.cdp
-            .send_raw(
-                "Target.activateTarget",
-                json!({"targetId": target_id}),
-                None,
-            )
-            .await?;
-        let session_id = self.attach_to_target(target_id).await?;
+    async fn switch_tab_result(&self, target_id: &str, activate: bool) -> Result<Value, String> {
+        let session_id = {
+            let _session_guard = self.session_state_lock.lock().await;
+            if let Some(session_id) = self.current_session().await {
+                self.unmark_session(&session_id).await;
+            }
+            if activate {
+                self.cdp
+                    .send_raw(
+                        "Target.activateTarget",
+                        json!({"targetId": target_id}),
+                        None,
+                    )
+                    .await?;
+            }
+            self.attach_to_target_locked(target_id, None, false).await?
+        };
+        self.enable_session_domains(&session_id).await;
         self.mark_session(&session_id).await;
         Ok(Value::String(session_id))
     }
@@ -531,14 +702,18 @@ impl Daemon {
 
         let created = self
             .cdp
-            .send_raw("Target.createTarget", json!({"url": "about:blank"}), None)
+            .send_raw(
+                "Target.createTarget",
+                create_target_params("about:blank"),
+                None,
+            )
             .await?;
         let target_id = created
             .get("targetId")
             .and_then(Value::as_str)
             .ok_or_else(|| "Target.createTarget missing targetId".to_string())?
             .to_string();
-        self.switch_tab_result(&target_id).await?;
+        self.switch_tab_result(&target_id, false).await?;
         if url != "about:blank" {
             let session_id = self.ensure_session().await?;
             self.send_with_retry("Page.navigate", json!({"url": url}), Some(session_id))
@@ -578,11 +753,13 @@ impl Daemon {
                 state.clear_session();
                 state.dialog = None;
             }
-            if let Ok(Some(tab)) = self.first_real_page().await {
-                if let Some(next_target_id) = tab.get("targetId").and_then(Value::as_str) {
-                    if self.switch_tab_result(next_target_id).await.is_err() {
-                        let mut state = self.state.lock().await;
-                        state.clear_session();
+            if !self.config.uses_dedicated_tab() {
+                if let Ok(Some(tab)) = self.first_real_page().await {
+                    if let Some(next_target_id) = tab.get("targetId").and_then(Value::as_str) {
+                        if self.switch_tab_result(next_target_id, false).await.is_err() {
+                            let mut state = self.state.lock().await;
+                            state.clear_session();
+                        }
                     }
                 }
             }
@@ -617,7 +794,7 @@ impl Daemon {
             .and_then(|tab| tab.get("targetId"))
             .and_then(Value::as_str)
             .ok_or_else(|| "tab summary missing targetId".to_string())?;
-        self.switch_tab_result(target_id).await?;
+        self.switch_tab_result(target_id, false).await?;
         Ok(tabs.first().cloned().unwrap_or(Value::Null))
     }
 
@@ -1227,8 +1404,9 @@ impl Daemon {
                 ..DaemonResponse::default()
             },
             Some(META_SET_SESSION) => {
-                let old_session = self.current_session().await;
-                {
+                let (old_session, new_session) = {
+                    let _session_guard = self.session_state_lock.lock().await;
+                    let old_session = self.current_session().await;
                     let mut state = self.state.lock().await;
                     if let Some(session_id) = request.session_id.clone() {
                         if let Some(target_id) = request.target_id.clone().or_else(|| {
@@ -1246,8 +1424,9 @@ impl Daemon {
                     } else {
                         state.clear_session();
                     }
-                }
-                if let Some(session_id) = self.current_session().await {
+                    (old_session, state.session_id.clone())
+                };
+                if let Some(session_id) = new_session {
                     if old_session.as_deref().is_some_and(|old| old != session_id) {
                         if let Some(old_session) = old_session {
                             let _ = self
@@ -1331,8 +1510,14 @@ impl Daemon {
                     .as_ref()
                     .and_then(|params| params.get("target_id"))
                     .and_then(Value::as_str);
+                let activate = request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("activate"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
                 match target_id {
-                    Some(target_id) => match self.switch_tab_result(target_id).await {
+                    Some(target_id) => match self.switch_tab_result(target_id, activate).await {
                         Ok(result) => DaemonResponse {
                             result: Some(result),
                             ..DaemonResponse::default()
@@ -1943,17 +2128,24 @@ impl Daemon {
             };
         };
         let params = request.params.clone().unwrap_or_else(|| json!({}));
+        let browser_level = is_browser_level_method(&method);
+        let explicit_session = request.session_id.is_some();
         let current_session = self.current_session().await;
-        let session_id = if is_browser_level_method(&method) {
-            request.session_id.clone()
+        let session_id = if browser_level {
+            None
         } else {
             request.session_id.clone().or(current_session.clone())
         };
 
-        match self
-            .send_with_retry(&method, params.clone(), session_id.clone())
-            .await
-        {
+        let result = if browser_level || explicit_session {
+            self.cdp
+                .send_raw(&method, params, session_id.as_deref())
+                .await
+        } else {
+            self.send_with_retry(&method, params, session_id).await
+        };
+
+        match result {
             Ok(result) => DaemonResponse {
                 result: Some(result),
                 ..DaemonResponse::default()
@@ -2131,6 +2323,29 @@ async fn handle_stream(daemon: Daemon, stream: TokioUnixStream) -> Result<(), St
         .await
         .map_err(|err| format!("write response: {err}"))?;
     Ok(())
+}
+
+fn create_target_params(url: &str) -> Value {
+    json!({"url": url, "background": true})
+}
+
+fn find_named_page(
+    targets: &[Value],
+    current_target: Option<&str>,
+    dedicated_target: Option<&str>,
+) -> Option<Value> {
+    [current_target, dedicated_target]
+        .into_iter()
+        .flatten()
+        .find_map(|target_id| {
+            targets
+                .iter()
+                .find(|target| {
+                    target.get("type").and_then(Value::as_str) == Some("page")
+                        && target.get("targetId").and_then(Value::as_str) == Some(target_id)
+                })
+                .cloned()
+        })
 }
 
 fn is_real_page(target: &Value) -> bool {
@@ -2426,10 +2641,10 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{
-        can_reuse_for_new_tab, encode_base64_standard, is_inspect_tab, is_real_page,
-        is_reusable_blank_page, is_reusable_new_tab_page, key_fields, log_tail,
-        png_dimensions_from_base64, push_event, shrink_png_data_url, stop_best_effort, stop_remote,
-        tab_summary, DaemonConfig,
+        can_reuse_for_new_tab, create_target_params, encode_base64_standard, find_named_page,
+        is_inspect_tab, is_real_page, is_reusable_blank_page, is_reusable_new_tab_page, key_fields,
+        log_tail, png_dimensions_from_base64, push_event, shrink_png_data_url, stop_best_effort,
+        stop_remote, tab_summary, DaemonConfig, DaemonState, MAX_SESSION_REPLACEMENTS,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -2523,6 +2738,68 @@ mod tests {
             &json!({"type": "iframe", "url": ""}),
             "https://example.com"
         ));
+    }
+
+    #[test]
+    fn target_creation_stays_in_the_background() {
+        assert_eq!(
+            create_target_params("about:blank"),
+            json!({"url": "about:blank", "background": true})
+        );
+    }
+
+    #[test]
+    fn named_page_prefers_current_target_then_dedicated_target() {
+        let targets = vec![
+            json!({"targetId": "dedicated", "type": "page", "url": "about:blank"}),
+            json!({"targetId": "current", "type": "page", "url": "https://example.com"}),
+        ];
+
+        assert_eq!(
+            find_named_page(&targets, Some("current"), Some("dedicated"))
+                .and_then(|target| target.get("targetId").cloned()),
+            Some(json!("current"))
+        );
+        assert_eq!(
+            find_named_page(&targets, Some("missing"), Some("dedicated"))
+                .and_then(|target| target.get("targetId").cloned()),
+            Some(json!("dedicated"))
+        );
+    }
+
+    #[test]
+    fn named_daemons_use_dedicated_tabs_except_for_cloud_browsers() {
+        assert!(DaemonConfig::new("worker-a").uses_dedicated_tab());
+        assert!(!DaemonConfig::new("default").uses_dedicated_tab());
+
+        let mut cloud = DaemonConfig::new("worker-a");
+        cloud.remote_browser_id = Some("browser-id".to_string());
+        assert!(!cloud.uses_dedicated_tab());
+    }
+
+    #[test]
+    fn session_replacements_follow_recovery_chains_and_stay_bounded() {
+        let mut state = DaemonState::default();
+        state.record_session_replacement(Some("stale-a"), "replacement-b");
+        state.record_session_replacement(Some("replacement-b"), "replacement-c");
+
+        assert_eq!(
+            state.replacement_for("stale-a").as_deref(),
+            Some("replacement-c")
+        );
+        assert_eq!(
+            state.replacement_for("replacement-b").as_deref(),
+            Some("replacement-c")
+        );
+
+        for index in 0..=MAX_SESSION_REPLACEMENTS {
+            state.record_session_replacement(
+                Some(&format!("stale-{index}")),
+                &format!("replacement-{index}"),
+            );
+        }
+        assert_eq!(state.session_replacements.len(), MAX_SESSION_REPLACEMENTS);
+        assert_eq!(state.replacement_for("stale-0"), None);
     }
 
     #[test]

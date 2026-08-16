@@ -21,14 +21,16 @@ Fresh Chrome can expose internal page targets such as:
 If the daemon attaches there, later navigation may succeed in CDP while the user
 still sees the wrong surface.
 
-`ensure-real-tab` is the recovery primitive for that case.
+`ensure-real-tab` is the recovery primitive for that case. Named local/CDP
+daemons keep a dedicated background target so parallel daemon names retain
+independent automation state.
 
 ## Preferred Startup Sequence
 
 1. start or confirm the daemon
 2. list tabs
 3. call `ensure-real-tab`
-4. only then navigate or switch
+4. navigate or switch in the attached background tab
 
 ```bash
 browser-harness ensure-daemon
@@ -40,16 +42,26 @@ JSON
 bhrun ensure-real-tab <<'JSON'
 {"daemon_name":"default"}
 JSON
+
+bhrun switch-tab <<'JSON'
+{"daemon_name":"default","target_id":"<target-id>","activate":true}
+JSON
 ```
 
 ## Rules
 
 - prefer `ensure-real-tab` before a browser-first workflow starts
-- use `switch-tab` when you already know the target id you want
-- treat `new-tab` as a creation primitive, not as visibility proof
+- use `switch-tab` to attach to a known target while preserving Chrome's visible tab
+- set `activate=true` for an explicit visible switch or verified
+  visibility-dependent rendering
+- treat `new-tab` as a background creation-and-attach primitive
 - call `close-tab` for temporary tabs once the workflow no longer needs them
 - if `page_info()` shows `w=0` or `h=0`, recover the attachment instead of
   continuing blindly
+
+Named daemon recovery reuses the selected target while it exists, falls back to
+the daemon's dedicated target, and creates one shared background replacement
+after the target disappears. Daemon shutdown leaves working tabs open for reuse.
 
 ## Verification
 

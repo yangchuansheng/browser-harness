@@ -199,6 +199,8 @@ pub struct SwitchTabRequest {
     #[serde(default = "default_daemon_name")]
     pub daemon_name: String,
     pub target_id: String,
+    #[serde(default)]
+    pub activate: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1077,6 +1079,7 @@ impl SwitchTabRequest {
                 self.daemon_name.clone()
             },
             target_id: self.target_id.clone(),
+            activate: self.activate,
         }
     }
 }
@@ -2725,11 +2728,19 @@ mod tests {
         let request = SwitchTabRequest {
             daemon_name: "   ".to_string(),
             target_id: "target-7".to_string(),
+            activate: true,
         };
         let normalized = request.normalized();
 
         assert_eq!(normalized.daemon_name, "default");
         assert_eq!(normalized.target_id, "target-7");
+        assert!(normalized.activate);
+
+        let legacy: SwitchTabRequest = serde_json::from_value(json!({
+            "target_id": "target-8"
+        }))
+        .unwrap();
+        assert!(!legacy.activate);
     }
 
     #[test]
