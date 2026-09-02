@@ -5,15 +5,14 @@
 See: `.planning/PROJECT.md` (updated 2026-05-14)
 
 **Core value:** Preserve upstream Browser Harness behavior parity in the Rust architecture.
-**Current focus:** Daily upstream sync completed through `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`.
+**Current focus:** Daily upstream sync completed through `0c9b95ff6740556dd71d28f9422a953d203358af`.
 
 ## Current Status
 
-- 2026-08-17 sync migrated 11 upstream commits (`6a80dbb..41108b8`), including
-  serialized exact-session recovery, reusable named-daemon background tabs,
-  and explicit tab activation.
-- Rust workspace version is `0.1.9`; workspace fmt/check/test and CLI smoke
-  verification passed with 198 tests and 42 live operations.
+- 2026-09-03 sync migrated 58 upstream commits (`41108b8..0c9b95f`), followed by
+  a corrective parity audit for workspace versioning and printable-key Shift behavior.
+- Rust workspace version is `0.1.10`; workspace verification covers the current
+  daemon, CLI, MCP, domain, and WASM surfaces.
 - Domain mapping remains complete at 109/109 across current and legacy upstream
   domain-skill roots.
 - 2026-08-16 sync migrated 21 upstream commits (`f5eaf90..6a80dbb`), including
@@ -32,7 +31,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-14)
 
 ## Next Action
 
-Run the next daily upstream sync from target `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`.
+Run the next daily upstream sync from target `0c9b95ff6740556dd71d28f9422a953d203358af`.
 
 ## Blockers
 
@@ -42,5 +41,6 @@ None.
 
 | Date | Task | Status | Artifact |
 |---|---|---|---|
+| 2026-09-03 | Upstream sync through `0c9b95f` | complete | `.planning/quick/260903-480-browser-harness-upstream-sync-to-0c9b95f/SUMMARY.md` |
 | 2026-08-17 | Upstream sync through `41108b8` | complete | `.planning/quick/20260817-upstream-sync/SUMMARY.md` |
 | 2026-08-16 | Upstream sync through `6a80dbb` | complete | `.planning/quick/20260816-upstream-sync/SUMMARY.md` |

@@ -657,15 +657,22 @@
 - Adapted hidden-tab scroll recovery, touch-emulation guidance, tab hygiene, README, install docs, and issue reproduction commands to the Rust typed CLI.
 - Upstream Python packaging/update-check and recorder-specific changes have no corresponding Rust runtime surface. Browser launch process ownership remains platform-managed in the existing Rust launcher; the daemon safety and readiness paths are preserved.
 
+### Post-push corrective audit
+
+- Bumped the Rust workspace and every workspace-local lockfile package from `0.1.9` to `0.1.10`, matching upstream `pyproject.toml` release `0.1.10` from commit `98d729b`.
+- Added `press_key` Shift-modifier parity for ASCII uppercase and shifted US-layout punctuation. Shift bit `8` is inferred only when Alt/Ctrl/Meta bits `1|2|4` are clear; focused unit coverage exercises uppercase, shifted punctuation, lowercase, Ctrl shortcuts, and digits.
+- Classified upstream `fill_input` browser-OS select-all selection as structurally non-applicable. The Rust path clears with JavaScript (`e.value = ''` plus an `input` event) and inserts with CDP `Input.insertText`, so it performs no select-all shortcut.
+
 ## Daily Sync Verification Evidence — 2026-09-03
 
 - `cargo fmt --all --manifest-path rust/Cargo.toml -- --check` passed.
 - `env -u CFLAGS -u CC cargo check --workspace --manifest-path rust/Cargo.toml` passed.
-- `env -u CFLAGS -u CC cargo test --workspace --manifest-path rust/Cargo.toml` passed: 202 tests, 0 failures.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace` passed: 203 tests, 0 failures, including the printable-key Shift regression test.
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed and reported 42 live operations.
 - `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and listed `doctor`.
 - MCP stdio smoke passed for `initialize` and `tools/list`, exposing 18 Rust CLI-backed browser tools.
-- `browser-harness doctor sync-missing` returned the expected versioned unhealthy JSON without starting a daemon.
+- `browser-harness doctor sync-missing` returned `{"daemon":{"alive":false,"browserKind":"local","name":"sync-missing"},"healthy":false,"schemaVersion":1}` and left both `/tmp/bu-sync-missing.pid` and `/tmp/bu-sync-missing.sock` absent.
 - `git diff --check` passed.
+- All 13 workspace-local packages in `rust/Cargo.lock` report version `0.1.10`. The lockfile's sole `0.1.9` text match belongs to third-party `find-msvc-tools` and remains unchanged.
 - Changed-domain mapping verification passed: 5 upstream changes, 5 mapped files, 0 missing.
 - `scripts/scan_sensitive.sh` reached its Bash 4 `mapfile` call on macOS Bash 3.2. An equivalent Python scan using the script's exact 12 regexes passed across 281 tracked/unignored text files; 4 binary files were skipped.

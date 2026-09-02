@@ -1183,6 +1183,7 @@ impl Daemon {
     async fn press_key_result(&self, key: &str, modifiers: i64) -> Result<Value, String> {
         let session_id = self.ensure_session().await?;
         let (vk, code, text) = key_fields(key);
+        let modifiers = press_key_effective_modifiers(key, modifiers);
         let key_down = {
             let mut payload = json!({
                 "type": "keyDown",
@@ -2473,6 +2474,41 @@ fn key_fields(key: &str) -> (i64, String, Option<String>) {
     }
 }
 
+fn press_key_effective_modifiers(key: &str, modifiers: i64) -> i64 {
+    let needs_shift = key.chars().count() == 1
+        && key.chars().next().is_some_and(|ch| {
+            ch.is_ascii_uppercase()
+                || matches!(
+                    ch,
+                    '~' | '!'
+                        | '@'
+                        | '#'
+                        | '$'
+                        | '%'
+                        | '^'
+                        | '&'
+                        | '*'
+                        | '('
+                        | ')'
+                        | '_'
+                        | '+'
+                        | '{'
+                        | '}'
+                        | '|'
+                        | ':'
+                        | '"'
+                        | '<'
+                        | '>'
+                        | '?'
+                )
+        });
+    if needs_shift && modifiers & 7 == 0 {
+        modifiers | 8
+    } else {
+        modifiers
+    }
+}
+
 fn printable_key_fields(ch: char) -> Option<(i64, String)> {
     let unshifted = match ch {
         '~' => '`',
@@ -2708,9 +2744,9 @@ mod tests {
     use super::{
         can_reuse_for_new_tab, create_target_params, encode_base64_standard, find_named_page,
         is_inspect_tab, is_real_page, is_reusable_blank_page, is_reusable_new_tab_page, key_fields,
-        log_tail, png_dimensions_from_base64, push_event, redact_cdp_endpoint, shrink_png_data_url,
-        stop_best_effort, stop_remote, tab_summary, DaemonConfig, DaemonState,
-        MAX_SESSION_REPLACEMENTS,
+        log_tail, png_dimensions_from_base64, press_key_effective_modifiers, push_event,
+        redact_cdp_endpoint, shrink_png_data_url, stop_best_effort, stop_remote, tab_summary,
+        DaemonConfig, DaemonState, MAX_SESSION_REPLACEMENTS,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -2976,6 +3012,15 @@ mod tests {
             key_fields("UnknownKey"),
             (0, "UnknownKey".to_string(), None)
         );
+    }
+
+    #[test]
+    fn press_key_adds_shift_for_shifted_printable_characters() {
+        assert_eq!(press_key_effective_modifiers("A", 0), 8);
+        assert_eq!(press_key_effective_modifiers("?", 0), 8);
+        assert_eq!(press_key_effective_modifiers("a", 0) & 8, 0);
+        assert_eq!(press_key_effective_modifiers("A", 2) & 8, 0);
+        assert_eq!(press_key_effective_modifiers("1", 0) & 8, 0);
     }
 
     #[test]
