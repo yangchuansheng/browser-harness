@@ -2244,7 +2244,10 @@ pub async fn serve(config: &DaemonConfig) -> Result<(), String> {
     let _ = fs::remove_file(&paths.sock);
 
     let url = get_ws_url()?;
-    log_line(config, &format!("connecting to {url}"));
+    log_line(
+        config,
+        &format!("connecting to {}", redact_cdp_endpoint(&url)),
+    );
     let is_local = config.browser_kind() == "local";
     if is_local {
         log_line(
@@ -2356,7 +2359,7 @@ fn is_real_page(target: &Value) -> bool {
 fn is_reusable_blank_page(target: &Value) -> bool {
     let url = target.get("url").and_then(Value::as_str).unwrap_or("");
     target.get("type").and_then(Value::as_str) == Some("page")
-        && (url == "about:blank" || url.starts_with("about:blank#"))
+        && (url == "about:blank" || url == "data:text/html," || url.starts_with("about:blank#"))
         && !target
             .get("title")
             .and_then(Value::as_str)
@@ -2460,15 +2463,77 @@ fn key_fields(key: &str) -> (i64, String, Option<String>) {
         _ => {
             if key.chars().count() == 1 {
                 let ch = key.chars().next().unwrap_or_default();
-                (
-                    i64::from(u32::from(ch)),
-                    key.to_string(),
-                    Some(key.to_string()),
-                )
+                printable_key_fields(ch)
+                    .map(|(vk, code)| (vk, code, Some(key.to_string())))
+                    .unwrap_or((0, String::new(), Some(key.to_string())))
             } else {
                 (0, key.to_string(), None)
             }
         }
+    }
+}
+
+fn printable_key_fields(ch: char) -> Option<(i64, String)> {
+    let unshifted = match ch {
+        '~' => '`',
+        '!' => '1',
+        '@' => '2',
+        '#' => '3',
+        '$' => '4',
+        '%' => '5',
+        '^' => '6',
+        '&' => '7',
+        '*' => '8',
+        '(' => '9',
+        ')' => '0',
+        '_' => '-',
+        '+' => '=',
+        '{' => '[',
+        '}' => ']',
+        '|' => '\\',
+        ':' => ';',
+        '"' => '\'',
+        '<' => ',',
+        '>' => '.',
+        '?' => '/',
+        other => other,
+    };
+    if unshifted.is_ascii_alphabetic() {
+        let upper = unshifted.to_ascii_uppercase();
+        return Some((i64::from(upper as u8), format!("Key{upper}")));
+    }
+    if unshifted.is_ascii_digit() {
+        return Some((i64::from(unshifted as u8), format!("Digit{unshifted}")));
+    }
+    let (code, vk) = match unshifted {
+        '`' => ("Backquote", 192),
+        '-' => ("Minus", 189),
+        '=' => ("Equal", 187),
+        '[' => ("BracketLeft", 219),
+        ']' => ("BracketRight", 221),
+        '\\' => ("Backslash", 220),
+        ';' => ("Semicolon", 186),
+        '\'' => ("Quote", 222),
+        ',' => ("Comma", 188),
+        '.' => ("Period", 190),
+        '/' => ("Slash", 191),
+        _ => return None,
+    };
+    Some((vk, code.to_string()))
+}
+
+fn redact_cdp_endpoint(url: &str) -> String {
+    let Some(scheme_end) = url.find("://") else {
+        return "<redacted-cdp-endpoint>".to_string();
+    };
+    let scheme = &url[..scheme_end];
+    let authority = &url[scheme_end + 3..];
+    let authority = authority.split('/').next().unwrap_or_default();
+    let host = authority.rsplit('@').next().unwrap_or_default();
+    if host.is_empty() {
+        "<redacted-cdp-endpoint>".to_string()
+    } else {
+        format!("{scheme}://{host}/<redacted>")
     }
 }
 
@@ -2643,8 +2708,9 @@ mod tests {
     use super::{
         can_reuse_for_new_tab, create_target_params, encode_base64_standard, find_named_page,
         is_inspect_tab, is_real_page, is_reusable_blank_page, is_reusable_new_tab_page, key_fields,
-        log_tail, png_dimensions_from_base64, push_event, shrink_png_data_url, stop_best_effort,
-        stop_remote, tab_summary, DaemonConfig, DaemonState, MAX_SESSION_REPLACEMENTS,
+        log_tail, png_dimensions_from_base64, push_event, redact_cdp_endpoint, shrink_png_data_url,
+        stop_best_effort, stop_remote, tab_summary, DaemonConfig, DaemonState,
+        MAX_SESSION_REPLACEMENTS,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -2688,6 +2754,9 @@ mod tests {
             "type": "page",
             "url": "about:blank#ready",
             "title": ""
+        })));
+        assert!(is_reusable_blank_page(&json!({
+            "type": "page", "url": "data:text/html,", "title": ""
         })));
         assert!(!is_reusable_blank_page(&json!({
             "type": "page",
@@ -2892,12 +2961,28 @@ mod tests {
         );
         assert_eq!(
             key_fields("a"),
-            (97, "a".to_string(), Some("a".to_string()))
+            (65, "KeyA".to_string(), Some("a".to_string()))
+        );
+        assert_eq!(
+            key_fields("?"),
+            (191, "Slash".to_string(), Some("?".to_string()))
+        );
+        assert_eq!(
+            key_fields("界"),
+            (0, "".to_string(), Some("界".to_string()))
         );
         assert_eq!(key_fields("Escape"), (27, "Escape".to_string(), None));
         assert_eq!(
             key_fields("UnknownKey"),
             (0, "UnknownKey".to_string(), None)
+        );
+    }
+
+    #[test]
+    fn cdp_endpoint_logging_removes_credentials_and_paths() {
+        assert_eq!(
+            redact_cdp_endpoint("wss://user:secret@example.com/session/token?x=1"),
+            "wss://example.com/<redacted>"
         );
     }
 }

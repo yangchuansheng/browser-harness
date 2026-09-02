@@ -194,6 +194,11 @@ its `cdpWsUrl` and browser ID to `browser-harness ensure-daemon` through
 `BU_CDP_WS` and `BU_BROWSER_ID`. See [SKILL.md](SKILL.md) for the complete typed
 payload flow.
 
+## MCP Server
+
+The installed `browser-harness-mcp` binary exposes the Rust CLI operations as
+MCP tools over stdio. See [docs/MCP.md](docs/MCP.md) for client configuration.
+
 ## Contributing
 
 Bug fixes, documentation improvements, focused runtime changes, and domain
@@ -203,6 +208,7 @@ skills are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - [install.md](install.md) — first-time install and browser bootstrap
 - [SKILL.md](SKILL.md) — day-to-day operator/agent guide
+- [docs/MCP.md](docs/MCP.md) — MCP stdio server setup
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development and domain-skill contributions
 - [docs/architecture.md](docs/architecture.md) — runtime layout and core components
 - [docs/development.md](docs/development.md) — workspace commands and verification

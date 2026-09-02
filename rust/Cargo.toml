@@ -12,6 +12,7 @@ members = [
     "bins/bhrun",
     "bins/bhsmoke",
     "bins/browser-harness-cli",
+    "bins/browser-harness-mcp",
 ]
 resolver = "2"
 

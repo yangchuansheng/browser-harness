@@ -116,6 +116,9 @@ async fn run() -> Result<i32, String> {
             let cdp_ws_url = client.cdp_ws_from_url(cdp_url).await?;
             if let Some(object) = browser.as_object_mut() {
                 object.insert("cdpWsUrl".to_string(), Value::String(cdp_ws_url));
+                if !should_show_remote_live_view()? {
+                    object.remove("liveUrl");
+                }
             }
             browser
         }
@@ -149,6 +152,7 @@ async fn run() -> Result<i32, String> {
         "list-local-profiles" => list_local_profiles()?,
         "sync-local-profile" => sync_local_profile()?,
         "daemon-alive" => daemon_alive_output(args.next().as_deref()),
+        "doctor" => doctor_output(args.next().as_deref()),
         "ensure-daemon" => ensure_daemon_output()?,
         "restart-daemon" | "stop-daemon" => restart_daemon_output(args.next().as_deref())?,
         other => {
@@ -197,6 +201,19 @@ fn browser_use_client() -> Result<BrowserUseClient, String> {
     Ok(BrowserUseClient::new(api_key))
 }
 
+fn should_show_remote_live_view() -> Result<bool, String> {
+    let Ok(raw) = std::env::var("BH_OPEN_LIVE_URL") else {
+        return Ok(true);
+    };
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => {
+            Err("BH_OPEN_LIVE_URL must be one of: 1, true, yes, on, 0, false, no, off".to_string())
+        }
+    }
+}
+
 fn auth_output(args: Vec<String>) -> Result<Value, String> {
     match args.first().map(String::as_str).unwrap_or("status") {
         "status" => Ok(auth_status()),
@@ -234,6 +251,20 @@ fn daemon_alive_output(name: Option<&str>) -> Value {
     json!({
         "alive": already_running(&config),
         "name": config.name,
+    })
+}
+
+fn doctor_output(name: Option<&str>) -> Value {
+    let config = daemon_config(name);
+    let alive = already_running(&config);
+    json!({
+        "schemaVersion": 1,
+        "healthy": alive,
+        "daemon": {
+            "name": config.name,
+            "alive": alive,
+            "browserKind": config.browser_kind(),
+        }
     })
 }
 
@@ -1194,11 +1225,12 @@ mod tests {
 
     use super::{
         browser_launch_spec, chrome_not_running, classify_mac_approve_output,
-        daemon_launch_command, daemon_startup_error, ensure_daemon_uses_local_browser,
-        inspect_marker_is_fresh, mac_approve_toggle_enabled, needs_chrome_permission_popup,
-        needs_chrome_remote_debugging_prompt, parse_created_profile_id,
-        parse_ensure_daemon_options, parse_list_browsers_options, profile_directory_args,
-        profile_use_sync_command, resolve_daemon_name, EnsureDaemonOptions, ListBrowsersOptions,
+        daemon_launch_command, daemon_startup_error, doctor_output,
+        ensure_daemon_uses_local_browser, inspect_marker_is_fresh, mac_approve_toggle_enabled,
+        needs_chrome_permission_popup, needs_chrome_remote_debugging_prompt,
+        parse_created_profile_id, parse_ensure_daemon_options, parse_list_browsers_options,
+        profile_directory_args, profile_use_sync_command, resolve_daemon_name,
+        should_show_remote_live_view, EnsureDaemonOptions, ListBrowsersOptions,
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -1226,6 +1258,29 @@ mod tests {
             parse_created_profile_id(stdout),
             Some("123e4567-e89b-12d3-a456-426614174000".to_string())
         );
+    }
+
+    #[test]
+    fn doctor_output_has_versioned_health_shape() {
+        let report = doctor_output(Some("missing-test-daemon"));
+        assert_eq!(report["schemaVersion"], 1);
+        assert_eq!(report["daemon"]["name"], "missing-test-daemon");
+        assert_eq!(report["healthy"], false);
+    }
+
+    #[test]
+    fn remote_live_view_setting_is_strict() {
+        let _guard = env_lock().lock().unwrap();
+        let previous = std::env::var_os("BH_OPEN_LIVE_URL");
+        std::env::set_var("BH_OPEN_LIVE_URL", "off");
+        assert!(!should_show_remote_live_view().unwrap());
+        std::env::set_var("BH_OPEN_LIVE_URL", "invalid");
+        assert!(should_show_remote_live_view().is_err());
+        if let Some(previous) = previous {
+            std::env::set_var("BH_OPEN_LIVE_URL", previous);
+        } else {
+            std::env::remove_var("BH_OPEN_LIVE_URL");
+        }
     }
 
     #[test]

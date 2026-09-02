@@ -34,6 +34,7 @@ use tokio::runtime::Builder;
 use wasmtime::{Caller, Engine, Linker, Module, Store, TypedFunc};
 
 const DEFAULT_DAEMON_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const SCREENSHOT_DAEMON_READ_TIMEOUT: Duration = Duration::from_secs(60);
 const DAEMON_TIMEOUT_SLACK: Duration = Duration::from_secs(5);
 
 fn print_usage() {
@@ -1966,6 +1967,7 @@ fn daemon_read_timeout(request: &DaemonRequest) -> Duration {
             .filter(|timeout| timeout.is_finite() && *timeout >= 0.0)
             .map(|timeout| Duration::from_secs_f64(timeout) + DAEMON_TIMEOUT_SLACK)
             .unwrap_or(DEFAULT_DAEMON_READ_TIMEOUT),
+        Some(META_SCREENSHOT) => SCREENSHOT_DAEMON_READ_TIMEOUT,
         _ => DEFAULT_DAEMON_READ_TIMEOUT,
     }
 }

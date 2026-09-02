@@ -30,7 +30,8 @@ async fn main() {
         log_line(&config, &format!("fatal: {err}"));
     }
 
-    match stop_remote(&config).await {
+    let remote_stop = stop_remote(&config).await;
+    match &remote_stop {
         Ok(true) => {
             if let Some(remote_browser_id) = config.remote_browser_id.as_deref() {
                 log_line(
@@ -51,8 +52,14 @@ async fn main() {
             }
         }
     }
-    cleanup_runtime_files(&config);
+    if remote_stop.is_ok() {
+        cleanup_runtime_files(&config);
+    }
 
+    if let Err(err) = remote_stop {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
     if let Err(err) = result {
         eprintln!("{err}");
         std::process::exit(1);

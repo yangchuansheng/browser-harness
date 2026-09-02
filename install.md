@@ -45,7 +45,7 @@ browser-harness --help
 browser-harness verify-install
 ```
 
-That installs `browser-harness`, `bhctl`, `bhrun`, and `bhd` into
+That installs `browser-harness`, `browser-harness-mcp`, `bhctl`, `bhrun`, and `bhd` into
 `$CARGO_HOME/bin` or `$HOME/.cargo/bin` by default. Re-run the same install
 command after pulling new changes when you want to refresh the installed
 binaries. Prefer a stable checkout path like `~/Developer/browser-harness`, not
@@ -86,6 +86,15 @@ the key came from the environment or the stored auth file, and
 through `BU_CDP_WS`, and keep `BU_BROWSER_ID` so shutdown stops billing and
 persists the cloud profile state. Profile sync commands live in
 `interaction-skills/profile-sync.md` and sync cookies only.
+
+For a machine-readable named-daemon health check, run:
+
+```bash
+browser-harness doctor remote
+```
+
+The versioned JSON report checks the existing daemon socket and leaves browser
+discovery and daemon startup untouched.
 
 **Local Way 1 — real profile.** In the running browser, open
 `chrome://inspect/#remote-debugging` and tick "Allow remote debugging for this

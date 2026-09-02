@@ -8,6 +8,13 @@ The Rust-native path is:
 - `bh_guest_sdk::scroll(...)`
 - `browser-harness scroll`
 
+## Hidden Tabs
+
+Start with the normal `scroll` command. A background tab can leave a wheel
+command unanswered. After a proven timeout, use `switch-tab` with
+`"activate":true`, retry the same scroll once, and verify the scroll position.
+Activation is visible to the user, so keep it as the timeout fallback.
+
 ## Split The Cases
 
 Page scroll:

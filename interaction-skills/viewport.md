@@ -23,6 +23,15 @@ The Rust-native path now exposes typed viewport control directly:
 - `browser-harness set-viewport`
 - `bh_guest_sdk::set_viewport(...)`
 
+## Touch Emulation
+
+Chrome accepts `maxTouchPoints` values from 1 through 16. Include the field
+when enabling touch emulation and omit it when disabling touch emulation:
+
+```json
+{"method":"Emulation.setTouchEmulationEnabled","params":{"enabled":false}}
+```
+
 Use the CLI directly:
 
 ```bash

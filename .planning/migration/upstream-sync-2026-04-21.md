@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`
-- Commit range: `6a80dbbce51e8c1776af061282546627f007be4e..41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`
-- Count: 11 commits
+- Upstream target commit: `0c9b95ff6740556dd71d28f9422a953d203358af`
+- Commit range: `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926..0c9b95ff6740556dd71d28f9422a953d203358af`
+- Count: 58 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -644,3 +644,28 @@
 - Domain mapping verification passed: 109 upstream files, 109 mapped files, 0 missing.
 - `git diff --check` passed.
 - The Bash 4 `mapfile` requirement in `scripts/scan_sensitive.sh` was handled with a Python fallback over `git ls-files --cached --others --exclude-standard`. It scanned 275 text files, skipped 4 binary/non-text files, found 5 existing CDP URL environment examples, and found 0 new secret or local-path hits across 13 changed files.
+
+## Daily Upstream Sync — 2026-09-03
+
+- Previous target: `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926`; new upstream target: `0c9b95ff6740556dd71d28f9422a953d203358af`.
+- New upstream range: 58 commits (35 non-merge plus 23 merge commits).
+- Analyzed runtime changes covering orchestrator-owned daemon safety, CDP endpoint redaction, slow cloud screenshots, relay blank-tab reuse, browser launch ownership, machine-readable doctor output, cloud live-view suppression, keyboard physical codes, and helper input behavior.
+- Added a dependency-free Rust MCP stdio binary that delegates to the existing typed `browser-harness` CLI surface. Added installer wiring and `docs/MCP.md`.
+- Added versioned `doctor` JSON output, strict `BH_OPEN_LIVE_URL` parsing, 60-second screenshot IPC reads, CDP endpoint credential/path redaction, `data:text/html,` placeholder reuse, and US-layout physical key metadata for printable ASCII.
+- Cloud daemon exit now preserves runtime files when Browser Use cleanup fails, allowing a later explicit cleanup attempt. This maps the upstream fail-closed billing-safety behavior into the Rust daemon lifecycle.
+- Mapped upstream domain changes into `domains/`: added Shopify Forms and X article source recovery, and updated Claude share export plus QBO report export command examples. Both current `agent-workspace/domain-skills/` and legacy `domain-skills/` roots continue to map into `domains/`; `scraping.md` continues to map to `skill.md`.
+- Adapted hidden-tab scroll recovery, touch-emulation guidance, tab hygiene, README, install docs, and issue reproduction commands to the Rust typed CLI.
+- Upstream Python packaging/update-check and recorder-specific changes have no corresponding Rust runtime surface. Browser launch process ownership remains platform-managed in the existing Rust launcher; the daemon safety and readiness paths are preserved.
+
+## Daily Sync Verification Evidence — 2026-09-03
+
+- `cargo fmt --all --manifest-path rust/Cargo.toml -- --check` passed.
+- `env -u CFLAGS -u CC cargo check --workspace --manifest-path rust/Cargo.toml` passed.
+- `env -u CFLAGS -u CC cargo test --workspace --manifest-path rust/Cargo.toml` passed: 202 tests, 0 failures.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin bhrun -- summary` passed and reported 42 live operations.
+- `env -u CFLAGS -u CC cargo run --quiet --manifest-path rust/Cargo.toml --bin browser-harness -- --help` passed and listed `doctor`.
+- MCP stdio smoke passed for `initialize` and `tools/list`, exposing 18 Rust CLI-backed browser tools.
+- `browser-harness doctor sync-missing` returned the expected versioned unhealthy JSON without starting a daemon.
+- `git diff --check` passed.
+- Changed-domain mapping verification passed: 5 upstream changes, 5 mapped files, 0 missing.
+- `scripts/scan_sensitive.sh` reached its Bash 4 `mapfile` call on macOS Bash 3.2. An equivalent Python scan using the script's exact 12 regexes passed across 281 tracked/unignored text files; 4 binary files were skipped.

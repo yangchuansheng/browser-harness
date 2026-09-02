@@ -41,8 +41,9 @@ On macOS, when Chrome asks for remote-debugging permission, run
 returns `ready`; otherwise follow its printed instruction.
 
 - For repo-local Rust-native use, invoke via `cargo run --quiet --bin browser-harness -- ...`.
-- First navigation is `new_tab(url)`, not `goto(url)` — `goto` runs in the user's active tab and clobbers their work.
+- First navigation is `new_tab(url)`. The daemon preserves the attached tab across CLI invocations; inspect `current-tab` and `list-tabs` before opening another tab.
 - `new-tab` and `switch-tab` attach in the background and move the horse marker.
+- Keep one working tab per task/site and reuse matching tabs. Activate a background tab only after a scroll timeout or when visible rendering requires it.
   Screenshots and normal CDP input work on that attached tab. Set
   `"activate":true` on `switch-tab` when the user requests a visible switch or
   a page demonstrably pauses visibility-dependent rendering.
