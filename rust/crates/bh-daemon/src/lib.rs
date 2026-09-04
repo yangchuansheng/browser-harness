@@ -2376,27 +2376,34 @@ pub fn stop_best_effort(config: &DaemonConfig) -> Result<(), String> {
     let ready_before_lock = already_running(config);
     let _lock = spawn_lock(config)?;
     let current = pending_generation(config)?;
-    if ready_before_lock {
-        let _ = request_shutdown(config);
-        if let Some(generation) = expected
-            .as_ref()
-            .filter(|generation| current.as_ref() == Some(*generation))
-        {
+    let ready_after_lock = already_running(config);
+
+    match stop_action(
+        expected.as_ref(),
+        current.as_ref(),
+        ready_before_lock,
+        ready_after_lock,
+    ) {
+        StopAction::Preserve => {}
+        StopAction::GracefulShutdown => {
+            let _ = request_shutdown(config);
+        }
+        StopAction::GracefulShutdownThenTerminate => {
+            let generation = expected.as_ref().expect("verified generation");
+            let _ = request_shutdown(config);
             if wait_for_exit(generation.pid, 75, Duration::from_millis(200))? {
                 cleanup_generation_files(config, generation);
-            } else if can_cancel_pending_generation(
-                expected.as_ref(),
-                pending_generation(config)?.as_ref(),
-                already_running(config),
-            ) {
+            } else if pending_generation(config)? == expected {
                 terminate_process(generation.pid)?;
+                cleanup_generation_files(config, generation);
             }
         }
-    } else if can_cancel_pending_generation(expected.as_ref(), current.as_ref(), false) {
-        let generation = expected.as_ref().expect("checked exact pending generation");
-        terminate_process(generation.pid)?;
-        if pending_generation(config)? == expected {
-            cleanup_generation_files(config, generation);
+        StopAction::TerminatePending => {
+            let generation = expected.as_ref().expect("verified generation");
+            terminate_process(generation.pid)?;
+            if pending_generation(config)? == expected {
+                cleanup_generation_files(config, generation);
+            }
         }
     }
     Ok(())
@@ -2432,12 +2439,33 @@ fn combine_target_js_result(
     }
 }
 
-fn can_cancel_pending_generation(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StopAction {
+    Preserve,
+    GracefulShutdown,
+    GracefulShutdownThenTerminate,
+    TerminatePending,
+}
+
+fn stop_action(
     expected: Option<&PendingGeneration>,
     current: Option<&PendingGeneration>,
+    ready_before_lock: bool,
     socket_ready: bool,
-) -> bool {
-    !socket_ready && expected.is_some() && expected == current
+) -> StopAction {
+    if ready_before_lock {
+        if expected.is_some() && expected != current {
+            StopAction::Preserve
+        } else if expected.is_some() {
+            StopAction::GracefulShutdownThenTerminate
+        } else {
+            StopAction::GracefulShutdown
+        }
+    } else if !socket_ready && expected.is_some() && expected == current {
+        StopAction::TerminatePending
+    } else {
+        StopAction::Preserve
+    }
 }
 
 pub async fn serve(config: &DaemonConfig) -> Result<(), String> {
@@ -2934,14 +2962,14 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{
-        can_cancel_pending_generation, can_reuse_for_new_tab, combine_target_js_result,
-        create_target_params, detach_reports_missing_session, encode_base64_standard,
-        find_named_page, is_inspect_tab, is_real_page, is_reusable_blank_page,
-        is_reusable_new_tab_page, key_fields, log_tail, pending_generation,
-        png_dimensions_from_base64, press_key_effective_modifiers, process_start_fingerprint,
-        publish_pending_generation, push_event, redact_cdp_endpoint, shrink_png_data_url,
-        stop_best_effort, stop_remote, tab_marker_enabled, tab_summary, DaemonConfig, DaemonState,
-        PendingGeneration, MAX_SESSION_REPLACEMENTS,
+        can_reuse_for_new_tab, combine_target_js_result, create_target_params,
+        detach_reports_missing_session, encode_base64_standard, find_named_page, is_inspect_tab,
+        is_real_page, is_reusable_blank_page, is_reusable_new_tab_page, key_fields, log_tail,
+        pending_generation, png_dimensions_from_base64, press_key_effective_modifiers,
+        process_start_fingerprint, publish_pending_generation, push_event, redact_cdp_endpoint,
+        shrink_png_data_url, stop_action, stop_best_effort, stop_remote, tab_marker_enabled,
+        tab_summary, DaemonConfig, DaemonState, PendingGeneration, StopAction,
+        MAX_SESSION_REPLACEMENTS,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -3009,7 +3037,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_cancellation_requires_the_snapshot_generation_and_an_unready_socket() {
+    fn stop_action_uses_in_lock_generation_and_socket_snapshots() {
         let expected = PendingGeneration {
             pid: 101,
             started: "first".to_string(),
@@ -3019,22 +3047,31 @@ mod tests {
             started: "second".to_string(),
         };
 
-        assert!(can_cancel_pending_generation(
-            Some(&expected),
-            Some(&expected),
-            false
-        ));
-        assert!(!can_cancel_pending_generation(
-            Some(&expected),
-            Some(&successor),
-            false
-        ));
-        assert!(!can_cancel_pending_generation(
-            Some(&expected),
-            Some(&expected),
-            true
-        ));
-        assert!(!can_cancel_pending_generation(None, None, false));
+        assert_eq!(
+            stop_action(Some(&expected), Some(&expected), false, false,),
+            StopAction::TerminatePending
+        );
+        assert_eq!(
+            stop_action(Some(&expected), Some(&expected), false, true,),
+            StopAction::Preserve
+        );
+        assert_eq!(
+            stop_action(Some(&expected), Some(&successor), false, false,),
+            StopAction::Preserve
+        );
+        assert_eq!(
+            stop_action(Some(&expected), Some(&expected), true, true,),
+            StopAction::GracefulShutdownThenTerminate
+        );
+        assert_eq!(
+            stop_action(Some(&expected), Some(&successor), true, true,),
+            StopAction::Preserve
+        );
+        assert_eq!(stop_action(None, None, false, false), StopAction::Preserve);
+        assert_eq!(
+            stop_action(None, None, true, true),
+            StopAction::GracefulShutdown
+        );
     }
 
     #[test]

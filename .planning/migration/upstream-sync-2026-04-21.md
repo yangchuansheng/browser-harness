@@ -735,7 +735,7 @@
 
 ### Migration Decisions
 
-- `bh-daemon` owns an atomic `{pid,started}` record and a per-name advisory lock. Cancellation snapshots its intended generation before acquiring the lock, then requires that exact generation and an unready socket inside the lock before SIGTERM. Linux reads `/proc/<pid>/stat` field 22 after the final `)`; macOS uses `ps -o lstart=`. Unknown or legacy identities retain files and processes.
+- `bh-daemon` owns an atomic `{pid,started}` record and a per-name advisory lock. Cancellation snapshots its intended generation and socket state before acquiring the lock, then re-reads both under lock. Pending cancellation requires an exact fingerprinted generation and an unready in-lock socket. An already-ready matching generation receives graceful shutdown followed by exact-generation escalation when needed; a successor stays untouched. Linux reads `/proc/<pid>/stat` field 22 after the final `)`; macOS uses `ps -o lstart=`. Unknown or legacy identities retain files and processes.
 - `bhctl` joins a pending fingerprinted child, preserves omitted `wait` separately from an explicit value, removes the local deadline after `handshake-wait`, and prints a matching-name `mac-approve` command. Local CDP uses the unbounded connection path; remote/CDP retains a bounded connection.
 - `BH_TAB_MARKER` disables marking only for `0`, `false`, `no`, or `off`, case-insensitively. All other values and absence retain marking.
 - Target-scoped JS evaluates once, detaches once, preserves evaluation failure, ignores only Chrome's two already-detached messages after success, and returns other cleanup failures.
@@ -746,7 +746,7 @@
 
 - `cargo fmt --manifest-path rust/Cargo.toml --all -- --check`: passed.
 - `cargo check --manifest-path rust/Cargo.toml --workspace`: passed; workspace packages report `0.1.13`.
-- Focused daemon lifecycle and target-JS precedence tests passed: the exact snapshot may terminate, a successor and newly-ready socket are preserved, legacy ownership remains untouched, and evaluation/detach result precedence covers all final-upstream cases.
+- Focused daemon lifecycle and target-JS precedence tests passed: the branch seam proves pending exact-generation termination, pending ready/socket and successor preservation, ready matching graceful/escalation behavior, ready successor preservation, legacy ownership preservation, and evaluation/detach result precedence.
 - `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace`: passed, including the daemon generation and target-JS precedence regressions.
 - `env -u CFLAGS -u CC cargo build --manifest-path rust/Cargo.toml --workspace`: passed.
 - `bhrun summary`: `execution_model=PersistentRunner`, `operations=42`.
