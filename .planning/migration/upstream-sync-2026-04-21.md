@@ -735,7 +735,7 @@
 
 ### Migration Decisions
 
-- `bh-daemon` owns an atomic `{pid,started}` record and a per-name advisory lock. Linux reads `/proc/<pid>/stat` field 22 after the final `)`; macOS uses `ps -o lstart=`. Unknown or legacy identities retain files and processes.
+- `bh-daemon` owns an atomic `{pid,started}` record and a per-name advisory lock. Cancellation snapshots its intended generation before acquiring the lock, then requires that exact generation and an unready socket inside the lock before SIGTERM. Linux reads `/proc/<pid>/stat` field 22 after the final `)`; macOS uses `ps -o lstart=`. Unknown or legacy identities retain files and processes.
 - `bhctl` joins a pending fingerprinted child, preserves omitted `wait` separately from an explicit value, removes the local deadline after `handshake-wait`, and prints a matching-name `mac-approve` command. Local CDP uses the unbounded connection path; remote/CDP retains a bounded connection.
 - `BH_TAB_MARKER` disables marking only for `0`, `false`, `no`, or `off`, case-insensitively. All other values and absence retain marking.
 - Target-scoped JS evaluates once, detaches once, preserves evaluation failure, ignores only Chrome's two already-detached messages after success, and returns other cleanup failures.
@@ -746,11 +746,12 @@
 
 - `cargo fmt --manifest-path rust/Cargo.toml --all -- --check`: passed.
 - `cargo check --manifest-path rust/Cargo.toml --workspace`: passed; workspace packages report `0.1.13`.
-- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace`: passed, including `22` `bh-daemon`, `17` `bh-discovery`, `18` `bhctl`, `8` facade, and `1` MCP test.
+- Focused daemon lifecycle and target-JS precedence tests passed: the exact snapshot may terminate, a successor and newly-ready socket are preserved, legacy ownership remains untouched, and evaluation/detach result precedence covers all final-upstream cases.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace`: passed, including the daemon generation and target-JS precedence regressions.
 - `env -u CFLAGS -u CC cargo build --manifest-path rust/Cargo.toml --workspace`: passed.
 - `bhrun summary`: `execution_model=PersistentRunner`, `operations=42`.
 - `browser-harness --help`: passed and includes `mac-approve`, `ensure-daemon`, and typed runner commands.
 - MCP stdio `initialize` and `tools/list`: passed; server reports `browser-harness` `0.1.13` and returns 18 tools.
 - Commit-table validation: `audit_rows=46`; domain transform: `domain_mapping=111/111`.
 - `git diff --check`: passed.
-- `./scripts/scan_sensitive.sh` stopped at macOS Bash 3.2 `mapfile`. The zsh/rg fallback used the script's exact 12 PCRE2 patterns over `git ls-files -z --cached --others --exclude-standard`: `287` files, `0` matches, `0` new matches.
+- `./scripts/scan_sensitive.sh` stopped at macOS Bash 3.2 `mapfile`. The zsh/rg fallback used the script's exact 12 PCRE2 patterns over `git ls-files -z --cached --others --exclude-standard`: `289` files, `0` matches, `0` new matches.

@@ -950,14 +950,7 @@ impl Daemon {
                 .send_raw("Runtime.evaluate", params, Some(&session_id))
                 .await;
             let detach = self.detach_transient_target(&session_id).await;
-            match evaluation {
-                Err(err) => return Err(err),
-                Ok(result) => match detach {
-                    Ok(()) => result,
-                    Err(err) if detach_reports_missing_session(&err) => result,
-                    Err(err) => return Err(err),
-                },
-            }
+            combine_target_js_result(evaluation, detach)?
         } else {
             let session_id = self.ensure_session().await?;
             self.send_with_retry("Runtime.evaluate", params, Some(session_id))
@@ -2379,27 +2372,31 @@ pub fn log_line(config: &DaemonConfig, message: &str) {
 }
 
 pub fn stop_best_effort(config: &DaemonConfig) -> Result<(), String> {
-    let ready = already_running(config);
-    let _lock = spawn_lock(config)?;
     let expected = pending_generation(config)?;
-    let _ = request_shutdown(config);
-    if ready {
-        if let Some(generation) = expected.as_ref() {
-            if !wait_for_exit(generation.pid, 75, Duration::from_millis(200))? {
-                if pending_generation(config)? == Some(generation.clone()) {
-                    terminate_process(generation.pid)?;
-                }
+    let ready_before_lock = already_running(config);
+    let _lock = spawn_lock(config)?;
+    let current = pending_generation(config)?;
+    if ready_before_lock {
+        let _ = request_shutdown(config);
+        if let Some(generation) = expected
+            .as_ref()
+            .filter(|generation| current.as_ref() == Some(*generation))
+        {
+            if wait_for_exit(generation.pid, 75, Duration::from_millis(200))? {
+                cleanup_generation_files(config, generation);
+            } else if can_cancel_pending_generation(
+                expected.as_ref(),
+                pending_generation(config)?.as_ref(),
+                already_running(config),
+            ) {
+                terminate_process(generation.pid)?;
             }
         }
-        if let Some(generation) = expected.as_ref() {
+    } else if can_cancel_pending_generation(expected.as_ref(), current.as_ref(), false) {
+        let generation = expected.as_ref().expect("checked exact pending generation");
+        terminate_process(generation.pid)?;
+        if pending_generation(config)? == expected {
             cleanup_generation_files(config, generation);
-        }
-    } else if let Some(generation) = expected {
-        if !already_running(config) && pending_generation(config)? == Some(generation.clone()) {
-            terminate_process(generation.pid)?;
-            if pending_generation(config)? == Some(generation.clone()) {
-                cleanup_generation_files(config, &generation);
-            }
         }
     }
     Ok(())
@@ -2419,6 +2416,28 @@ fn detach_reports_missing_session(error: &str) -> bool {
         error,
         "No session with given id" | "Session with given id not found"
     )
+}
+
+fn combine_target_js_result(
+    evaluation: Result<Value, String>,
+    detach: Result<(), String>,
+) -> Result<Value, String> {
+    match evaluation {
+        Err(err) => Err(err),
+        Ok(result) => match detach {
+            Ok(()) => Ok(result),
+            Err(err) if detach_reports_missing_session(&err) => Ok(result),
+            Err(err) => Err(err),
+        },
+    }
+}
+
+fn can_cancel_pending_generation(
+    expected: Option<&PendingGeneration>,
+    current: Option<&PendingGeneration>,
+    socket_ready: bool,
+) -> bool {
+    !socket_ready && expected.is_some() && expected == current
 }
 
 pub async fn serve(config: &DaemonConfig) -> Result<(), String> {
@@ -2915,13 +2934,14 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{
-        can_reuse_for_new_tab, create_target_params, detach_reports_missing_session,
-        encode_base64_standard, find_named_page, is_inspect_tab, is_real_page,
-        is_reusable_blank_page, is_reusable_new_tab_page, key_fields, log_tail, pending_generation,
+        can_cancel_pending_generation, can_reuse_for_new_tab, combine_target_js_result,
+        create_target_params, detach_reports_missing_session, encode_base64_standard,
+        find_named_page, is_inspect_tab, is_real_page, is_reusable_blank_page,
+        is_reusable_new_tab_page, key_fields, log_tail, pending_generation,
         png_dimensions_from_base64, press_key_effective_modifiers, process_start_fingerprint,
         publish_pending_generation, push_event, redact_cdp_endpoint, shrink_png_data_url,
         stop_best_effort, stop_remote, tab_marker_enabled, tab_summary, DaemonConfig, DaemonState,
-        MAX_SESSION_REPLACEMENTS,
+        PendingGeneration, MAX_SESSION_REPLACEMENTS,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -2957,6 +2977,64 @@ mod tests {
             "Session with given id not found"
         ));
         assert!(!detach_reports_missing_session("Target closed"));
+    }
+
+    #[test]
+    fn target_js_result_keeps_evaluation_precedence_and_expected_detach_cleanup() {
+        let result = json!({"value": true});
+        assert_eq!(
+            combine_target_js_result(Ok(result.clone()), Ok(())),
+            Ok(result.clone())
+        );
+        for missing_session in [
+            "No session with given id",
+            "Session with given id not found",
+        ] {
+            assert_eq!(
+                combine_target_js_result(Ok(result.clone()), Err(missing_session.to_string())),
+                Ok(result.clone())
+            );
+        }
+        assert_eq!(
+            combine_target_js_result(Ok(result), Err("Target closed".to_string())),
+            Err("Target closed".to_string())
+        );
+        assert_eq!(
+            combine_target_js_result(
+                Err("evaluation failed".to_string()),
+                Err("Target closed".to_string())
+            ),
+            Err("evaluation failed".to_string())
+        );
+    }
+
+    #[test]
+    fn pending_cancellation_requires_the_snapshot_generation_and_an_unready_socket() {
+        let expected = PendingGeneration {
+            pid: 101,
+            started: "first".to_string(),
+        };
+        let successor = PendingGeneration {
+            pid: 202,
+            started: "second".to_string(),
+        };
+
+        assert!(can_cancel_pending_generation(
+            Some(&expected),
+            Some(&expected),
+            false
+        ));
+        assert!(!can_cancel_pending_generation(
+            Some(&expected),
+            Some(&successor),
+            false
+        ));
+        assert!(!can_cancel_pending_generation(
+            Some(&expected),
+            Some(&expected),
+            true
+        ));
+        assert!(!can_cancel_pending_generation(None, None, false));
     }
 
     #[test]
