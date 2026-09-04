@@ -8,7 +8,10 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use bh_daemon::{already_running, log_tail, stop_best_effort, DaemonConfig};
+use bh_daemon::{
+    already_running, log_tail, pending_generation, publish_pending_generation, spawn_lock,
+    stop_best_effort, DaemonConfig, PendingGeneration,
+};
 use bh_discovery::{
     default_browser_profiles, inspect_marker, remote_debugging_toggle_profiles,
     remote_debugging_user_enabled, supported_browser_running,
@@ -172,7 +175,7 @@ async fn run() -> Result<i32, String> {
 #[derive(Debug, PartialEq)]
 struct EnsureDaemonOptions {
     name: Option<String>,
-    wait_seconds: f64,
+    wait_seconds: Option<f64>,
     env: BTreeMap<String, String>,
 }
 
@@ -432,133 +435,116 @@ fn ensure_daemon_output() -> Result<Value, String> {
     }
 
     let is_local = ensure_daemon_uses_local_browser(&options);
-    let mut launched_browser = false;
-    let mut last_message = None;
-
-    for _ in 0..3 {
-        let mut command = daemon_launch_command()?;
-        command
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        if options.name.is_some() {
-            command.env("BU_NAME", &config.name);
+    let (mut child, pending) = {
+        let _lock = spawn_lock(&config)?;
+        if already_running(&config) {
+            return Ok(json!({"ok": true, "alreadyRunning": true, "name": config.name}));
         }
-        command.envs(options.env.iter());
+        if let Some(generation) = pending_generation(&config)? {
+            (None, generation)
+        } else {
+            let mut command = daemon_launch_command()?;
+            command
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            if options.name.is_some() {
+                command.env("BU_NAME", &config.name);
+            }
+            command.envs(options.env.iter());
 
-        let mut child = command
-            .spawn()
-            .map_err(|err| format!("spawn daemon: {err}"))?;
-        let started = Instant::now();
-        let deadline = started + Duration::from_secs_f64(options.wait_seconds);
-        let mut hinted = !is_local;
-        while Instant::now() < deadline {
-            if already_running(&config) {
-                return Ok(json!({
-                    "ok": true,
-                    "alreadyRunning": false,
-                    "name": config.name,
-                }));
+            let child = command
+                .spawn()
+                .map_err(|err| format!("spawn daemon: {err}"))?;
+            let generation = publish_pending_generation(&config, child.id() as i32)?;
+            (Some(child), generation)
+        }
+    };
+    wait_for_daemon(
+        &config,
+        is_local,
+        options.wait_seconds,
+        &mut child,
+        &pending,
+    )
+}
+
+fn wait_for_daemon(
+    config: &DaemonConfig,
+    local: bool,
+    explicit_wait: Option<f64>,
+    child: &mut Option<std::process::Child>,
+    pending: &PendingGeneration,
+) -> Result<Value, String> {
+    let started = Instant::now();
+    let mut deadline = Some(started + Duration::from_secs_f64(explicit_wait.unwrap_or(60.0)));
+    let mut hinted = !local;
+    loop {
+        if already_running(config) {
+            return Ok(json!({"ok": true, "alreadyRunning": false, "name": config.name}));
+        }
+        let died = child
+            .as_mut()
+            .map(|child| child.try_wait().map(|status| status.is_some()))
+            .transpose()
+            .map_err(|err| format!("wait for daemon startup: {err}"))?
+            .unwrap_or_else(|| pending_generation(config).ok().flatten() != Some(pending.clone()));
+        let message = log_tail(config).unwrap_or_default();
+        if local && needs_chrome_permission_popup(&message) {
+            if explicit_wait.is_none() {
+                deadline = None;
             }
-            if child
-                .try_wait()
-                .map_err(|err| format!("wait for daemon startup: {err}"))?
-                .is_some()
-            {
-                break;
-            }
-            if !hinted
-                && started.elapsed() > Duration::from_secs(2)
-                && log_tail(&config).is_some_and(|line| line.starts_with("handshake-wait"))
-            {
-                let action = if cfg!(target_os = "macos") {
-                    "run `browser-harness mac-approve` in another shell or click Allow"
+            if !hinted && started.elapsed() > Duration::from_secs(2) {
+                let command = if config.name == "default" {
+                    "browser-harness mac-approve".to_string()
                 } else {
-                    "click Allow"
+                    format!("BU_NAME={} browser-harness mac-approve", config.name)
                 };
-                eprintln!(
-                    "browser-harness: Chrome is asking \"Allow remote debugging?\" -- {action} to continue."
-                );
+                let action = if cfg!(target_os = "macos") {
+                    format!("run `{command}` in another shell or click Allow")
+                } else {
+                    "click Allow".to_string()
+                };
+                eprintln!("browser-harness: Chrome is asking \"Allow remote debugging?\" -- {action} to continue.");
                 hinted = true;
             }
-            thread::sleep(Duration::from_millis(200));
         }
-
-        let message = log_tail(&config).unwrap_or_else(|| {
-            format!(
-                "daemon {} didn't come up -- check {}",
-                config.name,
-                config.paths().log.display()
-            )
-        });
-        last_message = Some(message.clone());
-
-        if is_local && needs_chrome_permission_popup(&message) {
-            let _ = stop_best_effort(&config);
-            return Err(
-                "permission-blocked: wait for the user to click Allow in the Chrome permission popup before retrying"
-                    .to_string(),
-            );
-        }
-
-        if is_local && !launched_browser && chrome_not_running(&message) {
-            launched_browser = true;
-            let _ = stop_best_effort(&config);
-            if !launch_browser() {
-                return Err(
-                    "chrome-not-running: no supported browser is running and none could be launched -- open Chrome, then retry"
-                        .to_string(),
-                );
+        if died {
+            if local && chrome_not_running(&message) && launch_browser() {
+                let boot_deadline = Instant::now() + Duration::from_secs(15);
+                while Instant::now() < boot_deadline && !supported_browser_running() {
+                    thread::sleep(Duration::from_millis(300));
+                }
             }
-            eprintln!(
-                "browser-harness: Chrome is not running -- launching it. Click Allow if Chrome shows an \"Allow remote debugging?\" popup."
-            );
-            let boot_deadline = Instant::now() + Duration::from_secs(15);
-            while Instant::now() < boot_deadline && !supported_browser_running() {
-                thread::sleep(Duration::from_millis(300));
+            if local && needs_chrome_remote_debugging_prompt(&message) {
+                let _ = open_chrome_inspect_once();
             }
-            continue;
-        }
-
-        if is_local && needs_chrome_remote_debugging_prompt(&message) {
-            let toggle_enabled = !remote_debugging_toggle_profiles().is_empty();
-            let _ = stop_best_effort(&config);
-            if remote_debugging_user_enabled() == Some(true) {
-                return Err(
-                    "permission-blocked: Chrome remote debugging is enabled -- click Allow in Chrome, then retry"
-                        .to_string(),
-                );
-            }
-
-            let opened = open_chrome_inspect_once();
-            let action = if opened {
-                "opened chrome://inspect/#remote-debugging in Chrome"
+            return Err(if message.starts_with("handshake-wait") {
+                "permission-blocked: the pending Chrome connection ended before approval; browser-harness did not retry or create another connection.".to_string()
             } else {
-                "open chrome://inspect/#remote-debugging in Chrome"
-            };
-            let todo = if toggle_enabled {
-                "click Allow on Chrome's \"Allow remote debugging?\" popup (the checkbox is already ticked; if no popup appears, untick and re-tick it)"
-            } else {
-                "tick \"Allow remote debugging for this browser instance\" and click Allow on the popup"
-            };
-            return Err(format!(
-                "remote-debugging-setup: {action} -- {todo}. Chrome shows one more Allow popup when the harness connects on the next attempt; retry after the user confirms"
-            ));
+                daemon_startup_error(
+                    message,
+                    local,
+                    local.then(remote_debugging_user_enabled).flatten(),
+                )
+            });
         }
-
-        let remote_debugging_enabled = is_local.then(remote_debugging_user_enabled).flatten();
-        let message = daemon_startup_error(message, is_local, remote_debugging_enabled);
-        let _ = stop_best_effort(&config);
-        return Err(message);
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            if local && needs_chrome_permission_popup(&message) {
+                return Err("permission-blocked: Chrome's Allow popup is still open and the pending daemon was left running. Approve that exact popup; browser-harness did not retry or create another connection.".to_string());
+            }
+            return Err(if message.is_empty() {
+                format!(
+                    "daemon {} didn't come up -- check {}",
+                    config.name,
+                    config.paths().log.display()
+                )
+            } else {
+                message
+            });
+        }
+        thread::sleep(Duration::from_millis(200));
     }
-
-    Err(last_message.unwrap_or_else(|| {
-        format!(
-            "daemon {} didn't come up -- check {}",
-            config.name,
-            config.paths().log.display()
-        )
-    }))
 }
 
 fn ensure_daemon_uses_local_browser(options: &EnsureDaemonOptions) -> bool {
@@ -763,9 +749,8 @@ fn parse_ensure_daemon_options(payload: Option<Value>) -> Result<EnsureDaemonOpt
                 .as_f64()
                 .ok_or_else(|| "ensure-daemon wait must be a number".to_string())
         })
-        .transpose()?
-        .unwrap_or(60.0);
-    if !wait_seconds.is_finite() || wait_seconds <= 0.0 {
+        .transpose()?;
+    if wait_seconds.is_some_and(|wait| !wait.is_finite() || wait <= 0.0) {
         return Err("ensure-daemon wait must be > 0".to_string());
     }
 
@@ -848,6 +833,12 @@ const BROWSER_LAUNCH_SPECS: &[BrowserLaunchSpec] = &[
         macos_app: "Microsoft Edge",
         posix_commands: &["microsoft-edge", "microsoft-edge-stable"],
         windows_target: Some("msedge"),
+    },
+    BrowserLaunchSpec {
+        profile_fragment: "brave-origin",
+        macos_app: "Brave Origin",
+        posix_commands: &["brave-browser", "brave"],
+        windows_target: Some("brave"),
     },
     BrowserLaunchSpec {
         profile_fragment: "brave",
@@ -1372,7 +1363,7 @@ mod tests {
             options,
             EnsureDaemonOptions {
                 name: Some("remote".to_string()),
-                wait_seconds: 12.5,
+                wait_seconds: Some(12.5),
                 env: [
                     ("BU_BROWSER_ID".to_string(), "browser-123".to_string()),
                     (
@@ -1387,10 +1378,24 @@ mod tests {
     }
 
     #[test]
+    fn ensure_daemon_omitted_wait_stays_distinct_from_explicit_wait() {
+        assert_eq!(
+            parse_ensure_daemon_options(None).unwrap().wait_seconds,
+            None
+        );
+        assert_eq!(
+            parse_ensure_daemon_options(Some(json!({"wait": 60})))
+                .unwrap()
+                .wait_seconds,
+            Some(60.0)
+        );
+    }
+
+    #[test]
     fn ensure_daemon_browser_kind_honors_env_overrides() {
         let local = EnsureDaemonOptions {
             name: None,
-            wait_seconds: 60.0,
+            wait_seconds: None,
             env: ["BU_BROWSER_ID", "BU_CDP_WS", "BU_CDP_URL"]
                 .into_iter()
                 .map(|key| (key.to_string(), String::new()))
@@ -1483,6 +1488,13 @@ mod tests {
             )))
             .macos_app,
             "Google Chrome Canary"
+        );
+        assert_eq!(
+            browser_launch_spec(Some(Path::new(
+                "profiles/Library/Application Support/BraveSoftware/Brave-Origin"
+            )))
+            .macos_app,
+            "Brave Origin"
         );
     }
 

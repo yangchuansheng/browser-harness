@@ -81,7 +81,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bh-cdp"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "futures-util",
  "serde_json",
@@ -91,7 +91,7 @@ dependencies = [
 
 [[package]]
 name = "bh-daemon"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "bh-cdp",
  "bh-discovery",
@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "bh-discovery"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "libc",
  "reqwest",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "bh-guest-sdk"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "bh-wasm-host",
  "serde",
@@ -123,7 +123,7 @@ dependencies = [
 
 [[package]]
 name = "bh-protocol"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "serde",
  "serde_json",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "bh-remote"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "bh-wasm-host"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "bh-protocol",
  "serde",
@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "bhctl"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "bh-daemon",
  "bh-discovery",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "bhd"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "bh-daemon",
  "tokio",
@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "bhrun"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "bh-protocol",
  "bh-wasm-host",
@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "bhsmoke"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "base64 0.22.1",
  "serde_json",
@@ -203,14 +203,14 @@ dependencies = [
 
 [[package]]
 name = "browser-harness-cli"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "browser-harness-mcp"
-version = "0.1.10"
+version = "0.1.13"
 dependencies = [
  "serde_json",
 ]

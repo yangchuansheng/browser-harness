@@ -4,9 +4,9 @@
 
 - Upstream repository: `https://github.com/browser-use/browser-harness`
 - Baseline commit before requested date: `2d23211d346c7a12bdb2ce03e49b2d955f4769b2`
-- Upstream target commit: `0c9b95ff6740556dd71d28f9422a953d203358af`
-- Commit range: `41108b8676d4bdb58b26ab3b079c0b7b0f8f3926..0c9b95ff6740556dd71d28f9422a953d203358af`
-- Count: 58 commits
+- Upstream target commit: `10b2086c29f0696a6712956d2914e03012f5ebd0`
+- Commit range: `0c9b95ff6740556dd71d28f9422a953d203358af..10b2086c29f0696a6712956d2914e03012f5ebd0`
+- Count: 46 commits
 - User intent: replicate all upstream updates since Apr 21, 2026 into this Rust fork while preserving the Rust architecture.
 
 ## Migrated Runtime Behavior
@@ -676,3 +676,81 @@
 - All 13 workspace-local packages in `rust/Cargo.lock` report version `0.1.10`. The lockfile's sole `0.1.9` text match belongs to third-party `find-msvc-tools` and remains unchanged.
 - Changed-domain mapping verification passed: 5 upstream changes, 5 mapped files, 0 missing.
 - `scripts/scan_sensitive.sh` reached its Bash 4 `mapfile` call on macOS Bash 3.2. An equivalent Python scan using the script's exact 12 regexes passed across 281 tracked/unignored text files; 4 binary files were skipped.
+
+## Daily Upstream Sync — 2026-09-05
+
+- Previous target: `0c9b95ff6740556dd71d28f9422a953d203358af`; immutable fetched target: `10b2086c29f0696a6712956d2914e03012f5ebd0`.
+- Full `git rev-list --count 0c9b95ff6740556dd71d28f9422a953d203358af..10b2086c29f0696a6712956d2914e03012f5ebd0` result: `46` (27 non-merge, 19 merge).
+
+### Chronological Commit Audit
+
+| SHA | Subject | Area | Rust disposition |
+| --- | --- | --- | --- |
+| 06cbbc7bf9b253084555f9dd780c16dd0212444a | Narrow skill description | SKILL | Adapted |
+| 1e49f5f9758294279fcf6057c0974e8f0ed90108 | editable install root | admin | Already satisfied, regression added |
+| 6123fc563643cba4a4ec5190c0e59028032fe2df | lone-surrogate events | recorder | Structurally inapplicable |
+| 4e519864235692de16b168672158071b2ca58cb3 | skill test | tests | Superseded by guidance update |
+| cfaacf7d303a1dce756c1ea6cade9092089c938d | package MCP entrypoint | MCP | Already satisfied |
+| 829c310c1ca45f1926d7a7c7ca35c402282a418c | explain missing MCP extra | docs | Already satisfied |
+| dbbbb2f8354833755a5ae2e20e65d9600696eb95 | detach target JS session | helpers | Ported, refined later |
+| 826b8137524b570eb60d8c76e2fccd9aacb5ec33 | detach error handling | helpers | Ported, refined later |
+| c5d207ce680022b8bf57372f8811246cc5f828d0 | merge upstream main | merge | Supersedes prior detach/recorder history |
+| d6130c262021a1a28f01dcb0d82a8af22833f60a | merge surrogate fix | merge | Recorder remains inapplicable |
+| 1ae89d06f8f17c5b5950a7062f57e009d8add3fb | merge MCP installable | merge | MCP already present |
+| 0e09ec1e2d0b1be68e1d6d27a0ee75687cf18127 | MCP lint | MCP | Already satisfied |
+| 3b05e75b9cd30661910ed361faddf4101892d1da | merge root fix | merge | Exact path regression added |
+| fad70f6fe15ecd527fd97ca986528710a0ca567b | merge MCP | merge | MCP already present |
+| 40e024295a66f07167c63827a76ac57764401e81 | merge MCP PR | merge | MCP already present |
+| 91c35d9b73c5a7ea5955e89895a75d1e9fb018e9 | merge detach | merge | Superseded by 835529d |
+| 67e5040d97c6c1866b5d1de1dab0ebc9696adec4 | merge skill PR | merge | Guidance adapted |
+| a487d9c4d6cdd2d54101e876215b77cdba7c9fbd | merge detach | merge | Superseded by 835529d |
+| 835529d95bbd9967ccb3ff333dc65346257c2067 | preserve evaluation errors | helpers | Ported final precedence |
+| f5f3ad98878910b1558c09c49d6bd74aa003df29 | merge detach PR | merge | Final helper semantics |
+| 2dfaac5d749799b95b3e65be33445e93a0861b41 | tab marker opt-out | daemon | Ported, refined later |
+| c3a21275332475227aaf394a8bafa27394676947 | marker path tests | tests | Shared-gate tests added |
+| 0519b162c7f2050f8b58f51c67cad12b5b5ebf9e | focused marker tests | tests | Superseded by final spellings |
+| 5ed6110617d0ee3a316d8c5b6e84565bccd6abe0 | marker spellings | daemon | Ported final case-insensitive set |
+| c2f5f3cc4820fa279bd81e1774f93b995366f325 | Brave Origin | discovery | Ported |
+| 27d8480ce1f5d050df3d70b74f0f8839fe6c9a8c | merge marker PR | merge | Final marker semantics |
+| 19b843c2297c39dae4e68e4a3f27d549e3d0c2e8 | release 0.1.11 | release | Superseded by 0.1.13 |
+| 30083d7c4f222a2f0bfc68c08bcc7e968ef05721 | merge 0.1.11 | merge | Superseded by 0.1.13 |
+| 054ec8b0d54113d1946bf13b8dc6aa1b2d342fb5 | merge Brave Origin | merge | Final discovery semantics |
+| 5ff6e560232b0eb168c524b8f31a8fe966a4d98f | pending approval per name | admin/daemon | Ported, refined later |
+| 17f5e9f0d0fa9899ab3487839817af734360006a | approval single-flight | admin | Ported, refined later |
+| e8a9a4c2a514a86d11fab10820b8fb39e82fd538 | approval deadline | admin | Ported final local behavior |
+| 1aec12322c9f7527652e1311ae09e4a6af8e8db5 | exact pending cancellation | admin | Ported, refined later |
+| 73eb69d1fb2e6e5358b1f828b50836c2f487bbb5 | preserve unverifiable ownership | admin | Ported final guard |
+| 0f479f8ab34698390ea7fc6febf1f7c4105a2b0a | serialize cancellation | admin | Ported final generation lock |
+| f9bffcaf47e237ef63f592e2d8157b2d6bfc2c4d | merge approval PR | merge | Final lifecycle semantics |
+| 4322be0983418acfc8eb3e8c61b32c654632a251 | release 0.1.12 | release | Superseded by 0.1.13 |
+| 5cfbca7dda0e2e0a11db0b015f7c1a2d2a75cb0d | merge 0.1.12 | merge | Superseded by 0.1.13 |
+| 0d8f571a2423b97f00b68f71106061802082ad0c | release dependency pins | packaging | Python-specific; version carried |
+| c24e5072ee66f8499bacd663f4f4bcb089bc4492 | merge release pins | merge | Python packaging inapplicable |
+| d223c86f7d40b86876d063c2c05ee010010fc928 | default daemon docs | SKILL | Adapted |
+| afbbb79ee0b66801632e0d7d2d30abd0ac129a17 | merge default daemon docs | merge | Guidance adapted |
+| baef897fb213c09c929051cbe25f34096d2c01cb | serialize shared daemon | SKILL | Adapted |
+| 5e036462bbf6e29c95ce68d8e82a0fc2e08563ee | merge shared access docs | merge | Guidance adapted |
+| a3d36f87e3901dbefc500e3eb1b20eb2f3a0ad86 | close task tabs | SKILL | Adapted |
+| 10b2086c29f0696a6712956d2914e03012f5ebd0 | merge tab hygiene | merge | Final guidance semantics |
+
+### Migration Decisions
+
+- `bh-daemon` owns an atomic `{pid,started}` record and a per-name advisory lock. Linux reads `/proc/<pid>/stat` field 22 after the final `)`; macOS uses `ps -o lstart=`. Unknown or legacy identities retain files and processes.
+- `bhctl` joins a pending fingerprinted child, preserves omitted `wait` separately from an explicit value, removes the local deadline after `handshake-wait`, and prints a matching-name `mac-approve` command. Local CDP uses the unbounded connection path; remote/CDP retains a bounded connection.
+- `BH_TAB_MARKER` disables marking only for `0`, `false`, `no`, or `off`, case-insensitively. All other values and absence retain marking.
+- Target-scoped JS evaluates once, detaches once, preserves evaluation failure, ignores only Chrome's two already-detached messages after success, and returns other cleanup failures.
+- Rust has no recording engine or `events.jsonl` writer, and Rust strings cannot carry lone UTF-16 surrogates; the recorder patch is structurally inapplicable. Python dependency pins stay upstream-only; the workspace release is `0.1.13`.
+- This range changes zero domain skills. A fresh union transform of `agent-workspace/domain-skills/` and legacy `domain-skills/`, mapping `scraping.md` to `domains/<site>/skill.md`, reports `111/111` present.
+
+### Verification Evidence
+
+- `cargo fmt --manifest-path rust/Cargo.toml --all -- --check`: passed.
+- `cargo check --manifest-path rust/Cargo.toml --workspace`: passed; workspace packages report `0.1.13`.
+- `env -u CFLAGS -u CC cargo test --manifest-path rust/Cargo.toml --workspace`: passed, including `22` `bh-daemon`, `17` `bh-discovery`, `18` `bhctl`, `8` facade, and `1` MCP test.
+- `env -u CFLAGS -u CC cargo build --manifest-path rust/Cargo.toml --workspace`: passed.
+- `bhrun summary`: `execution_model=PersistentRunner`, `operations=42`.
+- `browser-harness --help`: passed and includes `mac-approve`, `ensure-daemon`, and typed runner commands.
+- MCP stdio `initialize` and `tools/list`: passed; server reports `browser-harness` `0.1.13` and returns 18 tools.
+- Commit-table validation: `audit_rows=46`; domain transform: `domain_mapping=111/111`.
+- `git diff --check`: passed.
+- `./scripts/scan_sensitive.sh` stopped at macOS Bash 3.2 `mapfile`. The zsh/rg fallback used the script's exact 12 PCRE2 patterns over `git ls-files -z --cached --others --exclude-standard`: `287` files, `0` matches, `0` new matches.

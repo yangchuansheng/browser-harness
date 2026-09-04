@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Cursor, ErrorKind, Read, Write};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::sync::Arc;
@@ -438,6 +439,9 @@ impl Daemon {
     }
 
     async fn mark_session(&self, session_id: &str) {
+        if !tab_marker_enabled() {
+            return;
+        }
         let _ = self
             .cdp
             .send_raw(
@@ -922,15 +926,15 @@ impl Daemon {
         Ok(session_id)
     }
 
-    async fn detach_transient_target(&self, session_id: &str) {
-        let _ = self
-            .cdp
+    async fn detach_transient_target(&self, session_id: &str) -> Result<(), String> {
+        self.cdp
             .send_raw(
                 "Target.detachFromTarget",
                 json!({"sessionId": session_id}),
                 None,
             )
-            .await;
+            .await
+            .map(|_| ())
     }
 
     async fn js_result(&self, expression: &str, target_id: Option<&str>) -> Result<Value, String> {
@@ -941,12 +945,19 @@ impl Daemon {
         });
         let result = if let Some(target_id) = target_id {
             let session_id = self.attach_transient_target(target_id).await?;
-            let result = self
+            let evaluation = self
                 .cdp
                 .send_raw("Runtime.evaluate", params, Some(&session_id))
                 .await;
-            self.detach_transient_target(&session_id).await;
-            result?
+            let detach = self.detach_transient_target(&session_id).await;
+            match evaluation {
+                Err(err) => return Err(err),
+                Ok(result) => match detach {
+                    Ok(()) => result,
+                    Err(err) if detach_reports_missing_session(&err) => result,
+                    Err(err) => return Err(err),
+                },
+            }
         } else {
             let session_id = self.ensure_session().await?;
             self.send_with_retry("Runtime.evaluate", params, Some(session_id))
@@ -1353,7 +1364,7 @@ impl Daemon {
         .await;
 
         if transient {
-            self.detach_transient_target(&session_id).await;
+            let _ = self.detach_transient_target(&session_id).await;
         }
         result
     }
@@ -2196,21 +2207,159 @@ pub fn already_running(config: &DaemonConfig) -> bool {
     UnixStream::connect(config.paths().sock).is_ok()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingGeneration {
+    pub pid: i32,
+    pub started: String,
+}
+
+pub struct SpawnLock(File);
+
+impl Drop for SpawnLock {
+    fn drop(&mut self) {
+        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+    }
+}
+
+pub fn spawn_lock(config: &DaemonConfig) -> Result<SpawnLock, String> {
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(config.paths().pid.with_extension("spawnlock"))
+        .map_err(|err| format!("open daemon spawn lock: {err}"))?;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+        return Err(format!(
+            "lock daemon spawn lock: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    Ok(SpawnLock(file))
+}
+
+pub fn process_start_fingerprint(pid: i32) -> Option<String> {
+    if pid <= 0 {
+        return None;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let raw = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+        return raw
+            .rsplit_once(") ")?
+            .1
+            .split_whitespace()
+            .nth(19)
+            .map(str::to_string);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("ps")
+            .args(["-o", "lstart=", "-p", &pid.to_string()])
+            .output()
+            .ok()?;
+        return output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+    #[allow(unreachable_code)]
+    None
+}
+
+pub fn publish_pending_generation(
+    config: &DaemonConfig,
+    pid: i32,
+) -> Result<PendingGeneration, String> {
+    let started = process_start_fingerprint(pid)
+        .ok_or_else(|| format!("cannot fingerprint daemon pid {pid}"))?;
+    let generation = PendingGeneration { pid, started };
+    let paths = config.paths();
+    let tmp = paths
+        .pid
+        .with_extension(format!("pid.{}.tmp", std::process::id()));
+    let content =
+        serde_json::to_vec(&json!({"pid": generation.pid, "started": generation.started}))
+            .map_err(|err| format!("serialize pending pid record: {err}"))?;
+    fs::write(&tmp, content).map_err(|err| format!("write pending pid record: {err}"))?;
+    fs::rename(&tmp, &paths.pid).map_err(|err| format!("publish pending pid record: {err}"))?;
+    Ok(generation)
+}
+
+pub fn pending_generation(config: &DaemonConfig) -> Result<Option<PendingGeneration>, String> {
+    let raw = match fs::read_to_string(config.paths().pid) {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(format!("read pid file: {err}")),
+    };
+    let record: Value = match serde_json::from_str(&raw) {
+        Ok(record) => record,
+        Err(_) => return Ok(None),
+    };
+    let Some(pid) = record
+        .get("pid")
+        .and_then(Value::as_i64)
+        .and_then(|pid| i32::try_from(pid).ok())
+    else {
+        return Ok(None);
+    };
+    let Some(started) = record
+        .get("started")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return Ok(None);
+    };
+    Ok(
+        (process_start_fingerprint(pid).as_deref() == Some(started.as_str()))
+            .then_some(PendingGeneration { pid, started }),
+    )
+}
+
 pub fn initialize_runtime_files(config: &DaemonConfig) -> Result<(), String> {
     let paths = config.paths();
     if let Some(parent) = paths.log.parent() {
         fs::create_dir_all(parent).map_err(|err| format!("create log dir: {err}"))?;
     }
     File::create(&paths.log).map_err(|err| format!("create log file: {err}"))?;
-    fs::write(&paths.pid, format!("{}", std::process::id()))
-        .map_err(|err| format!("write pid file: {err}"))?;
+    publish_pending_generation(config, std::process::id() as i32)?;
     Ok(())
 }
 
 pub fn cleanup_runtime_files(config: &DaemonConfig) {
     let paths = config.paths();
-    let _ = fs::remove_file(paths.pid);
-    let _ = fs::remove_file(paths.sock);
+    let own = process_start_fingerprint(std::process::id() as i32);
+    let record = fs::read_to_string(&paths.pid)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .and_then(|record| {
+            record
+                .get("started")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
+    if own.is_some() && own == record {
+        let _ = fs::remove_file(paths.pid);
+        let _ = fs::remove_file(paths.sock);
+    }
+}
+
+fn cleanup_generation_files(config: &DaemonConfig, expected: &PendingGeneration) {
+    if generation_record_matches(config, expected) {
+        let paths = config.paths();
+        let _ = fs::remove_file(paths.pid);
+        let _ = fs::remove_file(paths.sock);
+    }
+}
+
+fn generation_record_matches(config: &DaemonConfig, expected: &PendingGeneration) -> bool {
+    fs::read_to_string(config.paths().pid)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .is_some_and(|record| {
+            record.get("pid").and_then(Value::as_i64) == Some(i64::from(expected.pid))
+                && record.get("started").and_then(Value::as_str) == Some(expected.started.as_str())
+        })
 }
 
 pub fn log_tail(config: &DaemonConfig) -> Option<String> {
@@ -2230,14 +2379,46 @@ pub fn log_line(config: &DaemonConfig, message: &str) {
 }
 
 pub fn stop_best_effort(config: &DaemonConfig) -> Result<(), String> {
+    let ready = already_running(config);
+    let _lock = spawn_lock(config)?;
+    let expected = pending_generation(config)?;
     let _ = request_shutdown(config);
-    if let Some(pid) = read_pid(config)? {
-        if !wait_for_exit(pid, 75, Duration::from_millis(200))? {
-            terminate_process(pid)?;
+    if ready {
+        if let Some(generation) = expected.as_ref() {
+            if !wait_for_exit(generation.pid, 75, Duration::from_millis(200))? {
+                if pending_generation(config)? == Some(generation.clone()) {
+                    terminate_process(generation.pid)?;
+                }
+            }
+        }
+        if let Some(generation) = expected.as_ref() {
+            cleanup_generation_files(config, generation);
+        }
+    } else if let Some(generation) = expected {
+        if !already_running(config) && pending_generation(config)? == Some(generation.clone()) {
+            terminate_process(generation.pid)?;
+            if pending_generation(config)? == Some(generation.clone()) {
+                cleanup_generation_files(config, &generation);
+            }
         }
     }
-    cleanup_runtime_files(config);
     Ok(())
+}
+
+pub fn tab_marker_enabled() -> bool {
+    !std::env::var("BH_TAB_MARKER").ok().is_some_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "0" | "false" | "no" | "off"
+        )
+    })
+}
+
+fn detach_reports_missing_session(error: &str) -> bool {
+    matches!(
+        error,
+        "No session with given id" | "Session with given id not found"
+    )
 }
 
 pub async fn serve(config: &DaemonConfig) -> Result<(), String> {
@@ -2257,9 +2438,9 @@ pub async fn serve(config: &DaemonConfig) -> Result<(), String> {
         );
     }
     let (cdp, events_rx) = if is_local {
-        CdpClient::connect_with_timeout(url, 45).await?
-    } else {
         CdpClient::connect(url).await?
+    } else {
+        CdpClient::connect_with_timeout(url, 45).await?
     };
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
     let daemon = Daemon::new(config.clone(), cdp.clone(), shutdown_tx);
@@ -2689,14 +2870,6 @@ fn request_shutdown(config: &DaemonConfig) -> Result<(), String> {
     Ok(())
 }
 
-fn read_pid(config: &DaemonConfig) -> Result<Option<i32>, String> {
-    match fs::read_to_string(config.paths().pid) {
-        Ok(contents) => Ok(contents.trim().parse::<i32>().ok()),
-        Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
-        Err(err) => Err(format!("read pid file: {err}")),
-    }
-}
-
 fn wait_for_exit(pid: i32, polls: usize, interval: Duration) -> Result<bool, String> {
     for _ in 0..polls {
         if !process_exists(pid)? {
@@ -2742,11 +2915,13 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{
-        can_reuse_for_new_tab, create_target_params, encode_base64_standard, find_named_page,
-        is_inspect_tab, is_real_page, is_reusable_blank_page, is_reusable_new_tab_page, key_fields,
-        log_tail, png_dimensions_from_base64, press_key_effective_modifiers, push_event,
-        redact_cdp_endpoint, shrink_png_data_url, stop_best_effort, stop_remote, tab_summary,
-        DaemonConfig, DaemonState, MAX_SESSION_REPLACEMENTS,
+        can_reuse_for_new_tab, create_target_params, detach_reports_missing_session,
+        encode_base64_standard, find_named_page, is_inspect_tab, is_real_page,
+        is_reusable_blank_page, is_reusable_new_tab_page, key_fields, log_tail, pending_generation,
+        png_dimensions_from_base64, press_key_effective_modifiers, process_start_fingerprint,
+        publish_pending_generation, push_event, redact_cdp_endpoint, shrink_png_data_url,
+        stop_best_effort, stop_remote, tab_marker_enabled, tab_summary, DaemonConfig, DaemonState,
+        MAX_SESSION_REPLACEMENTS,
     };
 
     fn test_config(label: &str) -> DaemonConfig {
@@ -2755,6 +2930,42 @@ mod tests {
             .unwrap()
             .as_nanos();
         DaemonConfig::new(format!("test-{label}-{}-{now}", std::process::id()))
+    }
+
+    #[test]
+    fn tab_marker_default_and_opt_out_values_match_upstream() {
+        let previous = std::env::var_os("BH_TAB_MARKER");
+        std::env::remove_var("BH_TAB_MARKER");
+        assert!(tab_marker_enabled());
+        std::env::set_var("BH_TAB_MARKER", "enabled");
+        assert!(tab_marker_enabled());
+        for value in ["0", "false", "no", "off", "FALSE", "No", "OFF"] {
+            std::env::set_var("BH_TAB_MARKER", value);
+            assert!(!tab_marker_enabled(), "{value}");
+        }
+        if let Some(previous) = previous {
+            std::env::set_var("BH_TAB_MARKER", previous);
+        } else {
+            std::env::remove_var("BH_TAB_MARKER");
+        }
+    }
+
+    #[test]
+    fn transient_detach_ignores_only_chrome_missing_session_messages() {
+        assert!(detach_reports_missing_session("No session with given id"));
+        assert!(detach_reports_missing_session(
+            "Session with given id not found"
+        ));
+        assert!(!detach_reports_missing_session("Target closed"));
+    }
+
+    #[test]
+    fn pending_generation_is_fingerprinted_and_atomic() {
+        let config = test_config("generation");
+        let generation = publish_pending_generation(&config, std::process::id() as i32).unwrap();
+        assert_eq!(pending_generation(&config).unwrap(), Some(generation));
+        assert!(process_start_fingerprint(std::process::id() as i32).is_some());
+        let _ = fs::remove_file(config.paths().pid);
     }
 
     #[test]
@@ -2938,7 +3149,7 @@ mod tests {
     }
 
     #[test]
-    fn stop_best_effort_cleans_up_stale_runtime_files() {
+    fn stop_best_effort_preserves_unverifiable_legacy_ownership() {
         let config = test_config("cleanup");
         let paths = config.paths();
         fs::write(&paths.pid, "not-a-pid").unwrap();
@@ -2946,8 +3157,10 @@ mod tests {
 
         stop_best_effort(&config).unwrap();
 
-        assert!(!paths.pid.exists());
-        assert!(!paths.sock.exists());
+        assert!(paths.pid.exists());
+        assert!(paths.sock.exists());
+        let _ = fs::remove_file(paths.pid);
+        let _ = fs::remove_file(paths.sock);
     }
 
     #[test]

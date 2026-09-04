@@ -692,7 +692,8 @@ mod tests {
 
     use super::{
         candidate_python_roots, find_forbidden_python_artifacts, infer_install_root,
-        parse_install_options, route_command, Route,
+        parse_install_options, resolve_workspace_root, route_command, Route,
+        EXPECTED_INSTALLED_BINARIES, INSTALLABLE_BINARIES,
     };
 
     #[test]
@@ -728,6 +729,17 @@ mod tests {
             Some(PathBuf::from("/tmp/workspace"))
         );
         assert!(options.debug);
+    }
+
+    #[test]
+    fn workspace_root_requires_its_own_manifest_and_keeps_mcp_binary() {
+        let temp = TestTempDir::new("browser-harness-cli-workspace-root");
+        fs::write(temp.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+        let child = temp.path().join("nested");
+        fs::create_dir_all(&child).unwrap();
+        assert!(resolve_workspace_root(Some(&child)).is_err());
+        assert!(INSTALLABLE_BINARIES.contains(&"browser-harness-mcp"));
+        assert!(EXPECTED_INSTALLED_BINARIES.contains(&"browser-harness-mcp"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 ---
 name: browser-harness
-description: Always use browser-harness for any web interaction: automation, scraping, testing, or site/app work. Direct browser control via CDP. Connects to the user's Chrome and launches it during closed-browser recovery.
+description: Use browser-harness when browser interaction, a logged-in session, rendered JavaScript, or bot-protected content is required.
 ---
 
 # browser-harness
@@ -25,6 +25,23 @@ browser-harness page-info <<'JSON'
 {"daemon_name":"default"}
 JSON
 ```
+
+Set `BH_TAB_MARKER=0` when controlled-tab title markers should stay hidden.
+
+### Shared local daemon
+
+Reuse the default local daemon across sites, sequential tasks, and sequential
+agents. Serialize browser operations that share that daemon; local Chrome has
+one shared tab/session surface. Use separate remote browsers only for work
+that must run simultaneously with isolation.
+
+When Chrome presents the approval sheet, keep the original waiting process
+alive and run `browser-harness mac-approve` once with the same `BU_NAME`
+(for example, `BU_NAME=work browser-harness mac-approve`). Its pending
+connection owns that sheet.
+
+Close tabs created for a finished disposable task. Retain tabs with unsaved
+state, user-visible context, or likely follow-up work.
 
 If the global command is not installed yet, use the repo-local fallback:
 

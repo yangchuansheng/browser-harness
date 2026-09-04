@@ -110,6 +110,7 @@ pub fn default_browser_profiles() -> Vec<PathBuf> {
         home.join("Library/Application Support/Microsoft Edge Beta"),
         home.join("Library/Application Support/Microsoft Edge Dev"),
         home.join("Library/Application Support/Microsoft Edge Canary"),
+        home.join("Library/Application Support/BraveSoftware/Brave-Origin"),
         home.join("Library/Application Support/BraveSoftware/Brave-Browser"),
     ];
 
@@ -596,10 +597,11 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        browser_running_for_profile, cdp_url_launch_hint, config_dir, devtools_port_live,
-        get_ws_url, inspect_marker, is_internal_url, is_permission_blocked_error,
-        parse_http_endpoint, remote_debugging_toggle_profiles_in, remote_debugging_user_enabled_in,
-        runtime_paths, validate_runtime_name, windows_browser_profiles,
+        browser_running_for_profile, cdp_url_launch_hint, config_dir, default_browser_profiles,
+        devtools_port_live, get_ws_url, inspect_marker, is_internal_url,
+        is_permission_blocked_error, parse_http_endpoint, remote_debugging_toggle_profiles_in,
+        remote_debugging_user_enabled_in, runtime_paths, validate_runtime_name,
+        windows_browser_profiles,
     };
 
     fn env_lock() -> &'static Mutex<()> {
@@ -637,6 +639,14 @@ mod tests {
         assert_eq!(validate_runtime_name("work-1_ok"), Ok("work-1_ok"));
         assert!(validate_runtime_name("../bad").is_err());
         assert!(validate_runtime_name("").is_err());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_profiles_include_brave_origin() {
+        assert!(default_browser_profiles().iter().any(|path| {
+            path.ends_with("Library/Application Support/BraveSoftware/Brave-Origin")
+        }));
     }
 
     #[test]
