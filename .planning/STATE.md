@@ -5,16 +5,22 @@
 See: `.planning/PROJECT.md` (updated 2026-05-14)
 
 **Core value:** Preserve upstream Browser Harness behavior parity in the Rust architecture.
-**Current focus:** Daily upstream sync completed through `0c9b95ff6740556dd71d28f9422a953d203358af`.
+**Current focus:** Daily upstream sync completed through `10b2086c29f0696a6712956d2914e03012f5ebd0`.
 
 ## Current Status
 
+- 2026-09-05 sync migrated 46 upstream commits
+  (`0c9b95f..10b2086`) through Browser Harness 0.1.13.
+- Rust workspace version is `0.1.13`; lifecycle parity includes fingerprinted
+  single-flight approval ownership, exact pending cancellation, marker opt-out,
+  target-session detach precedence, and Brave Origin discovery.
+- Domain mapping covers 111/111 entries across current and legacy upstream
+  domain-skill roots.
+- Rust fmt/check/test/build, CLI and MCP smoke, audit/domain checks, diff checks,
+  and the exact-pattern sensitive fallback scan passed.
+- Implementation commits `2231901`, `d36db6d`, and `b3b67bb` are complete.
 - 2026-09-03 sync migrated 58 upstream commits (`41108b8..0c9b95f`), followed by
   a corrective parity audit for workspace versioning and printable-key Shift behavior.
-- Rust workspace version is `0.1.10`; workspace verification covers the current
-  daemon, CLI, MCP, domain, and WASM surfaces.
-- Domain mapping remains complete at 109/109 across current and legacy upstream
-  domain-skill roots.
 - 2026-08-16 sync migrated 21 upstream commits (`f5eaf90..6a80dbb`), including
   the macOS `mac-approve` helper and current upstream docs/demo asset.
 - Rust fmt/check/test, CLI smoke, diff checks, sensitive fallback scan, and
@@ -31,7 +37,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-14)
 
 ## Next Action
 
-Run the next daily upstream sync from target `0c9b95ff6740556dd71d28f9422a953d203358af`.
+Monitor `upstream/main` for commits after `10b2086c29f0696a6712956d2914e03012f5ebd0`.
 
 ## Blockers
 
@@ -41,6 +47,7 @@ None.
 
 | Date | Task | Status | Artifact |
 |---|---|---|---|
+| 2026-09-05 | Upstream sync through `10b2086` | complete | `.planning/quick/260905-4a0-sync-upstream-browser-harness-runtime-an/260905-4a0-SUMMARY.md` |
 | 2026-09-03 | Upstream sync through `0c9b95f` | complete | `.planning/quick/260903-480-browser-harness-upstream-sync-to-0c9b95f/SUMMARY.md` |
 | 2026-08-17 | Upstream sync through `41108b8` | complete | `.planning/quick/20260817-upstream-sync/SUMMARY.md` |
 | 2026-08-16 | Upstream sync through `6a80dbb` | complete | `.planning/quick/20260816-upstream-sync/SUMMARY.md` |
